@@ -1,6 +1,8 @@
 use crossterm::event::KeyCode;
 use ratatui::DefaultTerminal;
-use std::thread;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
+use std::thread::{self, JoinHandle};
 use std::{io, sync::mpsc};
 use crate::controller::get_handlers;
 use crate::ui;
@@ -43,6 +45,8 @@ pub struct App {
 
     rx: mpsc::Receiver<Event>,
     sx: mpsc::Sender<Event>,
+    threads: Vec<JoinHandle<()>>,
+    stop: Arc<AtomicBool>,
 }
 
 impl App {
@@ -59,6 +63,8 @@ impl App {
 
             rx,
             sx,
+            threads: Vec::new(),
+            stop: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -67,11 +73,11 @@ impl App {
         self.spawn_background();
 
         while !self.exit {
+            terminal.draw( |frame| ui::draw(frame, self))?;
             match self.rx.recv().unwrap() {
                 Event::KeyPress(key_event) => self.handle_input(key_event),           
                 _ => {}
             }
-            terminal.draw( |frame| ui::draw(frame, self))?;
         }
 
         Ok(())
@@ -91,14 +97,33 @@ impl App {
     }
 
     /// spawn the background threads (one for each handler)
+    ///TODO: find a way to stop the threads when the app exits.
     fn spawn_background(&mut self) {
         for handler in get_handlers() {
             let _sx = self.sx.clone();
-            thread::spawn(move || {
-                handler(_sx);
+            let _stop = self.stop.clone();
+            let _thread = thread::spawn(move || {
+                handler(_sx, _stop);
             });
+            self.threads.push(_thread);
         }
     }
 
+}
+
+
+
+impl Drop for App {
+    fn drop(&mut self) {
+        self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+
+        println!("Stopping threads...");
+        for handle in self.threads.drain(..) {
+            let _ = handle.join();
+        }
+
+        // sending a fake key input to stop the input handler (for now?)
+
+    }
 }
 
