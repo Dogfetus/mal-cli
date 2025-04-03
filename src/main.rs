@@ -2,23 +2,22 @@ mod app;
 mod ui;
 mod mal;
 mod models;
+mod controller;
+
 
 use std::io;
-
-use crate::{
-    app::{App, CurrentScreen, CurrentlyEditing},
-    ui::ui,
-};
+use crate::app::App;
 
 
 fn main() -> io::Result<()> {
 
-    let terminal = ratatui::init();
+    let mut terminal = ratatui::init();
     let mut app = App::new();
 
-    results = app.run(&terminal);
+    let results = app.run(&mut terminal);
 
     ratatui::restore();
-    reults
+    results
 
 }
+

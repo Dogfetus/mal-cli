@@ -8,6 +8,8 @@ mod info;
 mod list;
 mod profile;
 
+
+// when adding new screens add them here and also in the enum in app.rs
 pub fn draw(frame: &mut Frame, app: &App) { 
     match app.current_screen {
         CurrentScreen::Main => main::draw(frame, app),
@@ -15,18 +17,5 @@ pub fn draw(frame: &mut Frame, app: &App) {
         CurrentScreen::Manga => info::draw(frame, app),
         CurrentScreen::Info => info::draw(frame, app),
         CurrentScreen::Profile => profile::draw(frame, app),
-        _ => {},
     }
 }
-
-
-
-
-
-// pub const DRAW_FUNCTIONS: [DrawFn; 5] = [
-//     home::draw,
-//     info::draw,
-//     list::draw,
-//     profile::draw,
-//
-// ];

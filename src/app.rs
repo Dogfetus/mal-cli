@@ -1,8 +1,13 @@
+use crossterm::event::KeyCode;
 use ratatui::DefaultTerminal;
+use std::thread;
+use std::{io, sync::mpsc};
+use crate::controller::get_handlers;
 use crate::ui;
-use std::io;
 
 // store the screens the user is at.
+#[allow(dead_code)]
+#[derive(Debug)]
 pub enum CurrentScreen {
     Main,
     Anime,
@@ -12,11 +17,21 @@ pub enum CurrentScreen {
 }
 
 // here will all the details of a specific anime or manga be stored.
+#[allow(dead_code)]
 pub enum CurrentInfo {
     Anime,
     Manga,
 }
 
+
+#[allow(dead_code)]
+pub enum Event {
+    KeyPress(crossterm::event::KeyEvent),
+    MouseClick(crossterm::event::MouseEvent),
+}
+
+
+#[allow(dead_code)]
 pub struct App {
     pub key_input: String,              // the currently being edited json key.
     pub value_input: String,            // the currently being edited json value.
@@ -25,10 +40,15 @@ pub struct App {
     pub current_info: Option<CurrentInfo>,
 
     pub exit: bool,
+
+    rx: mpsc::Receiver<Event>,
+    sx: mpsc::Sender<Event>,
 }
 
 impl App {
     pub fn new() -> App {
+        let (sx, rx) = mpsc::channel::<Event>();
+
         App {
             key_input: String::new(),
             value_input: String::new(),
@@ -36,15 +56,48 @@ impl App {
             current_screen: CurrentScreen::Main,
             current_info: None,
             exit: false,
+
+            rx,
+            sx,
         }
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+        // run any background threads
+        self.spawn_background();
+
         while !self.exit {
+            match self.rx.recv().unwrap() {
+                Event::KeyPress(key_event) => self.handle_input(key_event),           
+                _ => {}
+            }
             terminal.draw( |frame| ui::draw(frame, self))?;
         }
 
         Ok(())
+    }
+
+    fn handle_input(&mut self, key_event: crossterm::event::KeyEvent) {
+        if key_event.kind != crossterm::event::KeyEventKind::Press {
+            return;
+        }
+
+        match key_event.code {
+            KeyCode::Char('q') => self.exit = true,
+            KeyCode::Char('a') => self.current_screen = CurrentScreen::Anime,
+            KeyCode::Char('m') => self.current_screen = CurrentScreen::Main,
+            _ => { return }
+        }
+    }
+
+    /// spawn the background threads (one for each handler)
+    fn spawn_background(&mut self) {
+        for handler in get_handlers() {
+            let _sx = self.sx.clone();
+            thread::spawn(move || {
+                handler(_sx);
+            });
+        }
     }
 
 }
