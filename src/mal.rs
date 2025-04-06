@@ -1,30 +1,20 @@
-use ureq::Agent;
-use std::{env, time::Duration};
+use ureq;
 use anyhow::Result;
 
-
-pub fn test() -> Result<String> {
-    let url = env::var("URL")?;
-
-    let config = Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(5)))
-        .build();
-
-    let agent: Agent = config.into();
+static BACKEND_URL: &str = "http://localhost:8000";
 
 
-    let body: String = agent.get(url)
+// TODO: add functionality to change port number for localhost
+fn get_oauth_url() -> Result<String> {
+    let full_url = format!("{}/oauth_url", BACKEND_URL); 
+    let url = ureq::get(&full_url)
         .call()?
         .body_mut()
         .read_to_string()?;
+    println!("get_oauth_url{}", url);
+    Ok(url)
+}
 
-
-    // Reuses the connection from previous request.
-    // let response: String = agent.put("http://example.com/upload")
-    //     .header("Authorization", "example-token")
-    //     .send("some body data")?
-    //     .body_mut()
-    //     .read_to_string()?;
-
-    Ok(body) 
+pub async fn oauth_login() {
+    get_oauth_url().unwrap();
 }

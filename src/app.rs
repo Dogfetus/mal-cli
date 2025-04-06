@@ -16,6 +16,7 @@ pub enum CurrentScreen {
     Manga,
     Info,
     Profile,
+    Settings,
 }
 
 // here will all the details of a specific anime or manga be stored.
@@ -72,6 +73,7 @@ impl App {
         // run any background threads
         self.spawn_background();
 
+        // WARNING: don't use just unwrap here
         while !self.exit {
             terminal.draw( |frame| ui::draw(frame, self))?;
             match self.rx.recv().unwrap() {
@@ -97,7 +99,7 @@ impl App {
     }
 
     /// spawn the background threads (one for each handler)
-    ///TODO: find a way to stop the threads when the app exits.
+    ///TODO: find a better way to stop the threads when the app exits.
     fn spawn_background(&mut self) {
         for handler in get_handlers() {
             let _sx = self.sx.clone();

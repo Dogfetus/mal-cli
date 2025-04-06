@@ -7,6 +7,7 @@ mod main;
 mod info;
 mod list;
 mod profile;
+mod settings;
 
 
 // when adding new screens add them here and also in the enum in app.rs
@@ -17,5 +18,6 @@ pub fn draw(frame: &mut Frame, app: &App) {
         CurrentScreen::Manga => info::draw(frame, app),
         CurrentScreen::Info => info::draw(frame, app),
         CurrentScreen::Profile => profile::draw(frame, app),
+        CurrentScreen::Settings => settings::draw(frame, app),
     }
 }

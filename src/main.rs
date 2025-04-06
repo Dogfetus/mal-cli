@@ -5,19 +5,28 @@ mod models;
 mod controller;
 
 
-use std::io;
+
 use crate::app::App;
+use anyhow::Result;
 
 
-fn main() -> io::Result<()> {
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // load .env
+
 
     let mut terminal = ratatui::init();
     let mut app = App::new();
-
-    let results = app.run(&mut terminal);
-
+    app.run(&mut terminal)?;
     ratatui::restore();
-    results
+
+    mal::oauth_login().await;
+
+    Ok(())
 
 }
+
+
+
 

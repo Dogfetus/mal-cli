@@ -1,0 +1,13 @@
+[package]
+name = "server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.97"
+dotenvy = "0.15.7"
+oauth2 = "5.0.0"
+pkce = "0.2.0"
+rand = "0.9.0"
+rouille = "3.6.2"
+ureq = "3.0.10"

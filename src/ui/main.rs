@@ -8,7 +8,7 @@ pub fn draw(frame: &mut Frame, app: &crate::app::App) {
 
     let size = frame.area();
     let block = widgets::Block::default()
-        .title("Main page:")
+        .title("Main YP page:")
         .borders(widgets::Borders::ALL);
     let list = widgets::List::new(vec![
         widgets::ListItem::new("Anime 1"),
