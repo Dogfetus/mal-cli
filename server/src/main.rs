@@ -56,6 +56,34 @@ impl MalAgent {
 
         Ok(response)
     }
+
+    fn get_oauth_url(&self) -> Result<String> {
+        const URL: &str = "https://myanimelist.net/v1/oauth2/authorize";
+
+        let mut rng = rand::rng();
+        let n: usize = rng.random_range(48..=128);
+        let csr = CsrfToken::new_random();
+        let state = csr.secret().to_string();
+        let code_verify = pkce::code_verifier(n);
+        let code_challenge = pkce::code_challenge(&code_verify);
+
+        let url = format!("{}?\
+                response_type=code\
+                &client_id={}\
+                &state={}\
+                &code_challenge={}\
+                &code_challenge_method=plain\
+                &redirect_uri={}
+            ",
+            URL,
+            self.client_id,
+            state,
+            code_challenge,
+            self.redirect_url
+        );
+
+        Ok(url)
+    }
 }
 
 
@@ -91,30 +119,7 @@ fn main() {
             },
 
             (GET) (/oauth_url) => {
-                const URL: &str = "https://myanimelist.net/v1/oauth2/authorize";
-
-                let mut rng = rand::rng();
-                let n: usize = rng.random_range(48..=128);
-                let csr = CsrfToken::new_random();
-                let state = csr.secret().to_string();
-                let code_verify = pkce::code_verifier(n);
-                let code_challenge = pkce::code_challenge(&code_verify);
-
-                let url = format!("{}?\
-                        response_type=code\
-                        &client_id={}\
-                        &state={}\
-                        &code_challenge={}\
-                        &code_challenge_method=plain\
-                        &redirect_uri={}
-                    ",
-                    URL,
-                    mal_agent.client_id,
-                    state,
-                    code_challenge,
-                    mal_agent.redirect_url
-                );
-
+                let url = mal_agent.get_oauth_url().unwrap();
                 rouille::Response::text(url)
             },
 
