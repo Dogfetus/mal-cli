@@ -4,14 +4,24 @@ extern crate rouille;
 extern crate pkce;
 
 use ureq::Agent;
-use std::{env, time::Duration};
+use std::{collections::HashMap, env, time::Duration};
 use anyhow::Result;
 use oauth2::CsrfToken;
 use rand::Rng;
+use std::time::Instant;
+use std::sync::{Arc, Mutex};
+
 
 struct ExpectedBody {
     code: String,
-    code_verifier: String,
+    state: String,
+}
+
+//:TODO: DELETE THIS AFTER 5 MINUTES
+struct Data {
+    code_challenge: String,
+    port: u16,
+    timestamp: Instant,
 }
 
 struct MalAgent {
@@ -20,6 +30,7 @@ struct MalAgent {
     client_id: String,
     client_secret: String,
     redirect_url: String,
+    temp_storage: HashMap<String, Data>,
 }
 
 impl MalAgent {
@@ -33,18 +44,28 @@ impl MalAgent {
         let client_id = env::var("MAL_CLIENT_ID").unwrap();
         let client_secret = env::var("MAL_CLIENT_SECRET").unwrap();
         let redirect_url = env::var("MAL_REDIRECT_URL").unwrap();
+        let temp_storage = HashMap::new();
 
-        MalAgent { url, agent, client_id, client_secret, redirect_url }
+        MalAgent { url, agent, client_id, client_secret, redirect_url, temp_storage }
     }
 
-    fn get_user_tokens(&self, data: ExpectedBody) -> Result<String> {
+    fn get_user_tokens(&self, data: &ExpectedBody) -> Result<String> {
+        let storage = match self.temp_storage.get(&data.state){
+            Some(storage) => storage,
+            None => {
+                println!("No data found for state: {}", data.state);
+                return Err(anyhow::anyhow!("No data found for state"));
+            }
+        };
+
+
         let body = [
             ("client_id", self.client_id.as_str()),
             ("client_secret", self.client_secret.as_str()),
             ("grant_type", "authorization_code"),
             ("code", data.code.as_str()),
             ("redirect_uri", self.redirect_url.as_str()),
-            ("code_verifier", data.code_verifier.as_str()),
+            ("code_verifier", storage.code_challenge.as_str()),
         ];
 
 
@@ -53,11 +74,12 @@ impl MalAgent {
             .body_mut()
             .read_to_string()?;
 
+        println!("response: {}", response);
 
         Ok(response)
     }
 
-    fn get_oauth_url(&self) -> Result<String> {
+    fn get_oauth_url(&self) -> Result<(String, String, String)> {
         const URL: &str = "https://myanimelist.net/v1/oauth2/authorize";
 
         let mut rng = rand::rng();
@@ -82,50 +104,134 @@ impl MalAgent {
             self.redirect_url
         );
 
-        Ok(url)
+        Ok((url, state, code_challenge))
+    }
+
+    fn save_data(&mut self, state: String, code_challenge: String, port: u16) {
+        let data = Data {
+            code_challenge, 
+            port,
+            timestamp: Instant::now(),
+        };
+
+        self.temp_storage.insert(state, data);
+    }
+
+    fn remove_data(&mut self, state: &String) {
+        self.temp_storage.remove(state);
+    }
+
+    fn handle_token_response(&mut self, result: Result<String>, data: &ExpectedBody) -> (String, u16) {
+        match result {
+            Ok(response) => {
+                let port = self.temp_storage[&data.state].port;
+                let local_url = format!("http://localhost:{}/callback", port);
+                let json: serde_json::Value = match serde_json::from_str(&response) {
+                    Ok(json) => json,
+                    Err(_) => {
+                        return ("Invalid JSON response".to_string(), 500) 
+                    }
+                };
+                let token = match json["access_token"].as_str() {
+                    Some(token) => token,
+                    None => {
+                        return ("Missing access_token".to_string(), 500) 
+                    }
+                };
+                let refresh_token = match json["refresh_token"].as_str() {
+                    Some(token) => token,
+                    None => {
+                        return ("Missing refresh_token".to_string(), 500) 
+                    }
+                };
+                let expires_in = match json["expires_in"].as_u64() {
+                    Some(token) => token,
+                    None => {
+                        return ("Missing expires_in".to_string(), 500) 
+                    }
+                };
+
+
+                self.remove_data(&data.state);
+
+                // hmmmm>
+                let mut html_content = match std::fs::read_to_string("templates/success.html") {
+                    Ok(content) => content,
+                    Err(_) => return ("Failed to read template".to_string(), 500) 
+                };
+                html_content = html_content.replace("{{redirect_url}}", &local_url)
+                                        .replace("{{access_token}}", &token)
+                                        .replace("{{refresh_token}}", &refresh_token)
+                                        .replace("{{expires_in}}", &expires_in.to_string());
+
+                return (html_content, 200)
+            }
+
+
+            //ERROR: s  
+            Err(e) => {
+                let mut html_content = match std::fs::read_to_string("templates/error.html") {
+                    Ok(content) => content,
+                    Err(_) => return ("Failed to read template".to_string(), 400)
+                };
+
+                html_content = html_content.replace("{{error}}", &e.to_string());
+                return (html_content, 500)
+            }
+        }
     }
 }
 
 
+
+// TODO: need proper error handling
 fn main() {
     dotenvy::dotenv().ok();
 
     let mal_url = "https://myanimelist.net/v1/oauth2/token".to_string();
-    let mal_agent = MalAgent::new(mal_url);
+    let mal_agent = Arc::new(Mutex::new(MalAgent::new(mal_url)));
 
     println!("Now listening on localhost:8000");
 
     rouille::start_server("0.0.0.0:8000", move |request| {
         router!(request,
             (GET) (/) => {
-                rouille::Response::redirect_302("/hello")
-            },
-
-            (POST) (/auth/token) => {
-                let data = try_or_400!(post_input!(request, {
-                    code: String,
-                    code_verifier: String,
-                }));
-
-                // idk if rouille can do this automatically
-                // TODO: check this later
-                let info = ExpectedBody {
-                    code: data.code,
-                    code_verifier: data.code_verifier,
-                };
-
-                mal_agent.get_user_tokens(info).unwrap();
                 rouille::Response::text("hello")
             },
 
-            (GET) (/oauth_url) => {
-                let url = mal_agent.get_oauth_url().unwrap();
+
+
+            (POST) (/oauth_url) => {
+                let data = try_or_400!(post_input!(request, {
+                    port: u16,
+                }));
+                let mut guard = mal_agent.lock().unwrap();
+                let (url, state, code_challenge) = guard.get_oauth_url().unwrap();
+
+                guard.save_data(state, code_challenge, data.port);
                 rouille::Response::text(url)
+            },
+
+
+
+            (GET) (/callback) => {
+                let mut guard = mal_agent.lock().unwrap();
+                let code = match request.get_param("code") {
+                    Some(code) => code,
+                    None => return rouille::Response::text("Missing code parameter").with_status_code(400)
+                };
+                let state = match request.get_param("state") {
+                    Some(state) => state,
+                    None => return rouille::Response::text("Missing state parameter").with_status_code(400)
+                };
+                let info = ExpectedBody { code, state };
+                let result = guard.get_user_tokens(&info);
+                let (html, status_code) = guard.handle_token_response(result, &info);
+
+                rouille::Response::html(html).with_status_code(status_code)
             },
 
             _ => rouille::Response::empty_404()
         )
     });
 }
-
-

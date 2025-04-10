@@ -19,3 +19,5 @@ tachyonfx = "0.13.0"
 ureq = "3.0.10"
 viuer = "0.9.1"
 tokio = { version = "1", features = ["full"] }
+rouille = "3.6.2"
+url = "2.5.4"

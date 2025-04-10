@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Authentication Complete</title>
+        <style>
+            body { font-family: sans-serif; text-align: center; margin-top: 50px; }
+            .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; 
+                    border-radius: 50%; width: 20px; height: 20px; 
+                    animation: spin 2s linear infinite; margin: 20px auto; }
+            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        </style>
+    </head>
+    <body>
+        <h2>Authentication Successful</h2>
+        <div class="loader"></div>
+        <p>Returning to application...</p>
+        
+        <form id="redirectForm" method="POST" action="{{redirect_url}}">
+            <input type="hidden" name="access_token" value="{{access_token}}">
+            <input type="hidden" name="refresh_token" value="{{refresh_token}}">
+            <input type="hidden" name="expires_in" value="{{expires_in}}">
+        </form>
+        
+        <script>
+            // Submit form immediately
+            document.getElementById('redirectForm').submit();
+        </script>
+    </body>
+</html>

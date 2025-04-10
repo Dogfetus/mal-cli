@@ -1309,6 +1309,8 @@ dependencies = [
  "pkce",
  "rand 0.9.0",
  "rouille",
+ "serde",
+ "serde_json",
  "ureq",
 ]
 
