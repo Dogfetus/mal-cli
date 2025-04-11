@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
     app.run(&mut terminal)?;
     ratatui::restore();
 
-    mal::oauth_login().await;
+    mal::init_oauth();
 
     Ok(())
 

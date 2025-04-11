@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 use std::sync::{Arc, Mutex};
 use rand::Rng;
 use std::thread;
+use std::io::Write;
 
 const STATE_LIFETIME: u64 = 300; // 5 minutes
 const CLEANUP_INTERVAL: u64 = 30; // 30 seconds
@@ -217,10 +218,11 @@ fn main() {
             thread::sleep(Duration::from_secs(CLEANUP_INTERVAL));
             if let Ok(mut guard) = cleanup_agent.lock() {
                 let removed = guard.cleanup_expired_data(max_age);
-                print!("\r\x1B[KCleaned up {} expired states, {} states remaining",
+                println!("Cleaned up {} expired states, {} states remaining",
                     removed, 
                     guard.temp_storage.len()
                 );
+                std::io::stdout().flush().unwrap();
             }
         }
     });
