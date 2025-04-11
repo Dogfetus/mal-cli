@@ -4,12 +4,16 @@ extern crate rouille;
 extern crate pkce;
 
 use ureq::Agent;
-use std::{collections::HashMap, env, time::Duration};
+use std::{collections::HashMap, env};
 use anyhow::Result;
 use oauth2::CsrfToken;
-use rand::Rng;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::sync::{Arc, Mutex};
+use rand::Rng;
+use std::thread;
+
+const STATE_LIFETIME: u64 = 300; // 5 minutes
+const CLEANUP_INTERVAL: u64 = 30; // 30 seconds
 
 
 struct ExpectedBody {
@@ -74,8 +78,6 @@ impl MalAgent {
             .body_mut()
             .read_to_string()?;
 
-        println!("response: {}", response);
-
         Ok(response)
     }
 
@@ -119,6 +121,21 @@ impl MalAgent {
 
     fn remove_data(&mut self, state: &String) {
         self.temp_storage.remove(state);
+    }
+
+    fn cleanup_expired_data(&mut self, max_age: Duration) -> usize {
+        let now = Instant::now();
+        let expired_keys: Vec<String> = self.temp_storage
+            .iter()
+            .filter(|(_, data)| now.duration_since(data.timestamp) > max_age)
+            .map(|(key, _)| key.clone())
+            .collect();
+
+        let count = expired_keys.len();
+        for key in expired_keys {
+            self.temp_storage.remove(&key);
+        }
+        count
     }
 
     fn handle_token_response(&mut self, result: Result<String>, data: &ExpectedBody) -> (String, u16) {
@@ -184,15 +201,33 @@ impl MalAgent {
 
 
 
-// TODO: need proper error handling
+// TODO: check for different errors (unexpected input)
 fn main() {
     dotenvy::dotenv().ok();
 
     let mal_url = "https://myanimelist.net/v1/oauth2/token".to_string();
     let mal_agent = Arc::new(Mutex::new(MalAgent::new(mal_url)));
+    let cleanup_agent = Arc::clone(&mal_agent);
 
+
+    // cleanup thread
+    thread::spawn(move || {
+        let max_age = Duration::from_secs(STATE_LIFETIME);
+        loop {
+            thread::sleep(Duration::from_secs(CLEANUP_INTERVAL));
+            if let Ok(mut guard) = cleanup_agent.lock() {
+                let removed = guard.cleanup_expired_data(max_age);
+                println!("Cleaned up {} expired states, {} states remaining", 
+                    removed, 
+                    guard.temp_storage.len()
+                );
+            }
+        }
+    });
+
+
+    // server
     println!("Now listening on localhost:8000");
-
     rouille::start_server("0.0.0.0:8000", move |request| {
         router!(request,
             (GET) (/) => {
@@ -227,11 +262,16 @@ fn main() {
                 let info = ExpectedBody { code, state };
                 let result = guard.get_user_tokens(&info);
                 let (html, status_code) = guard.handle_token_response(result, &info);
+                
+                if status_code == 200 {
+                    println!("Successfull login");
+                }
 
                 rouille::Response::html(html).with_status_code(status_code)
             },
 
-            _ => rouille::Response::empty_404()
+            _ => rouille::Response::text("Nothing here...").with_status_code(404)
+        // 
         )
     });
 }
