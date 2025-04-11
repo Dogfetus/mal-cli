@@ -12,6 +12,7 @@ RUN useradd -m appuser
 WORKDIR /app
 
 COPY --from=builder /app/target/release/server /app/server
+COPY --from=builder /app/templates /app/templates
 
 USER appuser
 

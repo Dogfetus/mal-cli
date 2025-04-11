@@ -174,7 +174,7 @@ impl MalAgent {
                 // hmmmm>
                 let mut html_content = match std::fs::read_to_string("templates/success.html") {
                     Ok(content) => content,
-                    Err(_) => return ("Failed to read template".to_string(), 500) 
+                    Err(_) => return ("Failed to read template".to_string(), 400) 
                 };
                 html_content = html_content.replace("{{redirect_url}}", &local_url)
                                         .replace("{{access_token}}", &token)
@@ -217,7 +217,7 @@ fn main() {
             thread::sleep(Duration::from_secs(CLEANUP_INTERVAL));
             if let Ok(mut guard) = cleanup_agent.lock() {
                 let removed = guard.cleanup_expired_data(max_age);
-                println!("Cleaned up {} expired states, {} states remaining", 
+                print!("\r\x1B[KCleaned up {} expired states, {} states remaining",
                     removed, 
                     guard.temp_storage.len()
                 );

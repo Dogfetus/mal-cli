@@ -9,8 +9,7 @@ use rouille::post_input;
 
 
 
-// static BACKEND_URL: &str = "https://mal-cli.dogfetus.no";
-static BACKEND_URL: &str = "http://localhost:8000";
+static BACKEND_URL: &str = "https://mal-cli.dogfetus.no";
 
 
 //TODO: SEND PORT TO BACKEND 
