@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.97"
+chrono = "0.4.40"
 dotenvy = "0.15.7"
 oauth2 = "5.0.0"
 pkce = "0.2.0"

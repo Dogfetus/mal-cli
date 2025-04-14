@@ -4,6 +4,7 @@ extern crate rouille;
 extern crate pkce;
 
 use ureq::Agent;
+use chrono::Local;
 use std::{collections::HashMap, env};
 use anyhow::Result;
 use oauth2::CsrfToken;
@@ -22,7 +23,6 @@ struct ExpectedBody {
     state: String,
 }
 
-//:TODO: DELETE THIS AFTER 5 MINUTES
 struct Data {
     code_challenge: String,
     port: u16,
@@ -218,7 +218,9 @@ fn main() {
             thread::sleep(Duration::from_secs(CLEANUP_INTERVAL));
             if let Ok(mut guard) = cleanup_agent.lock() {
                 let removed = guard.cleanup_expired_data(max_age);
-                println!("Cleaned up {} expired states, {} states remaining",
+                let now = Local::now().format("%Y-%m-%d %H:%M:%S");
+                println!("[{}] Cleaned up {} expired states, {} states remaining",
+                    now,
                     removed, 
                     guard.temp_storage.len()
                 );
