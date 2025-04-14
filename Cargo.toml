@@ -21,3 +21,4 @@ viuer = "0.9.1"
 tokio = { version = "1", features = ["full"] }
 rouille = "3.6.2"
 url = "2.5.4"
+open = "5.3.2"
