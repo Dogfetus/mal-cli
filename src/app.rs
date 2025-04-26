@@ -11,12 +11,13 @@ use crate::ui;
 #[allow(dead_code)]
 #[derive(Debug)]
 pub enum CurrentScreen {
-    Main,
+    Launch,
     Anime,
     Manga,
     Info,
     Profile,
     Settings,
+    Overview,
 }
 
 // here will all the details of a specific anime or manga be stored.
@@ -42,7 +43,7 @@ pub struct App {
     pub current_screen: CurrentScreen,
     pub current_info: Option<CurrentInfo>,
 
-    pub exit: bool,
+    pub is_running: bool,
 
     rx: mpsc::Receiver<Event>,
     sx: mpsc::Sender<Event>,
@@ -58,9 +59,9 @@ impl App {
             key_input: String::new(),
             value_input: String::new(),
 
-            current_screen: CurrentScreen::Main,
+            current_screen: CurrentScreen::Launch,
             current_info: None,
-            exit: false,
+            is_running: true,
 
             rx,
             sx,
@@ -74,7 +75,7 @@ impl App {
         self.spawn_background();
 
         // WARNING: don't use just unwrap here
-        while !self.exit {
+        while self.is_running {
             terminal.draw( |frame| ui::draw(frame, self))?;
             match self.rx.recv().unwrap() {
                 Event::KeyPress(key_event) => self.handle_input(key_event),           
@@ -91,9 +92,9 @@ impl App {
         }
 
         match key_event.code {
-            KeyCode::Char('q') => self.exit = true,
+            KeyCode::Char('q') => self.is_running = false,
             KeyCode::Char('a') => self.current_screen = CurrentScreen::Anime,
-            KeyCode::Char('m') => self.current_screen = CurrentScreen::Main,
+            KeyCode::Char('m') => self.current_screen = CurrentScreen::Launch,
             _ => { return }
         }
     }

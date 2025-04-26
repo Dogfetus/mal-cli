@@ -20,9 +20,20 @@ pub fn input_handler(sx: mpsc::Sender<Event>, stop: Arc<AtomicBool>) {
                     }
                 }
                 crossterm::event::Event::Mouse(mouse_event) => {
-                    sx.send(Event::MouseClick(mouse_event)).unwrap();
+                    match mouse_event.kind {
+                        crossterm::event::MouseEventKind::Down(_) | 
+                        crossterm::event::MouseEventKind::Up(_) |
+                        crossterm::event::MouseEventKind::Drag(_) => {
+                            sx.send(Event::MouseClick(mouse_event)).unwrap();
+
+                            // sx.send(Event::MousePosition(x, y, mouse_event.kind)).unwrap();??
+                        }
+                        _ => {}
+                    }
                 }
-                _ => {}
+
+                _ => {
+                }
             }
         }
     }

@@ -3,6 +3,7 @@ use std::fs;
 
 //TODO: idk where to place this callback function 
 //TODO: should this be oauth login or just login with options?
+//TODO: startup screen should include an option to signin or not (or profile side)
 //TODO: encrypt the tokens somehow
 //TODO: check if the tokens exists before trying to login 
 //TODO: read the tokens to memory, and start using them to request data (using some mal api wrapper)
