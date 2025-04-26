@@ -31,3 +31,12 @@ pub fn draw(frame: &mut Frame, app: &App) {
         _ => launch::draw(frame, app), 
     }
 }
+
+
+
+// pub trait Screen {
+//     fn draw(&self, frame: &mut Frame, app: &App);
+//     fn handle_input(&mut self, app: &mut App);
+//     fn update(&mut self, app: &mut App);
+//     fn render(&self, frame: &mut Frame, app: &App);
+// }
