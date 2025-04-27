@@ -1,7 +1,8 @@
 use ratatui::Frame;
+use crate::app::{App, Action};
+use std::collections::HashMap;
+use std::sync::OnceLock; 
 
-use crate::app::App;
-use crate::app::CurrentScreen;
 
 mod launch;
 mod info;
@@ -9,34 +10,37 @@ mod list;
 mod profile;
 mod settings;
 mod overview;
+mod widgets;
+mod login;
 
-
+static SCREENS: OnceLock<HashMap<String, Box<dyn Screen>>> = OnceLock::new();
 
 // TODO: make these screens structs and implement the trait for them.
 // TODO: they should take care of their own buttons and such
-// TODO: instead of mapping each screen, figure out how to do currentscreen.render with traits
-// TODO: https://claude.ai/chat/90b1b44c-d63a-4589-8228-86573cc1c23f <- this 
-// when adding new screens add them here and also in the enum in app.rs
-pub fn draw(frame: &mut Frame, app: &App) { 
+// when adding new screens add them in get_screen then just call get_screen when you need to draw them
 
-    #[allow(unreachable_patterns)]
-    match app.current_screen {
-        CurrentScreen::Launch => launch::draw(frame, app),
-        CurrentScreen::Anime => info::draw(frame, app),
-        CurrentScreen::Manga => info::draw(frame, app),
-        CurrentScreen::Info => info::draw(frame, app),
-        CurrentScreen::Profile => profile::draw(frame, app),
-        CurrentScreen::Settings => settings::draw(frame, app),
-        CurrentScreen::Overview => overview::draw(frame, app),
-        _ => launch::draw(frame, app), 
+#[allow(dead_code, unused_variables)]
+pub trait Screen: Send + Sync {
+    fn draw(&self, frame: &mut Frame, app: &App);
+    fn handle_input(&mut self, key_event: crossterm::event::KeyEvent) -> Option<Action> {None}
+
+    // TODO: you are tying to save the state of the screen and retreive it if it exists, 
+    // right now the clone_box function is needed for save cloning even if only one
+    // but this needs to be implemented for each screens, unless default is used, idk if that can
+    // be done
+    // here https://claude.ai/chat/51e961cd-bb71-4202-a1d7-3247fdd33666
+    fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {}
+}
+
+pub fn get_screen(screen_name: &str) -> Box<dyn Screen> {
+    match screen_name {
+        "Anime" => Box::new(info::InfoPage{}),
+        "Manga" => Box::new(info::InfoPage{}),
+        "Login" => Box::new(login::LoginPage::new()),
+        _ => Box::new(launch::LaunchPage::new()),
     }
 }
 
-
-
-// pub trait Screen {
-//     fn draw(&self, frame: &mut Frame, app: &App);
-//     fn handle_input(&mut self, app: &mut App);
-//     fn update(&mut self, app: &mut App);
-//     fn render(&self, frame: &mut Frame, app: &App);
-// }
+pub fn default() -> Box<dyn Screen> {
+    get_screen("launch")
+}

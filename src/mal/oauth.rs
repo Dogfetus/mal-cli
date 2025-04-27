@@ -1,5 +1,6 @@
 #![allow(unreachable_code)]
 use std::sync::mpsc::{self};
+use std::thread::JoinHandle;
 use std::time::Duration;
 use rouille::try_or_400;
 use rouille::post_input;
@@ -16,14 +17,16 @@ const BACKEND_URL: &str = "https://mal-cli.dogfetus.no";
 
 
 
-pub fn oauth_login<F>(callback: F) 
+pub fn oauth_login<F>(callback: F) -> (String, JoinHandle<()>)
 where
     F: FnOnce(String, String, String) -> Result<()> + Send + Sync + 'static + Copy
 {
     if let Some((port, joinable)) = start_callback_server(callback) {
-        let _url = get_oauth_url(port).expect("Can't connect to backend");
-        joinable.join().unwrap();
-    } 
+        let url = get_oauth_url(port).expect("Can't connect to backend");
+        (url, joinable)
+    } else {
+        panic!("Failed to start callback server");
+    }
 }
 
 

@@ -8,27 +8,28 @@ use ratatui::{
     Frame, 
 };
 use crossterm::event::{KeyCode, KeyEvent};
+use crate::mal; 
 
 
-pub struct LaunchPage { 
+pub struct LoginPage { 
     selected_button: usize,
     buttons: Vec<&'static str>,
 }
 
-impl LaunchPage {
+impl LoginPage {
     pub fn new() -> Self {
         Self {
             selected_button: 0,
             buttons: vec![
-                "Browse",
-                "Log in",
-                "Exit",
+                "Copy",
+                "Paste",
+                "Back",
             ],
         }
     }
 }
 
-impl Screen for LaunchPage {
+impl Screen for LoginPage {
     #[allow(unused)]
     fn draw(&self, frame: &mut Frame, app: &App) {
         let area = frame.area();
@@ -38,8 +39,8 @@ impl Screen for LaunchPage {
         let page_chunk = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Percentage(50),
-            Constraint::Percentage(50),
+            Constraint::Percentage(65),
+            Constraint::Percentage(35),
         ])
         .split(area);
 
@@ -53,27 +54,22 @@ impl Screen for LaunchPage {
 
 
         let header_text = vec![
-            " ███╗   ███╗ █████╗ ██╗                ██████╗██╗     ██╗ ",
-            " ████╗ ████║██╔══██╗██║               ██╔════╝██║     ██║ ",
-            " ██╔████╔██║███████║██║     ███████╗  ██║     ██║     ██║ ",
-            " ██║╚██╔╝██║██╔══██║██║     ╚══════╝  ██║     ██║     ██║ ",
-            " ██║ ╚═╝ ██║██║  ██║███████╗          ╚██████╗███████╗██║ ",
-            " ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝           ╚═════╝╚══════╝╚═╝ ",
         ];
 
         let alpha = Paragraph::new(header_text.join("\n"))
         .style(Style::default().fg(Color::Cyan))
         .alignment(Alignment::Center);
 
-        frame.render_widget(alpha, centeded_chunk[1]);
+        frame.render_widget(alpha, area);
 
         for (i, button) in self.buttons.iter().enumerate() {
             Button::new(button)
-                .offset((0, -1 + (-3)*(self.buttons.len() as i16)/2 + (i as i16 * 3)))
-                .center()
+                .offset((0, -1 + (i as i16 * 3)))
+                .center_x()
                 .selected(i == self.selected_button)
                 .render(frame, page_chunk[1]);
         }
+
 
     }
 
@@ -91,10 +87,7 @@ impl Screen for LaunchPage {
             }
             KeyCode::Enter => {
                 match self.selected_button {
-                    0 => return Some(Action::SwitchScreen("Anime")),
-                    1 => return Some(Action::SwitchScreen("Login")),
-                    2 => return Some(Action::Quit),
-                    _ => {}
+                    _ => { return Some(Action::SwitchScreen("Launch")); }
                 }
             }
             _ => {} 

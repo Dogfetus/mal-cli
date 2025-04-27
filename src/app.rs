@@ -7,17 +7,22 @@ use std::{io, sync::mpsc};
 use crate::controller::get_handlers;
 use crate::ui;
 
-// store the screens the user is at.
-#[allow(dead_code)]
-#[derive(Debug)]
-pub enum CurrentScreen {
-    Launch,
-    Anime,
-    Manga,
-    Info,
-    Profile,
-    Settings,
-    Overview,
+// // store the screens the user is at.
+// #[allow(dead_code)]
+// #[derive(Debug)]
+// pub enum CurrentScreen {
+//     Launch,
+//     Anime,
+//     Manga,
+//     Info,
+//     Profile,
+//     Settings,
+//     Overview,
+// }
+
+pub enum Action {
+    SwitchScreen(&'static str),
+    Quit,
 }
 
 // here will all the details of a specific anime or manga be stored.
@@ -40,7 +45,7 @@ pub struct App {
     pub key_input: String,              // the currently being edited json key.
     pub value_input: String,            // the currently being edited json value.
 
-    pub current_screen: CurrentScreen,
+    pub current_screen: Box<dyn ui::Screen>,
     pub current_info: Option<CurrentInfo>,
 
     pub is_running: bool,
@@ -59,7 +64,7 @@ impl App {
             key_input: String::new(),
             value_input: String::new(),
 
-            current_screen: CurrentScreen::Launch,
+            current_screen: ui::default(),
             current_info: None,
             is_running: true,
 
@@ -76,7 +81,7 @@ impl App {
 
         // WARNING: don't use just unwrap here
         while self.is_running {
-            terminal.draw( |frame| ui::draw(frame, self))?;
+            terminal.draw( |frame| self.current_screen.draw(frame, self))?;
             match self.rx.recv().unwrap() {
                 Event::KeyPress(key_event) => self.handle_input(key_event),           
                 _ => {}
@@ -91,16 +96,32 @@ impl App {
             return;
         }
 
+        let result = self.current_screen.handle_input(key_event);
+        if let Some(action) = result {
+            match action {
+                Action::SwitchScreen(screen_name) => {
+                    self.current_screen = ui::get_screen(screen_name);
+                }
+                Action::Quit => {
+                    self.is_running = false;
+                }
+            }
+        }
+
         match key_event.code {
-            KeyCode::Char('q') => self.is_running = false,
-            KeyCode::Char('a') => self.current_screen = CurrentScreen::Anime,
-            KeyCode::Char('m') => self.current_screen = CurrentScreen::Launch,
+            KeyCode::Char('c') if key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+                self.is_running = false
+            },
+            KeyCode::Char('a') => self.current_screen = ui::get_screen("Anime"),
+            KeyCode::Char('m') => self.current_screen = ui::get_screen("Manga"),
+            KeyCode::Char('l') => self.current_screen = ui::default(),
             _ => { return }
         }
     }
 
     /// spawn the background threads (one for each handler)
-    ///TODO: find a better way to stop the threads when the app exits.
+    ///TODO: find a better way to stop the threads when the app exits
+    // TODO: the keyhandler thread waits for input after stopping the app 
     fn spawn_background(&mut self) {
         for handler in get_handlers() {
             let _sx = self.sx.clone();

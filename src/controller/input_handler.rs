@@ -14,7 +14,8 @@ pub fn input_handler(sx: mpsc::Sender<Event>, stop: Arc<AtomicBool>) {
 
                     // handle quit  TODO: (change to something better)
                     if key_event.kind == crossterm::event::KeyEventKind::Press &&
-                        key_event.code == crossterm::event::KeyCode::Char('q')
+                        key_event.code == crossterm::event::KeyCode::Char('c') &&
+                        key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
                     {
                         break;
                     }
