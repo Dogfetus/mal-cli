@@ -8,9 +8,9 @@ use ratatui::{
     Frame, 
 };
 use crossterm::event::{KeyCode, KeyEvent};
-use crate::mal; 
 
 
+#[derive(Clone)]
 pub struct LoginPage { 
     selected_button: usize,
     buttons: Vec<&'static str>,
@@ -92,7 +92,10 @@ impl Screen for LoginPage {
             }
             _ => {} 
         };
-
         None
+    }
+
+    fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
+        Box::new(self.clone())
     }
 }

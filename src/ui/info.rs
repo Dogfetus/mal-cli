@@ -5,6 +5,7 @@ use ratatui::widgets;
 use ratatui::style;
 
 
+#[derive(Clone)]
 pub struct InfoPage {}
 
 impl Screen for InfoPage {
@@ -24,4 +25,13 @@ impl Screen for InfoPage {
         frame.render_widget(list, size);
 
     }
+
+    fn should_store(&self) -> bool {
+        false
+    }
+
+    fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
+        Box::new(self.clone())
+     } 
+
 }
