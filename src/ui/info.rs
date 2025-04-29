@@ -1,17 +1,14 @@
 use super::Screen;
-
 use ratatui::Frame;
 use ratatui::widgets;
 use ratatui::style;
 
-
 #[derive(Clone)]
-pub struct InfoPage {}
+pub struct InfoScreen {}
 
-impl Screen for InfoPage {
+impl Screen for InfoScreen {
 
-    #[allow(unused)]
-    fn draw(&self, frame: &mut Frame, app: &crate::app::App) {
+    fn draw(&self, frame: &mut Frame) {
         let size = frame.area();
         let block = widgets::Block::default()
             .title("Info page:")

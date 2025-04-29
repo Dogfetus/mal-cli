@@ -1,6 +1,6 @@
-use super::Screen;
+use super::{screens::*, Screen};
 use crate::ui::widgets::button::Button;
-use crate::app::{App, Action};
+use crate::app::Action;
 use ratatui::{
     style::{Style,Color},
     widgets::{Paragraph, Clear},
@@ -11,12 +11,12 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 
 #[derive(Clone)]
-pub struct LaunchPage { 
+pub struct LaunchScreen { 
     selected_button: usize,
     buttons: Vec<&'static str>,
 }
 
-impl LaunchPage {
+impl LaunchScreen {
     pub fn new() -> Self {
         Self {
             selected_button: 0,
@@ -29,9 +29,8 @@ impl LaunchPage {
     }
 }
 
-impl Screen for LaunchPage {
-    #[allow(unused)]
-    fn draw(&self, frame: &mut Frame, app: &App) {
+impl Screen for LaunchScreen {
+    fn draw(&self, frame: &mut Frame) {
         let area = frame.area();
 
         frame.render_widget(Clear, area);
@@ -92,8 +91,8 @@ impl Screen for LaunchPage {
             }
             KeyCode::Enter => {
                 match self.selected_button {
-                    0 => return Some(Action::SwitchScreen("Anime")),
-                    1 => return Some(Action::SwitchScreen("Login")),
+                    0 => return Some(Action::SwitchScreen(INFO)),
+                    1 => return Some(Action::SwitchScreen(LOGIN)),
                     2 => return Some(Action::Quit),
                     _ => {}
                 }
@@ -106,6 +105,10 @@ impl Screen for LaunchPage {
 
     fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
         Box::new(self.clone())
+    }
+
+    fn should_store(&self) -> bool {
+        false
     }
 
 }

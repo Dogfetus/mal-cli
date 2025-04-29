@@ -1,4 +1,5 @@
 use ratatui::Frame;
+use screens::*;
 use crate::app::{App, Action};
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
@@ -14,61 +15,72 @@ mod widgets;
 mod login;
 
 
-#[allow(dead_code, unused_variables)]
 static STORAGE : Lazy<Mutex<HashMap<String, Box<dyn Screen>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+
+
+#[allow(dead_code)]
+pub mod screens {
+    pub const LAUNCH: &str = "LaunchScreen";
+    pub const INFO: &str = "InfoScreen";
+    pub const LIST: &str = "ListScreen";
+    pub const PROFILE: &str = "ProfileScreen";
+    pub const SETTINGS: &str = "SettingsScreen";
+    pub const OVERVIEW: &str = "OverviewScreen";
+    pub const LOGIN: &str = "LoginScreen";
+    pub const ANIME: &str = "AnimeScreen";
+    pub const MANGA: &str = "MangaScreen";
+    pub const SEARCH: &str = "SearchScreen";
+    pub const BROWSE: &str = "BrowseScreen";
+}
+
+
 
 // TODO: make these screens structs and implement the trait for them.
 // TODO: they should take care of their own buttons and such
-// when adding new screens add them in get_screen then just call get_screen when you need to draw them
-
-
-
-
-// TODO: https://claude.ai/chat/6ec6a60b-05ce-4d9a-9b22-7ab4e06d0cc9
-// TODO: current issue is that this works, but it saves the new verison of the screen
-// and does not update the saved version when changes happen (switches screens)
-// fix this
+// when adding new screens add them in change_screen (and screens consts) then just call change_screen when you need to draw them
 #[allow(dead_code, unused_variables)]
 pub trait Screen: Send + Sync {
-    fn draw(&self, frame: &mut Frame, app: &App);
+    fn draw(&self, frame: &mut Frame);
     fn handle_input(&mut self, key_event: crossterm::event::KeyEvent) -> Option<Action> {None}
     fn clone_box(&self) -> Box<dyn Screen + Send + Sync>;
     fn should_store(&self) -> bool { true }
+    fn get_name(&self) -> String {
+        let name = std::any::type_name::<Self>();
+        name.split("::").last().unwrap_or(name).to_string()
+    }
 }
 
 
-pub fn get_screen(screen_name: &str) -> Box<dyn Screen> {
-    {
-        let storage = STORAGE.lock().unwrap();
-        if let Some(screen) = storage.get(screen_name) {
-            return screen.clone_box();
-        }
+pub fn change_screen(app: &mut App, screen_name: &str){
+    if app.current_screen.should_store() {
+        store_screen(app.current_screen.clone_box());
     }
 
-    println!("Creating new screen: {}", screen_name);
+    if let Some(screen) = retreive_screen(screen_name) {
+        app.current_screen = screen;
+        return;
+    }
 
-    let screen: Box<dyn Screen> = match screen_name {
-        "Anime" => Box::new(info::InfoPage{}),
-        "Manga" => Box::new(info::InfoPage{}),
-        "Login" => Box::new(login::LoginPage::new()),
-        _ => Box::new(launch::LaunchPage::new()),
+    app.current_screen = match screen_name {
+        INFO => Box::new(info::InfoScreen{}),
+        LOGIN => Box::new(login::LoginScreen::new()),
+        _ => Box::new(launch::LaunchScreen::new()),
     };
-
-    if screen.should_store() {
-        store_screen(screen_name, screen.clone_box());
-    }
-
-    screen
-
 }
 
 pub fn default() -> Box<dyn Screen> {
-    get_screen("launch")
+    Box::new(launch::LaunchScreen::new())
 }
 
-pub fn store_screen(name: &str, screen: Box<dyn Screen>) {
-    if screen.should_store() {
-        let mut storage = STORAGE.lock().unwrap();
-        storage.insert(name.to_string(), screen.clone_box());
+pub fn store_screen(screen: Box<dyn Screen>) {
+    let mut storage = STORAGE.lock().unwrap();
+    storage.insert(screen.get_name(), screen.clone_box());
+}
+
+pub fn retreive_screen(screen_name: &str) -> Option<Box<dyn Screen>> {
+    let storage = STORAGE.lock().unwrap();
+    if let Some(screen) = storage.get(screen_name) {
+        return Some(screen.clone_box());
     }
+    None
 }

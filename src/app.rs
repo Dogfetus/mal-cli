@@ -6,6 +6,7 @@ use std::thread::{self, JoinHandle};
 use std::{io, sync::mpsc};
 use crate::controller::get_handlers;
 use crate::ui;
+use crate::ui::screens::*;
 
 // // store the screens the user is at.
 // #[allow(dead_code)]
@@ -81,7 +82,7 @@ impl App {
 
         // WARNING: don't use just unwrap here
         while self.is_running {
-            terminal.draw( |frame| self.current_screen.draw(frame, self))?;
+            terminal.draw( |frame| self.current_screen.draw(frame))?;
             match self.rx.recv().unwrap() {
                 Event::KeyPress(key_event) => self.handle_input(key_event),           
                 _ => {}
@@ -100,7 +101,7 @@ impl App {
         if let Some(action) = result {
             match action {
                 Action::SwitchScreen(screen_name) => {
-                    self.current_screen = ui::get_screen(screen_name);
+                    ui::change_screen(self, screen_name);
                 }
                 Action::Quit => {
                     self.is_running = false;
@@ -112,9 +113,9 @@ impl App {
             KeyCode::Char('c') if key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
                 self.is_running = false
             },
-            KeyCode::Char('a') => self.current_screen = ui::get_screen("Anime"),
-            KeyCode::Char('m') => self.current_screen = ui::get_screen("Manga"),
-            KeyCode::Char('l') => self.current_screen = ui::default(),
+            KeyCode::Char('a') => ui::change_screen(self, INFO),
+            KeyCode::Char('m') => ui::change_screen(self, LOGIN),
+            KeyCode::Char('l') => ui::change_screen(self, LAUNCH),
             _ => { return }
         }
     }
