@@ -14,6 +14,14 @@ mod overview;
 mod widgets;
 mod login;
 
+// TODO: Now the screen states are being stored in a hashmap, this could be changed to another
+// structure (idk whats best, research this in the future, not important now)
+// this could be moved to a screen manager
+// but the main focus now is just implementing the screens and making them work
+// and then connecting the login functionality to the app
+// then use the rest of the mal api 
+// then start inspecting tachyonfx
+
 
 static STORAGE : Lazy<Mutex<HashMap<String, Box<dyn Screen>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
@@ -62,8 +70,11 @@ pub fn change_screen(app: &mut App, screen_name: &str){
     }
 
     app.current_screen = match screen_name {
-        INFO => Box::new(info::InfoScreen{}),
+        INFO => Box::new(info::InfoScreen::new()),
+        OVERVIEW => Box::new(overview::OverviewScreen::new()),
+        SETTINGS => Box::new(settings::SettingsScreen::new()),
         LOGIN => Box::new(login::LoginScreen::new()),
+        PROFILE => Box::new(profile::ProfileScreen::new()),
         _ => Box::new(launch::LaunchScreen::new()),
     };
 }

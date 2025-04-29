@@ -8,19 +8,6 @@ use crate::controller::get_handlers;
 use crate::ui;
 use crate::ui::screens::*;
 
-// // store the screens the user is at.
-// #[allow(dead_code)]
-// #[derive(Debug)]
-// pub enum CurrentScreen {
-//     Launch,
-//     Anime,
-//     Manga,
-//     Info,
-//     Profile,
-//     Settings,
-//     Overview,
-// }
-
 pub enum Action {
     SwitchScreen(&'static str),
     Quit,

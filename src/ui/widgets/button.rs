@@ -1,7 +1,7 @@
 use ratatui::{
     layout::{Alignment, Rect}, 
     style::{Color, Style}, 
-    widgets::{Block, Borders, Paragraph, Widget}, 
+    widgets::{Block, Borders, Clear, Paragraph, Widget}, 
     Frame
 };
 
@@ -117,6 +117,7 @@ impl Button {
             .style(Style::default().fg(color))
             .alignment(Alignment::Center);
 
+        f.render_widget(Clear, button_area);
         f.render_widget(button, button_area);
     }
 }

@@ -91,7 +91,7 @@ impl Screen for LaunchScreen {
             }
             KeyCode::Enter => {
                 match self.selected_button {
-                    0 => return Some(Action::SwitchScreen(INFO)),
+                    0 => return Some(Action::SwitchScreen(OVERVIEW)),
                     1 => return Some(Action::SwitchScreen(LOGIN)),
                     2 => return Some(Action::Quit),
                     _ => {}
