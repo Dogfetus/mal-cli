@@ -2,7 +2,7 @@ mod app;
 mod ui;
 mod mal;
 mod models;
-mod controller;
+mod handlers;
 
 
 

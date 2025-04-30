@@ -20,6 +20,7 @@ pub fn input_handler(sx: mpsc::Sender<Event>, stop: Arc<AtomicBool>) {
                         break;
                     }
                 }
+
                 crossterm::event::Event::Mouse(mouse_event) => {
                     match mouse_event.kind {
                         crossterm::event::MouseEventKind::Down(_) | 

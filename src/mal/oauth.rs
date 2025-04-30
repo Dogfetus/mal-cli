@@ -70,7 +70,7 @@ where
                         expires_in: String,
                     }));
 
-                    println!("Got callback with data: {:?}", data);
+                    // println!("Got callback with data: {:?}", data);
 
                     let html_content = match std::fs::read_to_string("src/templates/success.html") {
                         Ok(content) => content,
@@ -89,7 +89,7 @@ where
                 },
 
                 _ => {
-                    println!("Got request for unknown path");
+                    // println!("Got request for unknown path");
                     rouille::Response::empty_404()
                 }
             )
@@ -97,31 +97,30 @@ where
 
         match result {
             Ok(server) => {
-                println!("Server started on port {}", port);
+                // println!("Server started on port {}", port);
                 let (handle, sender) = server.stoppable();
                 let joinable = thread::spawn(move || {
                     let _ = rx.recv();
-                    println!("Stopping server on {}", url);
+                    // println!("Stopping server on {}", url);
 
                     thread::sleep(Duration::from_secs(1));
                     sender.send(()).unwrap();
                     handle.join().unwrap();
-                    println!("Server stopped");
+                    // println!("Server stopped");
                 });
 
                 return Some((port, joinable));
             }
 
             Err(err) => {
-                eprintln!("Failed to start server on {}: {}", url, err);
                 port += 1;
-                println!("Retrying with port {}", port);
+                // eprintln!("Failed to start server on {}: {}, retrying... port {}  ", url, err, port);
             }
         }
     }
 
 
-    println!("Failed to start server after {} retries", MAX_RETRIES);
+    // println!("Failed to start server after {} retries", MAX_RETRIES);
     None
 }
 

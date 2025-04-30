@@ -4,7 +4,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::{io, sync::mpsc};
-use crate::controller::get_handlers;
+use crate::handlers::get_handlers;
 use crate::ui;
 use crate::ui::screens::*;
 
@@ -120,7 +120,6 @@ impl App {
             self.threads.push(_thread);
         }
     }
-
 }
 
 

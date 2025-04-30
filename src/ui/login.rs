@@ -63,13 +63,16 @@ impl Screen for LoginScreen {
             max(page_chunk[1].width / 2, 50),
             3);
 
-        let url_field = Paragraph::new("placeholder")
+        // if self.login_url.is_empty() {
+        //     self.login_url = init_oauth().0;
+        // }
+
+        let url_field = Paragraph::new(self.login_url.clone())
             .block(Block::default().borders(Borders::ALL))
             .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
             .alignment(Alignment::Center);
 
         frame.render_widget(url_field, text_field_area);
-
 
         for (i, button) in self.buttons.iter().enumerate() {
             Button::new(button)

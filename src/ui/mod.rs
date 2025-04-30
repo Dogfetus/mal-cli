@@ -1,9 +1,11 @@
 use ratatui::Frame;
 use screens::*;
-use crate::app::{App, Action};
+use crate::app::{Action, App, Event};
 use once_cell::sync::Lazy;
-use std::sync::Mutex;
+use std::sync::atomic::AtomicBool;
+use std::sync::{mpsc, Arc, Mutex};
 use std::collections::HashMap;
+use std::thread::JoinHandle;
 
 mod launch;
 mod info;
@@ -46,6 +48,12 @@ pub mod screens {
 // TODO: make these screens structs and implement the trait for them.
 // TODO: they should take care of their own buttons and such
 // when adding new screens add them in change_screen (and screens consts) then just call change_screen when you need to draw them
+//
+// TODO: add passable background logic to each screen that can be passed to a background process
+//TODO: after gathering thoughts, the screen should spawn its background upon creation / screenswap
+//TODO: the background should be passed a channel to send events to the screen
+//TODO: the background process will be updated by the screen running (currenlty handle_input) notify background, or something
+//
 #[allow(dead_code, unused_variables)]
 pub trait Screen: Send + Sync {
     fn draw(&self, frame: &mut Frame);
@@ -56,8 +64,10 @@ pub trait Screen: Send + Sync {
         let name = std::any::type_name::<Self>();
         name.split("::").last().unwrap_or(name).to_string()
     }
+    fn background(&self, sx: mpsc::Sender<Event>, stop: Arc<AtomicBool>) -> Option<JoinHandle<()>> {
+        None
+    }
 }
-
 
 pub fn change_screen(app: &mut App, screen_name: &str){
     if app.current_screen.should_store() {
@@ -77,6 +87,7 @@ pub fn change_screen(app: &mut App, screen_name: &str){
         PROFILE => Box::new(profile::ProfileScreen::new()),
         _ => Box::new(launch::LaunchScreen::new()),
     };
+
 }
 
 pub fn default() -> Box<dyn Screen> {
