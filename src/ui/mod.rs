@@ -68,18 +68,18 @@ pub struct ScreenManager {
     screen_storage: HashMap<String, Box<dyn Screen>>,
     backgrounds: Vec<JoinHandle<()>>,
     stop: Arc<AtomicBool>,
-    sx: mpsc::Sender<Event>,
+    app_sx: mpsc::Sender<Event>,
 }
 
 #[allow(dead_code)]
 impl ScreenManager {
-    pub fn new(sx: mpsc::Sender<Event>) -> Self {
+    pub fn new(app_sx: mpsc::Sender<Event>) -> Self {
         Self {
             current_screen: Box::new(launch::LaunchScreen::new()),
             screen_storage: HashMap::new(),
             backgrounds: Vec::new(),
             stop: Arc::new(AtomicBool::new(false)),
-            sx,
+            app_sx,
         }
     }
 
@@ -117,7 +117,7 @@ impl ScreenManager {
     }
 
     pub fn spawn_background(&mut self) {
-        if let Some(handle) = self.current_screen.background(self.sx.clone(), self.stop.clone()) { 
+        if let Some(handle) = self.current_screen.background(self.app_sx.clone(), self.stop.clone()) { 
             self.backgrounds.push(handle);
         }
     }

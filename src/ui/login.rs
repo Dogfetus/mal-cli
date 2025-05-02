@@ -1,4 +1,4 @@
-use std::{cmp::{max, min}, sync::{mpsc::Sender, Mutex}};
+use std::{cmp::{max, min}, sync::{mpsc::Sender, RwLock}};
 use crate::{app::Event, ui::widgets::button::Button};
 use crossterm::event::{KeyCode, KeyEvent};
 use std::sync::atomic::AtomicBool;
@@ -20,7 +20,7 @@ use ratatui::{
 pub struct LoginScreen { 
     selected_button: usize,
     buttons: Vec<&'static str>,
-    login_url: Arc<Mutex<String>>,
+    login_url: Arc<RwLock<String>>,
     is_signed_in: bool,
 }
 
@@ -33,7 +33,7 @@ impl LoginScreen {
                 "Paste",
                 "Back",
             ],
-            login_url: Arc::new(Mutex::new(String::new())),
+            login_url: Arc::new(RwLock::new(String::new())),
             is_signed_in: false,
         }
     }
@@ -55,7 +55,35 @@ impl Screen for LoginScreen {
 
 
         let header_text = vec![
-            "        ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⡀⠠⠀⢀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⠀⢀⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+            r"                                  #     %%%                                     ",
+            r"                                @&@#   #%% #&                                   ",
+            r"                   @&       &&#&%@@%  %@&&#@@#                                  ",
+            r"                 @@##&&&@@ &&@;&%#   #|@#&#&@% ##                               ",
+            r"              #%&&@&%%# &@   %|#&@%|~  %@###@&&%                                ",
+            r"                &&@%@%@#&%  / @&%@%#   ##%%#% @&@                               ",
+            r"         &@ #@#|&@%~%###&&##@#&@   #  __:_&%@  %##                              ",
+            r"           @&@%#@ @ %%|&_@#%#      #:_     |%#  &@                              ",
+            r"          @@#@@|@  &~/    @%&~    /     &&@@__#@%&#                             ",
+            r"         %#%%@%#\&   :   #  % \\\/         |@&%&&                               ",
+            r"          @ ##@#%&__ |      @   |          % @&  @                              ",
+            r"        %@@  &&&@@# _~_=         |           #&                                 ",
+            r"          &&%%& %# @    \=        =                                             ",
+            r"        ##@~\;& &#       /:_::;_____                                            ",
+            r"      %&## @#   \__=  //=          \;                                     @     ",
+            r"       #    &       =_               \\          ________=             @&&%@@%# ",
+            r"                                       \\    _~_:____     ___~          #@;%@%@ ",
+            r"                                         =~_~;_~:              \       # |##%&# ",
+            r"                                         =_\=                    ___: /:~_;#%&&@",
+            r"                                         ~||                     |   =|   &&@%@@",
+            r"                                         |;|                      :    |  @   &%",
+            r"                                        |;|              &#@%    | \|%;%%       ",
+            r"                                        |~|                %@  _| @&##% @@%%    ",
+            r"                                        ;:=                  &%& @&%%&@%&@&     ",
+            r"                                       |||                  &&%%#@&#&%%@# @     ",
+            r"                           \__.-.____./~=|\..________/         @#&@#@@&&##      ",
+            r"                            \         *    *..      /           &  @&%@&        ",
+            r"                             \_____________________/                            ",
+            r"                               ‾                 ‾                              ",
         ];
 
         let alpha = Paragraph::new(header_text.join("\n"))
@@ -74,7 +102,7 @@ impl Screen for LoginScreen {
         //     self.login_url = init_oauth().0;
         // }
 
-        let url_field = Paragraph::new(self.login_url.lock().unwrap().clone())
+        let url_field = Paragraph::new(self.login_url.read().unwrap().clone())
             .block(Block::default().borders(Borders::ALL))
             .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
             .alignment(Alignment::Center);
@@ -118,6 +146,8 @@ impl Screen for LoginScreen {
     }
 
     fn background(&self, sx: Sender<Event>, stop: Arc<AtomicBool>) -> Option<JoinHandle<()>> {
+        //TODO: the thread should receive a new transmitter / sender for each screen. to
+        //communicate with events instead of polling ( might not be necessary for this login though )
 
         let sx = sx.clone();
         let stop = stop.clone();
@@ -129,10 +159,10 @@ impl Screen for LoginScreen {
             let url_to_print = "this is a test url test url that will be displayed for the user to copy and paste into their browser yehaw!";
             for i in 0..url_to_print.len()+1 {
                 std::thread::sleep(std::time::Duration::from_millis(8));
+                let new_url = url_to_print[0..i].to_string();
                 {
-                    let mut url = login_url.lock().unwrap();
-                    *url = url_to_print[0..i].to_string();
-                }
+                    let mut url = login_url.write().unwrap();
+                    *url = new_url; }
                 sx.send(Event::Rerender).unwrap();
             }
         }))

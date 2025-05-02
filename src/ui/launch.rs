@@ -110,5 +110,4 @@ impl Screen for LaunchScreen {
     fn should_store(&self) -> bool {
         false
     }
-
 }
