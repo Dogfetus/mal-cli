@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::{io, sync::mpsc};
 use crate::handlers::get_handlers;
-use crate::ui;
+use crate::ui::ScreenManager;
 use crate::ui::screens::*;
 
 pub enum Action {
@@ -25,6 +25,7 @@ pub enum CurrentInfo {
 pub enum Event {
     KeyPress(crossterm::event::KeyEvent),
     MouseClick(crossterm::event::MouseEvent),
+    Rerender
 }
 
 
@@ -33,13 +34,13 @@ pub struct App {
     pub key_input: String,              // the currently being edited json key.
     pub value_input: String,            // the currently being edited json value.
 
-    pub current_screen: Box<dyn ui::Screen>,
+    pub screen_manager: ScreenManager,
     pub current_info: Option<CurrentInfo>,
 
     pub is_running: bool,
 
+    pub sx: mpsc::Sender<Event>,
     rx: mpsc::Receiver<Event>,
-    sx: mpsc::Sender<Event>,
     threads: Vec<JoinHandle<()>>,
     stop: Arc<AtomicBool>,
 }
@@ -52,7 +53,7 @@ impl App {
             key_input: String::new(),
             value_input: String::new(),
 
-            current_screen: ui::default(),
+            screen_manager: ScreenManager::new(sx.clone()),
             current_info: None,
             is_running: true,
 
@@ -69,7 +70,7 @@ impl App {
 
         // WARNING: don't use just unwrap here
         while self.is_running {
-            terminal.draw( |frame| self.current_screen.draw(frame))?;
+            terminal.draw( |frame| self.screen_manager.draw(frame))?;
             match self.rx.recv().unwrap() {
                 Event::KeyPress(key_event) => self.handle_input(key_event),           
                 _ => {}
@@ -84,11 +85,11 @@ impl App {
             return;
         }
 
-        let result = self.current_screen.handle_input(key_event);
+        let result = self.screen_manager.handle_input(key_event);
         if let Some(action) = result {
             match action {
                 Action::SwitchScreen(screen_name) => {
-                    ui::change_screen(self, screen_name);
+                    self.screen_manager.change_screen(screen_name);
                 }
                 Action::Quit => {
                     self.is_running = false;
@@ -100,9 +101,9 @@ impl App {
             KeyCode::Char('c') if key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
                 self.is_running = false
             },
-            KeyCode::Char('a') => ui::change_screen(self, INFO),
-            KeyCode::Char('m') => ui::change_screen(self, LOGIN),
-            KeyCode::Char('l') => ui::change_screen(self, LAUNCH),
+            KeyCode::Char('a') => self.screen_manager.change_screen(INFO),
+            KeyCode::Char('m') => self.screen_manager.change_screen(LOGIN),
+            KeyCode::Char('l') => self.screen_manager.change_screen(LAUNCH),
             _ => { return }
         }
     }

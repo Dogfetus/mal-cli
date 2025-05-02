@@ -1,11 +1,10 @@
 use ratatui::Frame;
 use screens::*;
-use crate::app::{Action, App, Event};
-use once_cell::sync::Lazy;
+use crate::app::{Action, Event};
 use std::sync::atomic::AtomicBool;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{mpsc, Arc};
 use std::collections::HashMap;
-use std::thread::JoinHandle;
+use std::thread::{self, JoinHandle};
 
 mod launch;
 mod info;
@@ -16,17 +15,16 @@ mod overview;
 mod widgets;
 mod login;
 
-// TODO: Now the screen states are being stored in a hashmap, this could be changed to another
+// INFO: make these screens structs and implement the trait for them.
+// INFO: they should take care of their own buttons and such
+// when adding new screens add them in change_screen (and screens consts) then just call change_screen when you need to draw them
+// INFO: Now the screen states are being stored in a hashmap, this could be changed to another
 // structure (idk whats best, research this in the future, not important now)
 // this could be moved to a screen manager
 // but the main focus now is just implementing the screens and making them work
 // and then connecting the login functionality to the app
 // then use the rest of the mal api 
 // then start inspecting tachyonfx
-
-
-static STORAGE : Lazy<Mutex<HashMap<String, Box<dyn Screen>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
-
 
 #[allow(dead_code)]
 pub mod screens {
@@ -44,16 +42,11 @@ pub mod screens {
 }
 
 
-
-// TODO: make these screens structs and implement the trait for them.
-// TODO: they should take care of their own buttons and such
-// when adding new screens add them in change_screen (and screens consts) then just call change_screen when you need to draw them
-//
-// TODO: add passable background logic to each screen that can be passed to a background process
+//TODO: add passable background logic to each screen that can be passed to a background process
 //TODO: after gathering thoughts, the screen should spawn its background upon creation / screenswap
-//TODO: the background should be passed a channel to send events to the screen
+//TODO: the background should be passed a channel to send events to the rendering thread 
 //TODO: the background process will be updated by the screen running (currenlty handle_input) notify background, or something
-//
+
 #[allow(dead_code, unused_variables)]
 pub trait Screen: Send + Sync {
     fn draw(&self, frame: &mut Frame);
@@ -69,40 +62,73 @@ pub trait Screen: Send + Sync {
     }
 }
 
-pub fn change_screen(app: &mut App, screen_name: &str){
-    if app.current_screen.should_store() {
-        store_screen(app.current_screen.clone_box());
-    }
 
-    if let Some(screen) = retreive_screen(screen_name) {
-        app.current_screen = screen;
-        return;
-    }
-
-    app.current_screen = match screen_name {
-        INFO => Box::new(info::InfoScreen::new()),
-        OVERVIEW => Box::new(overview::OverviewScreen::new()),
-        SETTINGS => Box::new(settings::SettingsScreen::new()),
-        LOGIN => Box::new(login::LoginScreen::new()),
-        PROFILE => Box::new(profile::ProfileScreen::new()),
-        _ => Box::new(launch::LaunchScreen::new()),
-    };
-
+pub struct ScreenManager {
+    current_screen: Box<dyn Screen>,
+    screen_storage: HashMap<String, Box<dyn Screen>>,
+    backgrounds: Vec<JoinHandle<()>>,
+    stop: Arc<AtomicBool>,
+    sx: mpsc::Sender<Event>,
 }
 
-pub fn default() -> Box<dyn Screen> {
-    Box::new(launch::LaunchScreen::new())
-}
-
-pub fn store_screen(screen: Box<dyn Screen>) {
-    let mut storage = STORAGE.lock().unwrap();
-    storage.insert(screen.get_name(), screen.clone_box());
-}
-
-pub fn retreive_screen(screen_name: &str) -> Option<Box<dyn Screen>> {
-    let storage = STORAGE.lock().unwrap();
-    if let Some(screen) = storage.get(screen_name) {
-        return Some(screen.clone_box());
+#[allow(dead_code)]
+impl ScreenManager {
+    pub fn new(sx: mpsc::Sender<Event>) -> Self {
+        Self {
+            current_screen: Box::new(launch::LaunchScreen::new()),
+            screen_storage: HashMap::new(),
+            backgrounds: Vec::new(),
+            stop: Arc::new(AtomicBool::new(false)),
+            sx,
+        }
     }
-    None
+
+    pub fn draw(&self, frame: &mut Frame) {
+        self.current_screen.draw(frame);
+    }
+
+    pub fn handle_input(&mut self, key_event: crossterm::event::KeyEvent) -> Option<Action> {
+        self.current_screen.handle_input(key_event)
+    }
+
+    pub fn change_screen(&mut self, screen_name: &str) {
+        if self.current_screen.should_store() {
+            self.screen_storage.insert(
+                self.current_screen.get_name(),
+                self.current_screen.clone_box()
+            );
+        }
+
+        if let Some(screen) = self.screen_storage.get(screen_name) {
+            self.current_screen = screen.clone_box();
+        } else {
+            self.current_screen = match screen_name {
+                INFO => Box::new(info::InfoScreen::new()),
+                OVERVIEW => Box::new(overview::OverviewScreen::new()),
+                SETTINGS => Box::new(settings::SettingsScreen::new()),
+                LOGIN => Box::new(login::LoginScreen::new()),
+                PROFILE => Box::new(profile::ProfileScreen::new()),
+                _ => Box::new(launch::LaunchScreen::new()),
+            };
+        }
+
+        self.cleanup_backgrounds();
+        self.spawn_background();
+    }
+
+    pub fn spawn_background(&mut self) {
+        if let Some(handle) = self.current_screen.background(self.sx.clone(), self.stop.clone()) { 
+            self.backgrounds.push(handle);
+        }
+    }
+
+    pub fn stop_background(&mut self) {
+        for handle in self.backgrounds.drain(..) {
+            handle.join().unwrap();
+        }
+    }
+
+    pub fn cleanup_backgrounds(&mut self) {
+        self.backgrounds.retain(|handle| !handle.is_finished());
+    }
 }

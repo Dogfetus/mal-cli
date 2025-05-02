@@ -1,19 +1,26 @@
-use super::{screens::*, Screen};
-use crate::ui::widgets::button::Button;
-use crate::app::Action;
-use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect}, style::{Color, Modifier, Style}, text::{Line, Span, Text}, widgets::{ Block, Borders, Clear, Paragraph, Wrap}, Frame 
-};
+use std::{cmp::{max, min}, sync::{mpsc::Sender, Mutex}};
+use crate::{app::Event, ui::widgets::button::Button};
 use crossterm::event::{KeyCode, KeyEvent};
+use std::sync::atomic::AtomicBool;
+use super::{screens::*, Screen};
+use std::thread::JoinHandle;
 use crate::mal::init_oauth;
-use std::cmp::{max, min};
+use crate::app::Action;
+use std::sync::Arc;
+use ratatui::{
+    layout::{Alignment, Constraint, Direction, Layout, Rect}, 
+    widgets::{ Block, Borders, Clear, Paragraph, Wrap}, 
+    style::{Color, Modifier, Style}, 
+    text::{Line, Span, Text}, 
+    Frame 
+};
 
 
 #[derive(Clone)]
 pub struct LoginScreen { 
     selected_button: usize,
     buttons: Vec<&'static str>,
-    login_url: String,
+    login_url: Arc<Mutex<String>>,
     is_signed_in: bool,
 }
 
@@ -26,7 +33,7 @@ impl LoginScreen {
                 "Paste",
                 "Back",
             ],
-            login_url: String::new(),
+            login_url: Arc::new(Mutex::new(String::new())),
             is_signed_in: false,
         }
     }
@@ -67,7 +74,7 @@ impl Screen for LoginScreen {
         //     self.login_url = init_oauth().0;
         // }
 
-        let url_field = Paragraph::new(self.login_url.clone())
+        let url_field = Paragraph::new(self.login_url.lock().unwrap().clone())
             .block(Block::default().borders(Borders::ALL))
             .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
             .alignment(Alignment::Center);
@@ -108,5 +115,26 @@ impl Screen for LoginScreen {
 
     fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
         Box::new(self.clone())
+    }
+
+    fn background(&self, sx: Sender<Event>, stop: Arc<AtomicBool>) -> Option<JoinHandle<()>> {
+
+        let sx = sx.clone();
+        let stop = stop.clone();
+        let login_url = self.login_url.clone();
+
+        Some(std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+
+            let url_to_print = "this is a test url test url that will be displayed for the user to copy and paste into their browser yehaw!";
+            for i in 0..url_to_print.len()+1 {
+                std::thread::sleep(std::time::Duration::from_millis(8));
+                {
+                    let mut url = login_url.lock().unwrap();
+                    *url = url_to_print[0..i].to_string();
+                }
+                sx.send(Event::Rerender).unwrap();
+            }
+        }))
     }
 }
