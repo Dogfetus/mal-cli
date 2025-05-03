@@ -27,11 +27,14 @@ pub fn input_handler(sx: mpsc::Sender<Event>, stop: Arc<AtomicBool>) {
                         crossterm::event::MouseEventKind::Up(_) |
                         crossterm::event::MouseEventKind::Drag(_) => {
                             sx.send(Event::MouseClick(mouse_event)).unwrap();
-
                             // sx.send(Event::MousePosition(x, y, mouse_event.kind)).unwrap();??
                         }
                         _ => {}
                     }
+                }
+
+                crossterm::event::Event::Resize(width, height) => {
+                    sx.send(Event::Resize(width, height)).unwrap();
                 }
 
                 _ => {

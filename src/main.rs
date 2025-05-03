@@ -8,6 +8,7 @@ mod handlers;
 
 use crate::app::App;
 use anyhow::Result;
+use mal::MalClient;
 
 
 
@@ -16,15 +17,15 @@ async fn main() -> Result<()> {
     // load .env
 
 
-    // start the terminal view
-    let mut terminal = ratatui::init();
-    let mut app = App::new();
-    app.run(&mut terminal)?;
-    ratatui::restore();
+    // // start the terminal view
+    // let mut terminal = ratatui::init();
+    // let mut app = App::new();
+    // app.run(&mut terminal)?;
+    // ratatui::restore();
 
 
-
-    // mal::init_oauth();
+    let mal_client = MalClient::new();
+    mal_client.test();
 
 
     Ok(())

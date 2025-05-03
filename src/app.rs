@@ -25,6 +25,7 @@ pub enum CurrentInfo {
 pub enum Event {
     KeyPress(crossterm::event::KeyEvent),
     MouseClick(crossterm::event::MouseEvent),
+    Resize(u16, u16), 
     Rerender
 }
 

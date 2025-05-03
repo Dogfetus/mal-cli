@@ -8,6 +8,7 @@ use ratatui::{
     Frame, 
 };
 use crossterm::event::{KeyCode, KeyEvent};
+use crate::mal::MalClient;
 
 
 #[derive(Clone)]
@@ -22,7 +23,7 @@ impl LaunchScreen {
             selected_button: 0,
             buttons: vec![
                 "Browse",
-                "Log in",
+                if !MalClient::user_is_logged_in() { "Log In" } else { "Log Out" },
                 "Exit",
             ],
         }
@@ -92,7 +93,17 @@ impl Screen for LaunchScreen {
             KeyCode::Enter => {
                 match self.selected_button {
                     0 => return Some(Action::SwitchScreen(OVERVIEW)),
-                    1 => return Some(Action::SwitchScreen(LOGIN)),
+                    1 => {
+
+                        // return None;
+                        if MalClient::user_is_logged_in() {
+                            MalClient::log_out();
+                            return Some(Action::SwitchScreen(LAUNCH));
+                        }
+
+                        return Some(Action::SwitchScreen(LOGIN))
+                    },
+
                     2 => return Some(Action::Quit),
                     _ => {}
                 }

@@ -1,10 +1,9 @@
 use std::{cmp::{max, min}, sync::{mpsc::Sender, RwLock}};
-use crate::{app::Event, ui::widgets::button::Button};
+use crate::{app::Event, mal::MalClient, ui::widgets::button::Button};
 use crossterm::event::{KeyCode, KeyEvent};
 use std::sync::atomic::AtomicBool;
 use super::{screens::*, Screen};
 use std::thread::JoinHandle;
-use crate::mal::init_oauth;
 use crate::app::Action;
 use std::sync::Arc;
 use ratatui::{
@@ -16,12 +15,14 @@ use ratatui::{
 };
 
 
+//TODO: swap the locking mechanism to to use mpsc channels instead of locks.
+//TODO: option to copy the url to clipboard
+//INFO: option to pase code from clipboard (might not want to do this, since it might be a security risk)
 #[derive(Clone)]
 pub struct LoginScreen { 
     selected_button: usize,
     buttons: Vec<&'static str>,
     login_url: Arc<RwLock<String>>,
-    is_signed_in: bool,
 }
 
 impl LoginScreen {
@@ -34,7 +35,6 @@ impl LoginScreen {
                 "Back",
             ],
             login_url: Arc::new(RwLock::new(String::new())),
-            is_signed_in: false,
         }
     }
 }
@@ -149,14 +149,27 @@ impl Screen for LoginScreen {
         //TODO: the thread should receive a new transmitter / sender for each screen. to
         //communicate with events instead of polling ( might not be necessary for this login though )
 
+        //TODO: this might run twice causing wierd behaviour?
+        if MalClient::user_is_logged_in() {
+            return None;
+        }
+
         let sx = sx.clone();
         let stop = stop.clone();
         let login_url = self.login_url.clone();
 
         Some(std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_millis(100));
+            {
+                let ll = login_url.read().unwrap();
 
-            let url_to_print = "this is a test url test url that will be displayed for the user to copy and paste into their browser yehaw!";
+                if !ll.is_empty() {
+                    return;
+                }
+            }
+
+            let (url_to_print, joinable) = MalClient::init_oauth();
+
             for i in 0..url_to_print.len()+1 {
                 std::thread::sleep(std::time::Duration::from_millis(8));
                 let new_url = url_to_print[0..i].to_string();
@@ -165,6 +178,14 @@ impl Screen for LoginScreen {
                     *url = new_url; }
                 sx.send(Event::Rerender).unwrap();
             }
+
+            joinable.join().unwrap();  
+            let new_url = "Login successful".to_string();
+            {
+                let mut url = login_url.write().unwrap();
+                *url = new_url; 
+            }
+            sx.send(Event::Rerender).unwrap();
         }))
     }
 }

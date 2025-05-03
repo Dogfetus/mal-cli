@@ -39,7 +39,7 @@ fn get_oauth_url(port: u16) -> Result<String> {
         .read_to_string()?;
     open::that(&url)
         .expect("Failed to open browser");
-    println!("if the browser didn't open, visit this url: {}", url);
+    // println!("if the browser didn't open, visit this url: {}", url);
     Ok(url)
 }
 
