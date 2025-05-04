@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
 
 
     let mal_client = MalClient::new();
-    // mal_client.test();
+    mal_client.test();
 
 
     Ok(())

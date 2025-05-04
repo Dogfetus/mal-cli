@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Result;
 
+pub mod anime;
+
 
 //TODO: idk if we need more .rs files for the models (or not need but want)
 //TODO: add other models for users and manga or something

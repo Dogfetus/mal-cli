@@ -20,7 +20,7 @@ pub struct Button {
 
 impl Button {
     pub fn new(text: &str) -> Self {
-        Button {
+        Self {
             text: text.to_string(),
             width: 20,
             height: 3,
