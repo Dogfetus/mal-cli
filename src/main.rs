@@ -17,11 +17,11 @@ async fn main() -> Result<()> {
     // load .env
 
 
-    // start the terminal view
-    let mut terminal = ratatui::init();
-    let mut app = App::new();
-    app.run(&mut terminal)?;
-    ratatui::restore();
+    // // start the terminal view
+    // let mut terminal = ratatui::init();
+    // let mut app = App::new();
+    // app.run(&mut terminal)?;
+    // ratatui::restore();
 
 
     let mal_client = MalClient::new();

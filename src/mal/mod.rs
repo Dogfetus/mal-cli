@@ -2,6 +2,7 @@ mod oauth;
 use std::{fs, thread::JoinHandle};
 use ureq;
 use serde_json::{Value, json};
+use crate::models::anime::Anime;
 
 
 //TODO: idk where to place this callback function 
@@ -79,27 +80,28 @@ impl MalClient {
         fs::remove_file(".mal/client").expect("Failed to remove client file");
     }
 
-    // fields:
-    // Basic: id, title, main_picture, alternative_titles, start_date, end_date, synopsis
-    // Details: mean (score), rank, popularity, num_list_users, num_episodes, status
-    // Media: pictures, background, related_anime, related_manga
-    // Content: genres, studios, recommendations
-    // Community: statistics, my_list_status, broadcast, opening_themes, ending_themes
 
 
-    pub fn test(&self) -> Result<(), Box<dyn std::error::Error>>{
-        let body: String = ureq::get("https://api.myanimelist.net/v2/anime/season/2025/fall")
-        .header("Authorization", format!("Bearer {}", self.access_token.as_ref().unwrap()))
-        .query("limit", "10")
-        .query("offset", "0")
-        .query("fields", "id,title,main_picture,genres,start_date,end_date,synopsis")
-        .query("sort", "start_date")
-        .call()?
-        .body_mut()
-        .read_to_string()?;
+    pub fn test(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let body = ureq::get("https://api.myanimelist.net/v2/anime/season/2025/fall")
+            .header("Authorization", format!("Bearer {}", self.access_token.as_ref().unwrap()))
+            .query("fields", "mean,rank,popularity,num_list_users,num_episodes,status,pictures,background,related_anime,related_manga,genres,studios,recommendations,statistics,my_list_status,broadcast,opening_themes,ending_themes")
+            .query("limit", "1")
+            .call()?
+            .body_mut()
+            .read_to_string()?;
 
-        let parsed: Value = serde_json::from_str(&body)?;
-        println!("here:\n{}", serde_json::to_string_pretty(&parsed)?);
+        let parsed: serde_json::Value = serde_json::from_str(&body)?;
+
+        let anime_list = parsed["data"].as_array().unwrap();
+        for node in anime_list {
+            println!("Anime: {:?}", node["node"]);
+            let anime = Anime::new(&node["node"]);
+
+            println!("\n\n\nAnime: {:?}", anime);
+        }
+
+        // just print whatever we got
         Ok(())
     }
 }

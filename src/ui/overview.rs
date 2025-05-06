@@ -1,5 +1,6 @@
+use super::widgets::animebox::AnimeBox;
 use super::{screens::*, Screen};
-use crate::ui::widgets::button::Button;
+use crate::{models::anime::Anime, ui::widgets::button::Button};
 use crate::app::Action;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect}, style::{Color, Modifier, Style}, text::{Line, Span, Text}, widgets::{ Block, BorderType, Borders, Clear, Padding, Paragraph, Wrap}, Frame 
@@ -10,7 +11,7 @@ use std::cmp::{max, min};
 
 #[derive(Clone)]
 pub struct OverviewScreen { 
-    animes: Vec<&'static str>,
+    animes: Vec<Anime>,
     buttons: Vec<&'static str>,
     selected_button: usize,
 }
@@ -19,11 +20,10 @@ impl OverviewScreen {
     pub fn new() -> Self {
         Self {
             animes: vec![
-                "one piece",
-                "naruto",
-                "bleach",
-                "attack on titan",
-                "hunter x hunter",
+                Anime::empty(),
+                Anime::empty(),
+                Anime::empty(),
+                Anime::empty(),
             ],
 
             buttons: vec![
@@ -107,82 +107,12 @@ impl Screen for OverviewScreen {
             frame.render_widget(p, button_rect);
         }
 
-        // Define the size and position for the anime box
-        // You can adjust these values to place the box wherever you want
-        let box_width = 40; // Smaller width
-        let box_height = 18; // Total height
-        let x_pos = 10; // X position from left
-        let y_pos = 5;  // Y position from top
 
-        // Create a rect for the anime box
-        let anime_box_rect = Rect::new(x_pos, y_pos, box_width, box_height);
-
-        // Split the anime box into sections
-        let anime_box_layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(2),  // Title bar
-                Constraint::Length(13), // Content area
-                Constraint::Length(3),  // Bottom info
-            ])
-            .split(anime_box_rect);
-
-        // Split the content area horizontally
-        let content_layout = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(40), // Image area
-                Constraint::Percentage(60), // Info area
-            ])
-            .split(anime_box_layout[1]);
-
-        // Title section
-        let title = "My Anime Title";
-        let title_bar = Paragraph::new(title)
-            .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
-            .alignment(Alignment::Center)
-            .block(Block::default()
-                .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
-                .border_style(Style::default().fg(Color::Cyan)));
-
-        // Image placeholder
-        let image_placeholder = Paragraph::new("IMG")
-            .style(Style::default().fg(Color::White))
-            .alignment(Alignment::Center)
-            .block(Block::default()
-                .borders(Borders::LEFT)
-                .border_style(Style::default().fg(Color::Cyan)));
-
-        // Info section - condensed to fit smaller space
-        let info = vec![
-            "Score: 7.55",
-            "Rank: #1783",
-            "Pop: #717",
-            "",
-            "Synopsis:",
-            "Short anime",
-            "description"
-        ];
-
-        let info_section = Paragraph::new(info.join("\n"))
-            .style(Style::default().fg(Color::White))
-            .block(Block::default()
-                .borders(Borders::RIGHT)
-                .border_style(Style::default().fg(Color::Cyan)));
-
-        // Bottom info section - condensed
-        let bottom_section = Paragraph::new("Eps: 0/12 • Fall 2021")
-            .style(Style::default().fg(Color::Gray))
-            .alignment(Alignment::Center)
-            .block(Block::default()
-                .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
-                .border_style(Style::default().fg(Color::Cyan)));
-
-        // Render all components
-        frame.render_widget(title_bar, anime_box_layout[0]);
-        frame.render_widget(image_placeholder, content_layout[0]);
-        frame.render_widget(info_section, content_layout[1]);
-        frame.render_widget(bottom_section, anime_box_layout[2]);
+        for (i, anime) in self.animes.iter().enumerate() {
+            AnimeBox::new(anime)
+                .offset((area[2].x + 10 + (i as u16 * 10) + (i as u16 * 40), 2+area[2].y))
+                .render(frame);
+        }
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {

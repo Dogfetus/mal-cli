@@ -84,7 +84,7 @@ where
                         },
                     }
 
-                    let _ = _tx.send(()); 
+                    _tx.send(()).unwrap(); 
                     rouille::Response::html(html_content)
                 },
 

@@ -31,7 +31,6 @@ impl LoginScreen {
             selected_button: 0,
             buttons: vec![
                 "Copy",
-                "Paste",
                 "Back",
             ],
             login_url: Arc::new(RwLock::new(String::new())),
