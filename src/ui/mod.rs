@@ -4,7 +4,7 @@ use crate::app::{Action, Event};
 use std::sync::atomic::AtomicBool;
 use std::sync::{mpsc, Arc};
 use std::collections::HashMap;
-use std::thread::{self, JoinHandle};
+use std::thread::JoinHandle;
 
 mod launch;
 mod info;
@@ -51,7 +51,10 @@ pub mod screens {
 pub trait Screen: Send + Sync {
     fn draw(&self, frame: &mut Frame);
     fn handle_input(&mut self, key_event: crossterm::event::KeyEvent) -> Option<Action> {None}
-    fn clone_box(&self) -> Box<dyn Screen + Send + Sync>;
+    fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
+        panic!("Attempted to clone a screen type that doesn't support cloning: {}", 
+               self.get_name());
+    }
     fn should_store(&self) -> bool { true }
     fn get_name(&self) -> String {
         let name = std::any::type_name::<Self>();
@@ -99,8 +102,8 @@ impl ScreenManager {
             );
         }
 
-        if let Some(screen) = self.screen_storage.get(screen_name) {
-            self.current_screen = screen.clone_box();
+        if let Some(screen) = self.screen_storage.remove(screen_name) {
+            self.current_screen = screen;
         } else {
             self.current_screen = match screen_name {
                 INFO => Box::new(info::InfoScreen::new()),

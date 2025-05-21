@@ -1,20 +1,18 @@
-use super::{screens::*, Screen};
+use super::{screens::*, widgets::image::CustomImage, Screen};
 use crate::ui::widgets::button::Button;
 use crate::app::Action;
+use crate::mal::MalClient;
 use ratatui::{
-    style::{Style,Color},
-    widgets::{Paragraph, Clear},
-    layout::{Constraint, Direction, Layout, Alignment},
-    Frame, 
+    layout::{Alignment, Constraint, Direction, Layout}, style::{Color, Style}, widgets::{Clear, Paragraph}, Frame 
 };
 use crossterm::event::{KeyCode, KeyEvent};
-use crate::mal::MalClient;
+use std::sync::RwLock;
 
 
-#[derive(Clone)]
 pub struct LaunchScreen { 
     selected_button: usize,
     buttons: Vec<&'static str>,
+    image: RwLock<CustomImage>
 }
 
 impl LaunchScreen {
@@ -26,6 +24,7 @@ impl LaunchScreen {
                 if !MalClient::user_is_logged_in() { "Log In" } else { "Log Out" },
                 "Exit",
             ],
+            image: RwLock::new(CustomImage::new("./assets/Untitled.png")),
         }
     }
 }
@@ -52,7 +51,6 @@ impl Screen for LaunchScreen {
         ])
         .split(page_chunk[0]);
 
-
         let header_text = vec![
             " ███╗   ███╗ █████╗ ██╗                ██████╗██╗     ██╗ ",
             " ████╗ ████║██╔══██╗██║               ██╔════╝██║     ██║ ",
@@ -76,6 +74,11 @@ impl Screen for LaunchScreen {
                 .render(frame, page_chunk[1]);
         }
 
+        if let Ok(mut image) = self.image.write() {
+            image.draw(frame, page_chunk[1]);
+        } else {
+            eprintln!("Failed to acquire write lock on image");
+        }
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
@@ -114,11 +117,5 @@ impl Screen for LaunchScreen {
         None
     }
 
-    fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
-        Box::new(self.clone())
-    }
-
-    fn should_store(&self) -> bool {
-        false
-    }
+    fn should_store(&self) -> bool { false }
 }

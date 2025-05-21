@@ -2,7 +2,7 @@ mod oauth;
 use std::{fs, thread::JoinHandle};
 use ureq;
 use serde_json::{Value, json};
-use crate::models::anime::Anime;
+use crate::models::anime::{self, Anime};
 
 
 //TODO: idk where to place this callback function 
@@ -83,9 +83,10 @@ impl MalClient {
 
 
     pub fn test(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let fields = anime::fields::ALL;
         let body = ureq::get("https://api.myanimelist.net/v2/anime/season/2025/fall")
             .header("Authorization", format!("Bearer {}", self.access_token.as_ref().unwrap()))
-            .query("fields", "mean,rank,popularity,num_list_users,num_episodes,status,pictures,background,related_anime,related_manga,genres,studios,recommendations,statistics,my_list_status,broadcast,opening_themes,ending_themes")
+            .query("fields", &fields.join(","))
             .query("limit", "1")
             .call()?
             .body_mut()
@@ -93,12 +94,11 @@ impl MalClient {
 
         let parsed: serde_json::Value = serde_json::from_str(&body)?;
 
-        let anime_list = parsed["data"].as_array().unwrap();
-        for node in anime_list {
-            println!("Anime: {:?}", node["node"]);
-            let anime = Anime::new(&node["node"]);
 
-            println!("\n\n\nAnime: {:?}", anime);
+        let list = parsed["data"].as_array().expect("Failed to get data");
+        for node in list {
+            println!("Node: {:?}", node);
+
         }
 
         // just print whatever we got
