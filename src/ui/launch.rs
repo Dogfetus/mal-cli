@@ -1,5 +1,5 @@
 use super::{screens::*, widgets::image::CustomImage, Screen};
-use crate::ui::widgets::button::Button;
+use crate::ui::widgets::{button::Button, navbar::NavBar};
 use crate::app::Action;
 use crate::mal::MalClient;
 use ratatui::{
@@ -74,11 +74,7 @@ impl Screen for LaunchScreen {
                 .render(frame, page_chunk[1]);
         }
 
-        if let Ok(mut image) = self.image.write() {
-            image.draw(frame, page_chunk[1]);
-        } else {
-            eprintln!("Failed to acquire write lock on image");
-        }
+        // NavBar::new().render(frame, page_chunk[1]);
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {

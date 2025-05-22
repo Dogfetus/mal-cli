@@ -96,9 +96,21 @@ impl MalClient {
 
 
         let list = parsed["data"].as_array().expect("Failed to get data");
-        for node in list {
-            println!("Node: {:?}", node);
-
+        // println!("List: {:?}", list);
+        for item in list {
+            // Get the "node" object which contains the actual anime data
+            if let Some(node) = item.get("node") {
+                // println!("Node: {:?}", node);
+                for field in fields {
+                    if let Some(value) = node.get(field) {
+                        // println!("{}: {:?}", field, value);
+                    } else {
+                        println!("{}: None", field);
+                    }
+                }
+            } else {
+                println!("No 'node' field found in item");
+            }
         }
 
         // just print whatever we got

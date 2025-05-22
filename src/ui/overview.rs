@@ -1,4 +1,5 @@
 use super::widgets::animebox::AnimeBox;
+use super::widgets::navbar;
 use super::{screens::*, Screen};
 use crate::{models::anime::Anime, ui::widgets::button::Button};
 use crate::app::Action;
@@ -44,75 +45,31 @@ impl Screen for OverviewScreen {
 
         frame.render_widget(Clear, area);
 
-        let area = Layout::default()
+        let [top, bottom] = Layout::default()
             .direction(Direction::Vertical)
             .constraints(
                 [
                     Constraint::Length(4),
-                    Constraint::Length(2),
                     Constraint::Percentage(100),
                 ]
-                .as_ref(),
             )
-            .split(area);
-
-        let header_text = vec![
-            "█▄▀▄█ ▄▀▀▄ █        ▄▀▀▀ █    ▀█▀",
-            "█ ▀ █ █▀▀█ █    ▀▀  █    █     █ ",
-            "▀   ▀ ▀  ▀ ▀▀▀▀      ▀▀▀ ▀▀▀▀ ▀▀▀"
-        ];
-        let header_area = Rect::new(
-            area[0].x,
-            area[0].y,
-            area[0].width-2,
-            area[0].height
-        );
-
-        let header = Paragraph::new(header_text.join("\n"))
-            .style(Style::default().fg(Color::Cyan))
-            .alignment(Alignment::Center);
-        frame.render_widget(header, header_area);
+            .areas(area);
 
 
-        // Calculate button width and spacing
-        let button_spacing = 2; // Space between buttons
-        let button_area = area[1];
-        let button_width = 12;
-        let button_height = 1; // Single line height
-        let total_width = (button_width * self.buttons.len() as u16) + 
-                        (button_spacing * (self.buttons.len() - 1) as u16);
-        let start_x = (button_area.width - total_width) / 2;
-
-        for (i, button) in self.buttons.iter().enumerate() {
-            let x_pos = button_area.x + start_x + (i as u16 * (button_width + button_spacing));
-            let button_rect = Rect::new(x_pos, button_area.y, button_width, button_height);
-
-            // Add Unicode symbols for better-looking compact buttons
-            let display_text = if i == self.selected_button {
-                format!("{}", button)
-            } else {
-                button.to_string()
-            };
-
-            let style = if i == self.selected_button {
-                Style::default().fg(Color::Cyan).bg(Color::Black).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::White)
-            };
-
-            let p = Paragraph::new(display_text)
-                .alignment(Alignment::Center)
-                .style(style);
-
-            frame.render_widget(p, button_rect);
-        }
+        let [bottom_right, bottom_left] = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(
+                [
+                    Constraint::Percentage(70),
+                    Constraint::Percentage(30),
+                ]
+            )
+            .areas(bottom);
 
 
-        for (i, anime) in self.animes.iter().enumerate() {
-            AnimeBox::new(anime)
-                .offset((area[2].x + 10 + (i as u16 * 10) + (i as u16 * 40), 2+area[2].y))
-                .render(frame);
-        }
+        frame.render_widget(Block::bordered(), top);
+        frame.render_widget(Block::bordered(), bottom_left);
+        frame.render_widget(Block::bordered(), bottom_right);
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
