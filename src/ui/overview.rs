@@ -1,19 +1,21 @@
 use super::widgets::animebox::AnimeBox;
-use super::widgets::navbar;
+use super::widgets::navbar::{self, NavBar};
 use super::{screens::*, Screen};
 use crate::{models::anime::Anime, ui::widgets::button::Button};
 use crate::app::Action;
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect}, style::{Color, Modifier, Style}, text::{Line, Span, Text}, widgets::{ Block, BorderType, Borders, Clear, Padding, Paragraph, Wrap}, Frame 
+    layout::{Alignment, Constraint, Direction, Layout, Rect}, style::{Color, Modifier, Style}, text::{Line, Span, Text}, widgets::{ Block, BorderType, Borders, Clear, Padding, Paragraph, Wrap}, Frame,
+    symbols,
 };
 use crossterm::event::{KeyCode, KeyEvent};
 use std::cmp::{max, min};
+use std::os::unix::raw::blkcnt_t;
 
 
 #[derive(Clone)]
 pub struct OverviewScreen { 
     animes: Vec<Anime>,
-    buttons: Vec<&'static str>,
+    options: Vec<&'static str>,
     selected_button: usize,
 }
 
@@ -27,11 +29,12 @@ impl OverviewScreen {
                 Anime::empty(),
             ],
 
-            buttons: vec![
-                "User",
-                "Settings",
-                "Info",
-                "Back",
+            options: vec![
+                "Overview",
+                "Seasons",
+                "Lists",
+                "Filters",
+                "Proile",
             ],
 
             selected_button: 0,
@@ -42,9 +45,19 @@ impl OverviewScreen {
 impl Screen for OverviewScreen {
     fn draw(&self, frame: &mut Frame) {
         let area = frame.area();
-
         frame.render_widget(Clear, area);
 
+
+        /* Splitting the screen:
+        * which looks like this:
+        * ╭────────╮
+        * ╰────────╯
+        * ╭─────╮╭─╮
+        * ╰─────╯│ │
+        * ╭─────╮│ │
+        * │     ││ │
+        * ╰─────╯╰─╯
+        * */
         let [top, bottom] = Layout::default()
             .direction(Direction::Vertical)
             .constraints(
@@ -56,7 +69,7 @@ impl Screen for OverviewScreen {
             .areas(area);
 
 
-        let [bottom_right, bottom_left] = Layout::default()
+        let [bottom_left, bottom_right] = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(
                 [
@@ -66,10 +79,83 @@ impl Screen for OverviewScreen {
             )
             .areas(bottom);
 
+        let [bl_top, bl_bottom] = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(
+                [
+                    Constraint::Length(3),
+                    Constraint::Percentage(100),
+                ]
+            )
+            .areas(bottom_left);
 
-        frame.render_widget(Block::bordered(), top);
-        frame.render_widget(Block::bordered(), bottom_left);
-        frame.render_widget(Block::bordered(), bottom_right);
+
+        /* Displayes the navbar:
+        * which after looks like this:
+        * ╭──┬──┬──╮
+        * ╰──┴──┴──╯
+        * ╭─────╮╭─╮
+        * ╰─────╯│ │
+        * ╭─────╮│ │ 
+        * │     ││ │
+        * ╰─────╯╰─╯
+        * */
+
+        let mut navbar = NavBar::new();
+        for opt in self.options.iter() {
+            navbar.add_button(opt.to_string());
+        }
+        navbar.render(frame, top);
+
+
+        /* Displayes the bottom sections:
+        * which after looks like this (ish):
+        * ╭──┬──┬──╮
+        * ╰──┴──┴──╯
+        * ╭─────┬──╮
+        * │     │  │
+        * │     │  │ 
+        * ╰─────┴──╯
+        * */
+        let (right_set, right_border) = 
+        (
+            symbols::border::Set {
+                bottom_right: symbols::line::ROUNDED_BOTTOM_RIGHT,
+                top_right: symbols::line::ROUNDED_TOP_RIGHT,
+                ..symbols::border::PLAIN
+            },
+            Borders::RIGHT | Borders::BOTTOM | Borders::TOP
+        );
+
+        // bottom left top (blt)
+        let (blt_set, blt_border) = 
+        (
+            symbols::border::Set {
+                top_left: symbols::line::ROUNDED_TOP_LEFT,
+                bottom_left: symbols::line::NORMAL.vertical_right,
+                top_right: symbols::line::NORMAL.horizontal_down,
+                bottom_right: symbols::line::NORMAL.vertical_left,
+                ..symbols::border::PLAIN
+            },
+            Borders::ALL
+        );
+
+        let (blb_set, blb_border) = 
+        (
+            symbols::border::Set {
+                bottom_left: symbols::line::ROUNDED_BOTTOM_LEFT,
+                bottom_right: symbols::line::NORMAL.horizontal_up,
+                ..symbols::border::PLAIN
+            },
+            Borders::LEFT | Borders::BOTTOM | Borders::RIGHT
+        );
+
+
+        let color = Style::default().fg(Color::Cyan);
+
+        frame.render_widget(Block::new().border_set(right_set).borders(right_border).border_style(color), bottom_right);
+        frame.render_widget(Block::new().border_set(blt_set).borders(blt_border).border_style(color), bl_top);
+        frame.render_widget(Block::new().border_set(blb_set).borders(blb_border).border_style(color), bl_bottom);
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
@@ -80,7 +166,7 @@ impl Screen for OverviewScreen {
                 }
             }
             KeyCode::Down | KeyCode::Char('k') => {
-                if self.selected_button < self.buttons.len() - 1 {
+                if self.selected_button < self.options.len() - 1 {
                     self.selected_button += 1;
                 }
             }
@@ -102,24 +188,3 @@ impl Screen for OverviewScreen {
         Box::new(self.clone())
     }
 }
-
-
-// fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-//     let popup_layout = Layout::default()
-//         .direction(Direction::Vertical)
-//         .constraints([
-//             Constraint::Percentage((100 - percent_y) / 2),
-//             Constraint::Percentage(percent_y),
-//             Constraint::Percentage((100 - percent_y) / 2),
-//         ])
-//         .split(r);
-//
-//     Layout::default()
-//         .direction(Direction::Horizontal)
-//         .constraints([
-//             Constraint::Percentage((100 - percent_x) / 2),
-//             Constraint::Percentage(percent_x),
-//             Constraint::Percentage((100 - percent_x) / 2),
-//         ])
-//         .split(popup_layout[1])[1]
-// }
