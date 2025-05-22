@@ -1,15 +1,12 @@
-use super::widgets::animebox::AnimeBox;
-use super::widgets::navbar::{self, NavBar};
+use super::widgets::navbar::NavBar;
 use super::{screens::*, Screen};
-use crate::{models::anime::Anime, ui::widgets::button::Button};
+use crate::models::anime::Anime;
 use crate::app::Action;
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect}, style::{Color, Modifier, Style}, text::{Line, Span, Text}, widgets::{ Block, BorderType, Borders, Clear, Padding, Paragraph, Wrap}, Frame,
+    layout::{Constraint, Direction, Layout}, style::{Color, Style}, widgets::{Block,  Borders, Clear}, Frame,
     symbols,
 };
 use crossterm::event::{KeyCode, KeyEvent};
-use std::cmp::{max, min};
-use std::os::unix::raw::blkcnt_t;
 
 
 #[derive(Clone)]
@@ -151,7 +148,7 @@ impl Screen for OverviewScreen {
         );
 
 
-        let color = Style::default().fg(Color::Cyan);
+        let color = Style::default().fg(Color::DarkGray);
 
         frame.render_widget(Block::new().border_set(right_set).borders(right_border).border_style(color), bottom_right);
         frame.render_widget(Block::new().border_set(blt_set).borders(blt_border).border_style(color), bl_top);

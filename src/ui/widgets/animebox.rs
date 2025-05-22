@@ -6,7 +6,7 @@ use ratatui::{
 };
 
 
-use crate::models::anime::Anime;
+use crate::models::anime::{fields::*, Anime};
 pub struct AnimeBox<'a>{
     anime: &'a Anime,
     offset_x: u16,
@@ -83,64 +83,5 @@ impl<'a> AnimeBox<'a> {
             self.width,
             self.height
         );
-
-        // Split the anime box into sections
-        let anime_box_layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(2),  // Title bar
-                Constraint::Length(13), // Content area
-                Constraint::Length(3),  // Bottom info
-            ])
-            .split(anime_box_rect);
-
-        // Split the content area horizontally
-        let content_layout = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(40), // Image area
-                Constraint::Percentage(60), // Info area
-            ])
-            .split(anime_box_layout[1]);
-
-        let title_bar = Paragraph::new(self.anime.title.clone())
-            .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
-            .alignment(Alignment::Center)
-            .block(Block::default()
-                .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
-                .border_style(Style::default().fg(Color::Cyan)));
-
-        let image_placeholder = Paragraph::new("IMG")
-            .style(Style::default().fg(Color::White))
-            .alignment(Alignment::Center)
-            .block(Block::default()
-                .borders(Borders::LEFT)
-                .border_style(Style::default().fg(Color::Cyan)));
-
-        let info = vec![
-            format!("Score: {}", self.anime.mean),
-            format!("Status: {}", self.anime.status),
-            "".to_string(),
-            format!("Synopsis:{}", self.anime.synopsis),
-        ];
-
-        let info_section = Paragraph::new(info.join("\n"))
-            .style(Style::default().fg(Color::White))
-            .block(Block::default()
-                .borders(Borders::RIGHT)
-                .border_style(Style::default().fg(Color::Cyan)));
-
-        // Bottom info section - condensed
-        let bottom_section = Paragraph::new("Eps: 0/12 • Fall 2021")
-            .style(Style::default().fg(Color::Gray))
-            .alignment(Alignment::Center)
-            .block(Block::default()
-                .borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT)
-                .border_style(Style::default().fg(Color::Cyan)));
-
-        frame.render_widget(title_bar, anime_box_layout[0]);
-        frame.render_widget(image_placeholder, content_layout[0]);    
-        frame.render_widget(info_section, content_layout[1]);
-        frame.render_widget(bottom_section, anime_box_layout[2]);
     }
 }

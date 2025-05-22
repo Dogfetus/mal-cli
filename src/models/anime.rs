@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+
+
+
 #[allow(unused)]
 pub mod fields {
     pub const ID: &str                       = "id";
@@ -43,29 +47,44 @@ pub mod fields {
 #[allow(unused)]
 #[derive(Debug, Clone)]
 pub struct Anime {
-    pub title: String,
-    pub mean: f32,
-    pub status: String,
-    pub synopsis: String,
+    fields: HashMap<String, String>,
 }
 
 impl Anime {
     pub fn new() -> Self {
         Self {
-            title: String::new(),
-            mean: 0.0,
-            status: String::new(),
-            synopsis: String::new(),
+            fields: HashMap::new(),
         }
     }
 
     pub fn empty() -> Self {
         Self {
-            title: String::new(),
-            mean: 0.0,
-            status: String::new(),
-            synopsis: String::new(),
+            fields: HashMap::new(),
         }
+    }
+
+    pub fn get(&self, key: &str) -> Option<&str> {
+        if let Some(value) = self.fields.get(key) {
+            if !value.is_empty() {
+                return Some(value);
+            }
+        }
+        None
+    }
+
+    pub fn gets(&self, keys: &Vec<String>) -> Option<Vec<&String>> {
+        let mut result = Vec::new();
+        for key in keys {
+            if let Some(value) = self.fields.get(key) {
+                if value.is_empty() {
+                    return None;
+                }
+                result.push(value);
+            } else {
+                return None;
+            }
+        }
+        Some(result)
     }
 }
 
