@@ -24,6 +24,7 @@ async fn main() -> Result<()> {
     ratatui::restore();
 
 
+    //testing for now
     let mal_client = MalClient::new();
     mal_client.test();
 

@@ -15,13 +15,6 @@ impl NavBar {
         }
     }
 
-    pub fn empty() -> Self {
-        Self {
-            selected_button: 0,
-            options: Vec::new(),
-        }
-    }
-
     pub fn add_button(&mut self, button: String) -> &mut Self {
         self.options.push(button);
         self
