@@ -3,6 +3,7 @@ mod ui;
 mod mal;
 mod models;
 mod handlers;
+mod utils;
 
 
 
@@ -26,7 +27,7 @@ async fn main() -> Result<()> {
 
     //testing for now
     let mal_client = MalClient::new();
-    // mal_client.test();
+    mal_client.test();
 
 
     Ok(())

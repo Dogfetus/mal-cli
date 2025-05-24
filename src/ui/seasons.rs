@@ -14,8 +14,6 @@ use crossterm::event::{KeyCode, KeyEvent};
 #[derive(Clone)]
 pub struct SeasonsScreen { 
     animes: Vec<Anime>,
-    options: Vec<&'static str>,
-    selected_button: usize,
     scroll_offset: u16,
     navbar: NavBar,
 }
@@ -30,14 +28,6 @@ impl SeasonsScreen {
                 Anime::empty(),
             ],
 
-            options: vec![
-                "Overview",
-                "Seasons",
-                "Lists",
-                "Filters",
-                "Proile",
-            ],
-
             navbar: NavBar::new()
                 .add_screen(OVERVIEW)
                 .add_screen(SEASONS)
@@ -45,7 +35,6 @@ impl SeasonsScreen {
                 .add_screen(FILTER)
                 .add_screen(PROFILE),
 
-            selected_button: 0,
             scroll_offset: 0,
         }
     }
@@ -304,15 +293,9 @@ impl Screen for SeasonsScreen {
         match key_event.code {
             KeyCode::Up | KeyCode::Char('j') => {
                 self.scroll_offset = self.scroll_offset.saturating_sub(1);
-                if self.selected_button > 0 {
-                    self.selected_button -= 1;
-                }
             }
             KeyCode::Down | KeyCode::Char('k') => {
                 self.scroll_offset += 1;
-                if self.selected_button < self.options.len() - 1 {
-                    self.selected_button += 1;
-                }
             }
             KeyCode::Enter => {
                 self.navbar.select();

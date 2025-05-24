@@ -80,11 +80,9 @@ impl MalClient {
         fs::remove_file(".mal/client").expect("Failed to remove client file");
     }
 
-
-
     pub fn test(&self) -> Result<(), Box<dyn std::error::Error>> {
         let fields = anime::fields::ALL;
-        let body = ureq::get("https://api.myanimelist.net/v2/anime/season/2025/fall")
+        let body = ureq::get("https://api.myanimelist.net/v2/anime/30230")
             .header("Authorization", format!("Bearer {}", self.access_token.as_ref().unwrap()))
             .query("fields", &fields.join(","))
             .query("limit", "1")
@@ -94,22 +92,19 @@ impl MalClient {
 
         let parsed: serde_json::Value = serde_json::from_str(&body)?;
 
+        let list = parsed["data"].as_array()
+            .map(|arr| arr.clone())
+            .unwrap_or_else(|| vec![parsed.clone()]);
 
-        let list = parsed["data"].as_array().expect("Failed to get data");
-        // println!("List: {:?}", list);
         for item in list {
-            // Get the "node" object which contains the actual anime data
-            if let Some(node) = item.get("node") {
-                // println!("Node: {:?}", node);
-                for field in fields {
-                    if let Some(value) = node.get(field) {
-                        // println!("{}: {:?}", field, value);
-                    } else {
-                        println!("{}: None", field);
-                    }
+            // Try to get "node" first, if not found use the item itself
+            let anime_data = item.get("node").unwrap_or(&item);
+            for field in fields {
+                if let Some(value) = anime_data.get(field) {
+                    println!("{}: {:?}", field, value);
+                } else {
+                    println!("{}: None", field);
                 }
-            } else {
-                println!("No 'node' field found in item");
             }
         }
 

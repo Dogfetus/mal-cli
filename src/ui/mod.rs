@@ -1,5 +1,4 @@
 use ratatui::Frame;
-use screens::*;
 use crate::app::{Action, Event};
 use std::sync::atomic::AtomicBool;
 use std::sync::{mpsc, Arc};
@@ -16,14 +15,21 @@ mod widgets;
 mod login;
 mod seasons;
 
+// this is a macro to define screens in a more structured way
+// it allows for screens to be implemented in a single place and work across the app
 macro_rules! define_screens {
+
+    // screens provided like bellow: 
+    // SCREEN1 => "Screen1" => <file>::<structName>,
     ($($name:ident => $display:literal => $module:ident::$struct:ident),* $(,)?) => {
+        // this is a module with a const of all available screens
         pub mod screens {
             $(
                 pub const $name: &str = concat!($display, "Screen");
             )*
         }
 
+        // this function gives a screen based on its name
         pub fn name_to_screen(screen_name: &str) -> &'static str {
             match screen_name {
                 $(
@@ -33,6 +39,7 @@ macro_rules! define_screens {
             }
         }
 
+        // this function returns a display name for the screen
         pub fn screen_to_name(screen_name: &str) -> &str {
             match screen_name {
                 $(
@@ -42,6 +49,7 @@ macro_rules! define_screens {
             }
         }
 
+        // this function creates a new screen based on its name
         pub fn create_screen(screen_name: &str) -> Box<dyn Screen> {
             match screen_name {
                 $(
@@ -74,8 +82,10 @@ define_screens! {
     LOGIN => "Login" => login::LoginScreen,
     PROFILE => "Profile" => profile::ProfileScreen,
     SEASONS => "Seasons" => seasons::SeasonsScreen,
-    LIST => "List" => launch::LaunchScreen, // Placeholder for now, replace with actual screen
-    FILTER  => "Filter" => launch::LaunchScreen, // Placeholder for now, replace with actual screen
+
+    // Placeholder for now, replace with actual screen
+    LIST => "List" => launch::LaunchScreen, 
+    FILTER  => "Filter" => launch::LaunchScreen,
 
 
     // Add more as needed:

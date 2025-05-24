@@ -32,14 +32,9 @@ pub enum Event {
 
 #[allow(dead_code)]
 pub struct App {
-    pub key_input: String,              // the currently being edited json key.
-    pub value_input: String,            // the currently being edited json value.
-
     pub screen_manager: ScreenManager,
     pub current_info: Option<CurrentInfo>,
-
     pub is_running: bool,
-
     pub sx: mpsc::Sender<Event>,
     rx: mpsc::Receiver<Event>,
     threads: Vec<JoinHandle<()>>,
@@ -51,9 +46,6 @@ impl App {
         let (sx, rx) = mpsc::channel::<Event>();
 
         App {
-            key_input: String::new(),
-            value_input: String::new(),
-
             screen_manager: ScreenManager::new(sx.clone()),
             current_info: None,
             is_running: true,

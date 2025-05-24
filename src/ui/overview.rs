@@ -1,8 +1,9 @@
+use super::widgets::image::CustomImage;
 use super::widgets::navbar::NavBar;
 use super::{screens::*, Screen};
 use crate::models::anime::Anime;
 use crate::app::Action;
-use ratatui::layout::Margin;
+use ratatui::layout::{Margin, Rect};
 use ratatui::widgets::{Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};
 use ratatui::{
     layout::{Constraint, Direction, Layout}, style::{Color, Style}, widgets::{Block,  Borders, Clear}, Frame,
@@ -14,7 +15,6 @@ use crossterm::event::{KeyCode, KeyEvent};
 #[derive(Clone)]
 pub struct OverviewScreen { 
     animes: Vec<Anime>,
-    selected_button: usize,
     scroll_offset: u16,
     navbar: NavBar,
 }
@@ -37,7 +37,6 @@ impl OverviewScreen {
                 .add_screen(FILTER)
                 .add_screen(PROFILE),
 
-            selected_button: 0,
             scroll_offset: 0,
         }
     }
@@ -97,7 +96,7 @@ impl Screen for OverviewScreen {
         * ╰──┴──┴──╯
         * ╭─────╮╭─╮
         * ╰─────╯│ │
-        * ╭─────╮│ │ 
+        * ╭─────╮│ │
         * │     ││ │
         * ╰─────╯╰─╯
         * */
@@ -175,6 +174,9 @@ impl Screen for OverviewScreen {
                 ]
             )
             .areas(bl_bottom);
+
+        let mut image = CustomImage::new("./assets/146836.jpg");
+
         for column in [blb_left, blb_middle, blb_right] {
             let [top, middle, bottom] = Layout::default()
                 .direction(Direction::Vertical)
@@ -187,8 +189,30 @@ impl Screen for OverviewScreen {
                 )
                 .areas(column);
             for area in [top, middle, bottom] {
+
+                let [right, left] = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints(
+                        [
+                            Constraint::Percentage(50),
+                            Constraint::Percentage(50),
+                        ]
+                    )
+                    .areas(area);
                 // the anime box should go here:
-                frame.render_widget(Block::new().borders(Borders::ALL).border_style(color), area);
+                image.draw(frame, right.inner(Margin {
+                    vertical: 1,
+                    horizontal: 1,
+                }));
+
+                let info = Paragraph::new("Anime Title")
+                    .block(Block::default().padding(Padding::new(1, 1, 1, 1)).borders(Borders::ALL).padding(Padding::new(1, 2, 1, 1)));
+                frame.render_widget(info, left.inner(Margin {
+                    vertical: 1,
+                    horizontal: 1,
+                }));
+
+                // frame.render_widget(Block::new().borders(Borders::ALL).border_style(color), area);
             }
         }
 
@@ -270,20 +294,20 @@ impl Screen for OverviewScreen {
             .scroll((self.scroll_offset, 0))
             .block(Block::default().padding(Padding::new(1, 1, 0, 0)).borders(Borders::TOP).padding(Padding::new(1, 2, 1, 1)));
         frame.render_widget(description, bottom);
-        
+ 
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .begin_symbol(Some("↑"))
             .end_symbol(Some("↓"));
         let mut scrollbar_state = ScrollbarState::new(20).position(self.scroll_offset as usize);
         frame.render_stateful_widget(
-    scrollbar,
-    bottom.inner(Margin {
-            // using an inner vertical margin of 1 unit makes the scrollbar inside the block
-            vertical: 1,
-            horizontal: 0,
-        }),
-        &mut scrollbar_state,
-    );
+            scrollbar,
+            bottom.inner(Margin {
+                // using an inner vertical margin of 1 unit makes the scrollbar inside the block
+                vertical: 1,
+                horizontal: 0,
+            }),
+            &mut scrollbar_state,
+        );
 
     }
 
