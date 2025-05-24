@@ -14,10 +14,50 @@ mod settings;
 mod overview;
 mod widgets;
 mod login;
+mod seasons;
+
+macro_rules! define_screens {
+    ($($name:ident => $display:literal => $module:ident::$struct:ident),* $(,)?) => {
+        pub mod screens {
+            $(
+                pub const $name: &str = concat!($display, "Screen");
+            )*
+        }
+
+        pub fn name_to_screen(screen_name: &str) -> &'static str {
+            match screen_name {
+                $(
+                    $display => screens::$name,
+                )*
+                _ => screens::LAUNCH,
+            }
+        }
+
+        pub fn screen_to_name(screen_name: &str) -> &str {
+            match screen_name {
+                $(
+                    screens::$name => $display,
+                )*
+                _ => screen_name.strip_suffix("Screen").unwrap_or(screen_name),
+            }
+        }
+
+        pub fn create_screen(screen_name: &str) -> Box<dyn Screen> {
+            match screen_name {
+                $(
+                    screens::$name => Box::new($module::$struct::new()),
+                )*
+                _ => Box::new(launch::LaunchScreen::new()),
+            }
+        }
+
+    };
+}
+
 
 // INFO: make these screens structs and implement the trait for them.
 // INFO: they should take care of their own buttons and such
-// when adding new screens add them in change_screen (and screens consts) then just call change_screen when you need to draw them
+// when adding new screens add them in define_screens then just call change_screen when you need to draw them
 // INFO: Now the screen states are being stored in a hashmap, this could be changed to another
 // structure (idk whats best, research this in the future, not important now)
 // this could be moved to a screen manager
@@ -25,22 +65,24 @@ mod login;
 // and then connecting the login functionality to the app
 // then use the rest of the mal api 
 // then start inspecting tachyonfx
+// INFO: here:
+define_screens! {
+    LAUNCH => "Launch" => launch::LaunchScreen,
+    INFO => "Info" => info::InfoScreen,
+    OVERVIEW => "Overview" => overview::OverviewScreen,
+    SETTINGS => "Settings" => settings::SettingsScreen,
+    LOGIN => "Login" => login::LoginScreen,
+    PROFILE => "Profile" => profile::ProfileScreen,
+    SEASONS => "Seasons" => seasons::SeasonsScreen,
+    LIST => "List" => launch::LaunchScreen, // Placeholder for now, replace with actual screen
+    FILTER  => "Filter" => launch::LaunchScreen, // Placeholder for now, replace with actual screen
 
-#[allow(dead_code)]
-pub mod screens {
-    pub const LAUNCH: &str = "LaunchScreen";
-    pub const INFO: &str = "InfoScreen";
-    pub const LIST: &str = "ListScreen";
-    pub const PROFILE: &str = "ProfileScreen";
-    pub const SETTINGS: &str = "SettingsScreen";
-    pub const OVERVIEW: &str = "OverviewScreen";
-    pub const LOGIN: &str = "LoginScreen";
-    pub const ANIME: &str = "AnimeScreen";
-    pub const MANGA: &str = "MangaScreen";
-    pub const SEARCH: &str = "SearchScreen";
-    pub const BROWSE: &str = "BrowseScreen";
+
+    // Add more as needed:
+    // SCREEN1 => "Screen1" => <file>::<structName>,
+    // SCREEN2 => "Screen2" => <file>::<structName>,
+    // etc...
 }
-
 
 //TODO: add passable background logic to each screen that can be passed to a background process
 //TODO: after gathering thoughts, the screen should spawn its background upon creation / screenswap
@@ -105,14 +147,7 @@ impl ScreenManager {
         if let Some(screen) = self.screen_storage.remove(screen_name) {
             self.current_screen = screen;
         } else {
-            self.current_screen = match screen_name {
-                INFO => Box::new(info::InfoScreen::new()),
-                OVERVIEW => Box::new(overview::OverviewScreen::new()),
-                SETTINGS => Box::new(settings::SettingsScreen::new()),
-                LOGIN => Box::new(login::LoginScreen::new()),
-                PROFILE => Box::new(profile::ProfileScreen::new()),
-                _ => Box::new(launch::LaunchScreen::new()),
-            };
+            self.current_screen = create_screen(screen_name);
         }
 
         self.cleanup_backgrounds();

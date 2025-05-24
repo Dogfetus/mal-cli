@@ -12,14 +12,15 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 
 #[derive(Clone)]
-pub struct OverviewScreen { 
+pub struct SeasonsScreen { 
     animes: Vec<Anime>,
+    options: Vec<&'static str>,
     selected_button: usize,
     scroll_offset: u16,
     navbar: NavBar,
 }
 
-impl OverviewScreen {
+impl SeasonsScreen {
     pub fn new() -> Self {
         Self {
             animes: vec![
@@ -29,6 +30,13 @@ impl OverviewScreen {
                 Anime::empty(),
             ],
 
+            options: vec![
+                "Overview",
+                "Seasons",
+                "Lists",
+                "Filters",
+                "Proile",
+            ],
 
             navbar: NavBar::new()
                 .add_screen(OVERVIEW)
@@ -43,7 +51,7 @@ impl OverviewScreen {
     }
 }
 
-impl Screen for OverviewScreen {
+impl Screen for SeasonsScreen {
     fn draw(&self, frame: &mut Frame) {
         let area = frame.area();
         frame.render_widget(Clear, area);
@@ -289,14 +297,22 @@ impl Screen for OverviewScreen {
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
         if self.navbar.is_selected() {
-            return self.navbar.handle_input(key_event);
+            if let Some(action) = self.navbar.handle_input(key_event) {
+                return Some(action);
+            }
         }
         match key_event.code {
             KeyCode::Up | KeyCode::Char('j') => {
                 self.scroll_offset = self.scroll_offset.saturating_sub(1);
+                if self.selected_button > 0 {
+                    self.selected_button -= 1;
+                }
             }
             KeyCode::Down | KeyCode::Char('k') => {
                 self.scroll_offset += 1;
+                if self.selected_button < self.options.len() - 1 {
+                    self.selected_button += 1;
+                }
             }
             KeyCode::Enter => {
                 self.navbar.select();
@@ -310,3 +326,4 @@ impl Screen for OverviewScreen {
         Box::new(self.clone())
     }
 }
+

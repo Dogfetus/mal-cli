@@ -104,14 +104,13 @@ impl App {
             },
             KeyCode::Char('a') => self.screen_manager.change_screen(INFO),
             KeyCode::Char('m') => self.screen_manager.change_screen(LOGIN),
-            KeyCode::Char('l') => self.screen_manager.change_screen(LAUNCH),
             _ => { return }
         }
     }
 
     /// spawn the background threads (one for each handler)
     ///TODO: find a better way to stop the threads when the app exits
-    // TODO: the keyhandler thread waits for input after stopping the app 
+    // TODO: the keyhandler thread waits for input after stopping the app  (bad)
     fn spawn_background(&mut self) {
         for handler in get_handlers() {
             let _sx = self.sx.clone();

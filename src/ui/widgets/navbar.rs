@@ -1,10 +1,13 @@
-use ratatui::{layout::{Alignment, Rect}, style::{Color, Style}, symbols, text::Line, widgets::{Block, Borders, Clear, Paragraph}, Frame};
+use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::{layout::{Alignment, Rect}, style::{Color, Style}, symbols, text::Line, widgets::{Block, Borders}, Frame};
+use crate::{app::Action, ui::{name_to_screen, screen_to_name}};
 
 
 #[derive(Clone)]
 pub struct NavBar {
     pub selected_button: usize,
-    pub options: Vec<String>,  
+    pub options: Vec<&'static str>,  
+    pub is_selected: bool,
 }
 
 impl NavBar {
@@ -12,12 +15,52 @@ impl NavBar {
         Self {
             selected_button: 0,
             options: Vec::new(),
+            is_selected: false,
         }
     }
 
-    pub fn add_button(&mut self, button: String) -> &mut Self {
-        self.options.push(button);
+    pub fn is_selected(&self) -> bool {
+        self.is_selected
+    }
+
+    pub fn select(&mut self) -> &Self {
+        self.is_selected = true;
         self
+    }
+
+    pub fn deselect(&mut self) -> &Self {
+        self.is_selected = false;
+        self
+    }
+
+    pub fn add_screen(mut self, screen: &'static str) -> Self {
+        self.options.push(screen_to_name(screen));
+        self
+    }
+
+    pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
+        match key_event.code {
+            KeyCode::Left | KeyCode::Char('h') => {
+                if self.selected_button > 0 {
+                    self.selected_button = self.selected_button.saturating_sub(1);
+                }
+            },
+            KeyCode::Right | KeyCode::Char('l') => {
+                if self.selected_button < self.options.len() - 1 {
+                    self.selected_button += 1;
+                }
+            },
+            KeyCode::Enter => {
+                if self.is_selected {
+                    let screen_name = self.options[self.selected_button];
+                    return Some(Action::SwitchScreen(name_to_screen(screen_name)));
+                }
+            },
+            _ => {
+                self.deselect();
+            },
+        }
+        None
     }
 
     pub fn render(&self, frame: &mut Frame, area: Rect) {
@@ -62,9 +105,14 @@ impl NavBar {
             let inner = option.inner(option_rect);
             let text_y = inner.y + (inner.height) / 2;
             let centered_area = Rect::new(inner.x, text_y, inner.width, 1);
+            let style = if self.is_selected && i == self.selected_button {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default().fg(Color::Cyan)
+            };
 
             frame.render_widget(
-                Line::from(opt.to_string()).alignment(Alignment::Center),
+                Line::from(opt.to_string()).alignment(Alignment::Center).style(style),
                 centered_area
             );
         }
