@@ -100,7 +100,7 @@ define_screens! {
 //TODO: the background process will be updated by the screen running (currenlty handle_input) notify background, or something
 
 #[allow(dead_code, unused_variables)]
-pub trait Screen: Send + Sync {
+pub trait Screen: Send{
     fn draw(&self, frame: &mut Frame);
     fn handle_input(&mut self, key_event: crossterm::event::KeyEvent) -> Option<Action> {None}
     fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
@@ -112,7 +112,7 @@ pub trait Screen: Send + Sync {
         let name = std::any::type_name::<Self>();
         name.split("::").last().unwrap_or(name).to_string()
     }
-    fn background(&self, sx: mpsc::Sender<Event>, stop: Arc<AtomicBool>) -> Option<JoinHandle<()>> {
+    fn background(&self, sx: &mpsc::Sender<Event>, stop: Arc<AtomicBool>) -> Option<JoinHandle<()>> {
         None
     }
 }
@@ -138,7 +138,7 @@ impl ScreenManager {
         }
     }
 
-    pub fn draw(&self, frame: &mut Frame) {
+    pub fn render_screen(&self, frame: &mut Frame) {
         self.current_screen.draw(frame);
     }
 
@@ -164,8 +164,10 @@ impl ScreenManager {
         self.spawn_background();
     }
 
+
+    // TODO: this stop is also goofy? as the application
     pub fn spawn_background(&mut self) {
-        if let Some(handle) = self.current_screen.background(self.app_sx.clone(), self.stop.clone()) { 
+        if let Some(handle) = self.current_screen.background(&self.app_sx, self.stop.clone()) { 
             self.backgrounds.push(handle);
         }
     }

@@ -144,7 +144,7 @@ impl Screen for LoginScreen {
         Box::new(self.clone())
     }
 
-    fn background(&self, sx: Sender<Event>, stop: Arc<AtomicBool>) -> Option<JoinHandle<()>> {
+    fn background(&self, sx: &Sender<Event>, stop: Arc<AtomicBool>) -> Option<JoinHandle<()>> {
         //TODO: the thread should receive a new transmitter / sender for each screen. to
         //communicate with events instead of polling ( might not be necessary for this login though )
 

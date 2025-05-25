@@ -1,8 +1,14 @@
+use std::cell::RefCell;
+use std::sync::atomic::AtomicBool;
+use std::sync::{mpsc, Arc, Mutex};
+use std::thread::{self, JoinHandle};
+
 use super::widgets::image::CustomImage;
 use super::widgets::navbar::NavBar;
 use super::{screens::*, Screen};
 use crate::models::anime::Anime;
-use crate::app::Action;
+use crate::app::{Action, Event};
+use crate::utils::terminalCapabilities::get_picker;
 use ratatui::layout::{Margin, Rect};
 use ratatui::widgets::{Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};
 use ratatui::{
@@ -10,17 +16,27 @@ use ratatui::{
     symbols,
 };
 use crossterm::event::{KeyCode, KeyEvent};
+use ratatui_image::{
+    thread::{ResizeRequest, ResizeResponse, ThreadProtocol},
+    StatefulImage,
+};
 
 
-#[derive(Clone)]
+// #[derive(Clone)]
 pub struct OverviewScreen { 
     animes: Vec<Anime>,
     scroll_offset: u16,
     navbar: NavBar,
+    async_state: ThreadProtocol,
+    rx: Arc<Mutex<mpsc::Receiver<ResizeRequest>>>,
 }
 
 impl OverviewScreen {
     pub fn new() -> Self {
+        let (sx_worker, rec_worker) = mpsc::channel::<ResizeRequest>();
+        let picker = get_picker();
+        let dyn_img = image::ImageReader::open("./assets/146836.jpg").expect("nah").decode().expect("dont want to");
+
         Self {
             animes: vec![
                 Anime::empty(),
@@ -28,7 +44,6 @@ impl OverviewScreen {
                 Anime::empty(),
                 Anime::empty(),
             ],
-
 
             navbar: NavBar::new()
                 .add_screen(OVERVIEW)
@@ -38,6 +53,8 @@ impl OverviewScreen {
                 .add_screen(PROFILE),
 
             scroll_offset: 0,
+            async_state: ThreadProtocol::new(sx_worker, Some(picker.new_resize_protocol(dyn_img))),
+            rx: Arc::new(Mutex::new(rec_worker)),
         }
     }
 }
@@ -175,7 +192,7 @@ impl Screen for OverviewScreen {
             )
             .areas(bl_bottom);
 
-        let mut image = CustomImage::new("./assets/146836.jpg");
+        // let mut image = CustomImage::new("./assets/146836.jpg");
 
         for column in [blb_left, blb_middle, blb_right] {
             let [top, middle, bottom] = Layout::default()
@@ -200,10 +217,14 @@ impl Screen for OverviewScreen {
                     )
                     .areas(area);
                 // the anime box should go here:
-                image.draw(frame, right.inner(Margin {
-                    vertical: 1,
-                    horizontal: 1,
-                }));
+                // frame.render_stateful_widget(
+                //     StatefulImage::new(),
+                //     right.inner(Margin {
+                //         vertical: 1,
+                //         horizontal: 1,
+                //     }),
+                //     &mut self.async_state,
+                // );
 
                 let info = Paragraph::new("Anime Title")
                     .block(Block::default().padding(Padding::new(1, 1, 1, 1)).borders(Borders::ALL).padding(Padding::new(1, 2, 1, 1)));
@@ -212,9 +233,10 @@ impl Screen for OverviewScreen {
                     horizontal: 1,
                 }));
 
-                // frame.render_widget(Block::new().borders(Borders::ALL).border_style(color), area);
+                frame.render_widget(Block::new().borders(Borders::ALL).border_style(color), area);
             }
         }
+
 
 
 
@@ -330,7 +352,17 @@ impl Screen for OverviewScreen {
         None
     }
 
-    fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
-        Box::new(self.clone())
+    fn should_store(&self) -> bool {
+        false 
     }
+
+    fn background(&self, sx: &mpsc::Sender<Event>, stop: Arc<AtomicBool>) -> Option<JoinHandle<()>> {
+        let rx = Arc::clone(&self.rx);
+        let sx = sx.clone();
+        None
+    }
+
+    // fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
+    //     Box::new(self.clone())
+    // }
 }

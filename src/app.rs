@@ -1,5 +1,7 @@
 use crossterm::event::KeyCode;
 use ratatui::DefaultTerminal;
+use ratatui_image::errors::Errors;
+use ratatui_image::thread::ResizeResponse;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
@@ -26,6 +28,8 @@ pub enum Event {
     KeyPress(crossterm::event::KeyEvent),
     MouseClick(crossterm::event::MouseEvent),
     Resize(u16, u16), 
+    BackgroundNotice(String),
+    ImageRedraw(Result<ResizeResponse, Errors>), 
     Rerender
 }
 
@@ -63,7 +67,7 @@ impl App {
 
         // WARNING: don't use just unwrap here
         while self.is_running {
-            terminal.draw( |frame| self.screen_manager.draw(frame))?;
+            terminal.draw( |frame| self.screen_manager.render_screen(frame))?;
             match self.rx.recv().unwrap() {
                 Event::KeyPress(key_event) => self.handle_input(key_event),           
                 _ => {}
@@ -103,6 +107,7 @@ impl App {
     /// spawn the background threads (one for each handler)
     ///TODO: find a better way to stop the threads when the app exits
     // TODO: the keyhandler thread waits for input after stopping the app  (bad)
+    // TODO: might not even need the stop since the thread will exit when the app exits
     fn spawn_background(&mut self) {
         for handler in get_handlers() {
             let _sx = self.sx.clone();

@@ -1,5 +1,12 @@
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{layout::{Alignment, Rect}, style::{Color, Style}, symbols, text::Line, widgets::{Block, Borders}, Frame};
+use ratatui::{
+    layout::{Alignment, Constraint, Direction, Layout, Rect}, 
+    style::{Color, Style}, 
+    symbols, 
+    text::Line, 
+    widgets::{Block, Borders}, 
+    Frame
+};
 use crate::{app::Action, ui::{name_to_screen, screen_to_name}};
 
 
@@ -64,10 +71,17 @@ impl NavBar {
     }
 
     pub fn render(&self, frame: &mut Frame, area: Rect) {
-        let option_width = area.width / self.options.len() as u16;
+        let constraints: Vec<Constraint> = (0..self.options.len())
+            .map(|_| Constraint::Ratio(1, self.options.len() as u32))
+            .collect();
+
+        let option_rects = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(constraints)
+            .split(area);
 
         for (i, opt) in self.options.iter().enumerate() {
-            let option_rect = Rect::new(area.x + (i as u16 * option_width), area.y, option_width, area.height);
+            let option_rect = option_rects[i];
 
             let (border_set, borders) = match i {
                 0 => (
@@ -98,7 +112,9 @@ impl NavBar {
                 ),
             };
 
-            let option = Block::new().border_set(border_set).borders(borders)
+            let option = Block::new()
+                .border_set(border_set)
+                .borders(borders)
                 .border_style(Style::default().fg(Color::Cyan));
             frame.render_widget(&option, option_rect);
 
