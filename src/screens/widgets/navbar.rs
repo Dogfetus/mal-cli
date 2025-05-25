@@ -7,7 +7,7 @@ use ratatui::{
     widgets::{Block, Borders}, 
     Frame
 };
-use crate::{app::Action, ui::{name_to_screen, screen_to_name}};
+use crate::{app::Action, screens::{name_to_screen, screen_to_name}};
 
 
 #[derive(Clone)]

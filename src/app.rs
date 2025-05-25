@@ -7,8 +7,8 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::{io, sync::mpsc};
 use crate::handlers::get_handlers;
-use crate::ui::ScreenManager;
-use crate::ui::screens::*;
+use crate::screens::ScreenManager;
+use crate::screens::screens::*;
 
 pub enum Action {
     SwitchScreen(&'static str),

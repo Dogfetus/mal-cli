@@ -1,5 +1,5 @@
 mod app;
-mod ui;
+mod screens;
 mod mal;
 mod models;
 mod handlers;

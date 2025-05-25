@@ -1,5 +1,5 @@
 use std::{cmp::{max, min}, sync::{mpsc::Sender, RwLock}};
-use crate::{app::Event, mal::MalClient, ui::widgets::button::Button};
+use crate::{app::Event, mal::MalClient, screens::widgets::button::Button};
 use crossterm::event::{KeyCode, KeyEvent};
 use std::sync::atomic::AtomicBool;
 use super::{screens::*, Screen};

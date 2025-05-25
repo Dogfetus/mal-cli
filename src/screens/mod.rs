@@ -20,7 +20,7 @@ mod seasons;
 macro_rules! define_screens {
 
     // screens provided like bellow: 
-    // SCREEN1 => "Screen1" => <file>::<structName>,
+    // SCREEN1 => "Screen1" => <module>::<structName>,
     ($($name:ident => $display:literal => $module:ident::$struct:ident),* $(,)?) => {
         // this is a module with a const of all available screens
         pub mod screens {
@@ -87,10 +87,9 @@ define_screens! {
     LIST => "List" => launch::LaunchScreen, 
     FILTER  => "Filter" => launch::LaunchScreen,
 
-
     // Add more as needed:
-    // SCREEN1 => "Screen1" => <file>::<structName>,
-    // SCREEN2 => "Screen2" => <file>::<structName>,
+    // SCREEN1 => "Screen1" => <module>::<structName>,
+    // SCREEN2 => "Screen2" => <module>::<structName>,
     // etc...
 }
 

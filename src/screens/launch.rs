@@ -1,5 +1,5 @@
 use super::{screens::*, widgets::image::CustomImage, Screen};
-use crate::ui::widgets::{button::Button, navbar::NavBar};
+use crate::screens::widgets::{button::Button, navbar::NavBar};
 use crate::app::Action;
 use crate::mal::MalClient;
 use ratatui::{
