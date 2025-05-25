@@ -5,7 +5,7 @@ use std::thread::{self, JoinHandle};
 
 use super::widgets::image::CustomImage;
 use super::widgets::navbar::NavBar;
-use super::{screens::*, Screen};
+use super::{screens::*, BackgroundUpdate, Screen};
 use crate::models::anime::Anime;
 use crate::app::{Action, Event};
 use crate::utils::terminalCapabilities::get_picker;
@@ -356,10 +356,22 @@ impl Screen for OverviewScreen {
         false 
     }
 
+
+
+    // TODO: these kind of are tied together (kind of the same behaviour)
+    // the backgorund provides the information for the fields
+    // and then apply_update applies the information to the screen in the ui thread
+    // but this just mean i need to specify the same fields twice
+    // change this
     fn background(&self, sx: &mpsc::Sender<Event>, stop: Arc<AtomicBool>) -> Option<JoinHandle<()>> {
         let rx = Arc::clone(&self.rx);
         let sx = sx.clone();
         None
+    }
+
+    fn apply_update(&mut self, update: BackgroundUpdate) {
+        // Handle updates from the background thread if needed
+        // For now, we do nothing
     }
 
     // fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {

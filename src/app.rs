@@ -7,8 +7,7 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::{io, sync::mpsc};
 use crate::handlers::get_handlers;
-use crate::screens::ScreenManager;
-use crate::screens::screens::*;
+use crate::screens::{ScreenManager, screens::*, BackgroundUpdate};
 
 pub enum Action {
     SwitchScreen(&'static str),
@@ -28,7 +27,7 @@ pub enum Event {
     KeyPress(crossterm::event::KeyEvent),
     MouseClick(crossterm::event::MouseEvent),
     Resize(u16, u16), 
-    BackgroundNotice(String),
+    BackgroundNotice(BackgroundUpdate),
     ImageRedraw(Result<ResizeResponse, Errors>), 
     Rerender
 }
@@ -70,6 +69,7 @@ impl App {
             terminal.draw( |frame| self.screen_manager.render_screen(frame))?;
             match self.rx.recv().unwrap() {
                 Event::KeyPress(key_event) => self.handle_input(key_event),           
+                Event::BackgroundNotice(update) => {self.screen_manager.update_screen(update);},
                 _ => {}
             }
         }

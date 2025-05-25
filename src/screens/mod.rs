@@ -4,6 +4,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{mpsc, Arc};
 use std::collections::HashMap;
 use std::thread::JoinHandle;
+use std::any::Any;
 
 mod launch;
 mod info;
@@ -102,17 +103,21 @@ define_screens! {
 pub trait Screen: Send{
     fn draw(&self, frame: &mut Frame);
     fn handle_input(&mut self, key_event: crossterm::event::KeyEvent) -> Option<Action> {None}
+    fn get_name(&self) -> String {
+        let name = std::any::type_name::<Self>();
+        name.split("::").last().unwrap_or(name).to_string()
+    }
     fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
         panic!("Attempted to clone a screen type that doesn't support cloning: {}", 
                self.get_name());
     }
     fn should_store(&self) -> bool { true }
-    fn get_name(&self) -> String {
-        let name = std::any::type_name::<Self>();
-        name.split("::").last().unwrap_or(name).to_string()
-    }
     fn background(&self, sx: &mpsc::Sender<Event>, stop: Arc<AtomicBool>) -> Option<JoinHandle<()>> {
         None
+    }
+    fn apply_update(&mut self, update: BackgroundUpdate) {
+        // Default implementation does nothing
+        // Override in specific screens if needed
     }
 }
 
@@ -145,6 +150,22 @@ impl ScreenManager {
         self.current_screen.handle_input(key_event)
     }
 
+    pub fn update_screen(&mut self, update: BackgroundUpdate) {
+        if self.current_screen.get_name() == update.screen_id
+        {
+            self.current_screen.apply_update(update);
+        } else {
+            if let Some(screen) = self.screen_storage.get_mut(&update.screen_id) {
+                screen.apply_update(update);
+
+            }
+        }
+    }
+
+
+    // change screen stores the previous screen if not specified otherwise
+    // the current screen is removed from the storage if it exists, or created anew
+    // this allows for screens to be swapped and their state to be preserved
     pub fn change_screen(&mut self, screen_name: &str) {
         if self.current_screen.should_store() {
             self.screen_storage.insert(
@@ -165,6 +186,7 @@ impl ScreenManager {
 
 
     // TODO: this stop is also goofy? as the application
+    // TODO: this might be changed to only allow a single background per screen
     pub fn spawn_background(&mut self) {
         if let Some(handle) = self.current_screen.background(&self.app_sx, self.stop.clone()) { 
             self.backgrounds.push(handle);
@@ -179,5 +201,39 @@ impl ScreenManager {
 
     pub fn cleanup_backgrounds(&mut self) {
         self.backgrounds.retain(|handle| !handle.is_finished());
+    }
+}
+
+
+
+#[derive(Debug)]
+pub struct BackgroundUpdate {
+    pub screen_id: String,
+    pub updates: HashMap<String, Box<dyn Any + Send + Sync>>,
+}
+
+impl BackgroundUpdate {
+    pub fn new(screen_id: String) -> Self {
+        Self {
+            screen_id,
+            updates: HashMap::new(),
+        }
+    }
+
+    pub fn set<T: Any + Send + Sync>(mut self, field: &str, value: T) -> Self {
+        self.updates.insert(field.to_string(), Box::new(value));
+        self
+    }
+
+    pub fn get<T: Any>(&self, field: &str) -> Option<&T> {
+        self.updates.get(field)?.downcast_ref::<T>()
+    }
+
+    pub fn has(&self, field: &str) -> bool {
+        self.updates.contains_key(field)
+    }
+
+    pub fn fields(&self) -> impl Iterator<Item = &String> {
+        self.updates.keys()
     }
 }
