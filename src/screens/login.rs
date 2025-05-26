@@ -2,7 +2,7 @@ use std::{cmp::{max, min}, sync::{mpsc::Sender, RwLock}};
 use crate::{app::Event, mal::MalClient, screens::widgets::button::Button};
 use crossterm::event::{KeyCode, KeyEvent};
 use std::sync::atomic::AtomicBool;
-use super::{screens::*, Screen};
+use super::{screens::*, BackgroundUpdate, Screen};
 use std::thread::JoinHandle;
 use crate::app::Action;
 use std::sync::Arc;
@@ -10,7 +10,6 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect}, 
     widgets::{ Block, Borders, Clear, Paragraph, Wrap}, 
     style::{Color, Modifier, Style}, 
-    text::{Line, Span, Text}, 
     Frame 
 };
 
@@ -22,7 +21,7 @@ use ratatui::{
 pub struct LoginScreen { 
     selected_button: usize,
     buttons: Vec<&'static str>,
-    login_url: Arc<RwLock<String>>,
+    login_url: String,
 }
 
 impl LoginScreen {
@@ -33,7 +32,7 @@ impl LoginScreen {
                 "Copy",
                 "Back",
             ],
-            login_url: Arc::new(RwLock::new(String::new())),
+            login_url: String::new(),
         }
     }
 }
@@ -101,7 +100,7 @@ impl Screen for LoginScreen {
         //     self.login_url = init_oauth().0;
         // }
 
-        let url_field = Paragraph::new(self.login_url.read().unwrap().clone())
+        let url_field = Paragraph::new(self.login_url.clone())
             .block(Block::default().borders(Borders::ALL))
             .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
             .alignment(Alignment::Center);
@@ -156,13 +155,13 @@ impl Screen for LoginScreen {
         let sx = sx.clone();
         let stop = stop.clone();
         let login_url = self.login_url.clone();
+        let id = self.get_name();
 
         Some(std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_millis(100));
             {
-                let ll = login_url.read().unwrap();
 
-                if !ll.is_empty() {
+                if !login_url.is_empty() {
                     return;
                 }
             }
@@ -172,19 +171,22 @@ impl Screen for LoginScreen {
             for i in 0..url_to_print.len()+1 {
                 std::thread::sleep(std::time::Duration::from_millis(8));
                 let new_url = url_to_print[0..i].to_string();
-                {
-                    let mut url = login_url.write().unwrap();
-                    *url = new_url; }
-                sx.send(Event::Rerender).unwrap();
+                let update = BackgroundUpdate::new(id.clone())
+                    .set("login_url", new_url);
+                let _ = sx.send(Event::BackgroundNotice(update));
             }
 
             joinable.join().unwrap();  
             let new_url = "Login successful".to_string();
-            {
-                let mut url = login_url.write().unwrap();
-                *url = new_url; 
-            }
-            sx.send(Event::Rerender).unwrap();
+            let update = BackgroundUpdate::new(id.clone())
+                .set("login_url", new_url);
+            let _ = sx.send(Event::BackgroundNotice(update));
         }))
+    }
+
+    fn apply_update(&mut self, update: BackgroundUpdate) {
+        if let Some(url) = update.get::<String>("login_url") {
+            self.login_url = url.clone();
+        }
     }
 }

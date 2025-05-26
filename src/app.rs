@@ -28,6 +28,8 @@ pub enum Event {
     MouseClick(crossterm::event::MouseEvent),
     Resize(u16, u16), 
     BackgroundNotice(BackgroundUpdate),
+
+    // TODO: remove these?:
     ImageRedraw(Result<ResizeResponse, Errors>), 
     Rerender
 }

@@ -192,7 +192,11 @@ impl Screen for OverviewScreen {
             )
             .areas(bl_bottom);
 
-        // let mut image = CustomImage::new("./assets/146836.jpg");
+        let mut cimage = CustomImage::new("./assets/146836.jpg");
+        cimage.draw(frame, blb_left.inner(Margin {
+            vertical: 1,
+            horizontal: 1,
+        }));
 
         for column in [blb_left, blb_middle, blb_right] {
             let [top, middle, bottom] = Layout::default()
@@ -225,15 +229,16 @@ impl Screen for OverviewScreen {
                 //     }),
                 //     &mut self.async_state,
                 // );
+ 
 
-                let info = Paragraph::new("Anime Title")
-                    .block(Block::default().padding(Padding::new(1, 1, 1, 1)).borders(Borders::ALL).padding(Padding::new(1, 2, 1, 1)));
-                frame.render_widget(info, left.inner(Margin {
-                    vertical: 1,
-                    horizontal: 1,
-                }));
-
-                frame.render_widget(Block::new().borders(Borders::ALL).border_style(color), area);
+                // let info = Paragraph::new("Anime Title")
+                //     .block(Block::default().padding(Padding::new(1, 1, 1, 1)).borders(Borders::ALL).padding(Padding::new(1, 2, 1, 1)));
+                // frame.render_widget(info, left.inner(Margin {
+                //     vertical: 1,
+                //     horizontal: 1,
+                // }));
+                //
+                // frame.render_widget(Block::new().borders(Borders::ALL).border_style(color), area);
             }
         }
 
@@ -362,11 +367,16 @@ impl Screen for OverviewScreen {
     // the backgorund provides the information for the fields
     // and then apply_update applies the information to the screen in the ui thread
     // but this just mean i need to specify the same fields twice
-    // change this
+    // change this or not? is it good?
     fn background(&self, sx: &mpsc::Sender<Event>, stop: Arc<AtomicBool>) -> Option<JoinHandle<()>> {
         let rx = Arc::clone(&self.rx);
         let sx = sx.clone();
-        None
+        let id = self.get_name();
+
+        Some(thread::spawn(move || {
+            let update = BackgroundUpdate::new(id)
+            .set("anime", Anime::empty());
+        }))
     }
 
     fn apply_update(&mut self, update: BackgroundUpdate) {
