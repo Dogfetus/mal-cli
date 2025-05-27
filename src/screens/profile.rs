@@ -6,6 +6,11 @@ use super::Screen;
 
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
+use ratatui::layout::Constraint;
+use ratatui::layout::Direction;
+use ratatui::layout::Layout;
+use ratatui::widgets::Block;
+use ratatui::widgets::Borders;
 use ratatui::Frame;
 use ratatui::widgets;
 use ratatui::style;
@@ -30,26 +35,35 @@ impl ProfileScreen {
 impl Screen for ProfileScreen {
 
     fn draw(&self, frame: &mut Frame) {
-        let size = frame.area();
-        let block = widgets::Block::default()
-            .title("Profile page:")
-            .borders(widgets::Borders::ALL);
-        let list = widgets::List::new(vec![
-            widgets::ListItem::new("Profile View here"),
-        ])
-        .block(block)
-        .highlight_style(style::Style::default().bg(style::Color::Blue));
-        frame.render_widget(list, size);
+        let area = frame.area();
+        frame.render_widget(widgets::Clear, area);
+
+        let [left, right] = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(32),
+                Constraint::Percentage(68),
+            ])
+            .areas(area);
+
+        let block = Block::new().borders(Borders::ALL)
+            .style(style::Style::default().fg(style::Color::LightBlue));
+
+        let [pfp, info, buttons] = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Percentage(40),
+                Constraint::Percentage(40),
+                Constraint::Percentage(20),
+            ])
+            .areas(left);
 
 
-        for (i, button) in self.buttons.iter().enumerate() {
-                Button::new(button)
-                .center()
-                .selected(i == self.selected_button)
-                .offset((0, 3*i as i16))
-                .render(frame, frame.area());
-        }
-
+        frame.render_widget(block.clone(), left);
+        frame.render_widget(block.clone(), right);
+        frame.render_widget(block.clone(), pfp);
+        frame.render_widget(block.clone(), info);
+        frame.render_widget(block, buttons);
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
