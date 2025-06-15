@@ -1,37 +1,22 @@
 mod app;
 mod screens;
 mod mal;
-mod models;
 mod handlers;
 mod utils;
 
-
-
 use crate::app::App;
 use anyhow::Result;
-use mal::MalClient;
-
-
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // load .env
-
-
     // start the terminal view
     let mut terminal = ratatui::init();
     let mut app = App::new();
     app.run(&mut terminal)?;
+
+    // restore
     ratatui::restore();
-
-
-    //testing for now
-    let mal_client = MalClient::new();
-    mal_client.test();
-
-
     Ok(())
-
 }
 
 

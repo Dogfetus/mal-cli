@@ -6,7 +6,7 @@ use std::thread::{self, JoinHandle};
 use super::widgets::image::CustomImage;
 use super::widgets::navbar::NavBar;
 use super::{screens::*, BackgroundUpdate, Screen};
-use crate::models::anime::Anime;
+use crate::mal::models::anime::Anime;
 use crate::app::{Action, Event};
 use crate::utils::terminalCapabilities::get_picker;
 use ratatui::layout::{Margin, Rect};
@@ -368,6 +368,7 @@ impl Screen for OverviewScreen {
     // and then apply_update applies the information to the screen in the ui thread
     // but this just mean i need to specify the same fields twice
     // change this or not? is it good?
+    // i think its good
     fn background(&self, sx: &mpsc::Sender<Event>, stop: Arc<AtomicBool>) -> Option<JoinHandle<()>> {
         let rx = Arc::clone(&self.rx);
         let sx = sx.clone();
@@ -376,6 +377,8 @@ impl Screen for OverviewScreen {
         Some(thread::spawn(move || {
             let update = BackgroundUpdate::new(id)
             .set("anime", Anime::empty());
+
+            let _ = sx.send(Event::BackgroundNotice(update));
         }))
     }
 

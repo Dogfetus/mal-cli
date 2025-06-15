@@ -1,5 +1,6 @@
 use ratatui::Frame;
 use crate::app::{Action, Event};
+use crate::mal;
 use std::sync::atomic::AtomicBool;
 use std::sync::{mpsc, Arc};
 use std::collections::HashMap;
@@ -64,6 +65,20 @@ macro_rules! define_screens {
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // INFO: make these screens structs and implement the trait for them.
 // INFO: they should take care of their own buttons and such
 // when adding new screens add them in define_screens then just call change_screen when you need to draw them
@@ -94,10 +109,23 @@ define_screens! {
     // etc...
 }
 
-//TODO: add passable background logic to each screen that can be passed to a background process
-//TODO: after gathering thoughts, the screen should spawn its background upon creation / screenswap
-//TODO: the background should be passed a channel to send events to the rendering thread 
-//TODO: the background process will be updated by the screen running (currenlty handle_input) notify background, or something
+
+
+
+
+
+
+
+
+
+
+
+#[derive(Debug, Clone)]
+pub struct BackgroundInfo {
+    pub stop: Arc<AtomicBool>,
+    pub app_sx: mpsc::Sender<Event>,
+    pub mal_client: mal::MalClient,
+}
 
 #[allow(dead_code, unused_variables)]
 pub trait Screen: Send{
@@ -112,7 +140,7 @@ pub trait Screen: Send{
                self.get_name());
     }
     fn should_store(&self) -> bool { true }
-    fn background(&self, sx: &mpsc::Sender<Event>, stop: Arc<AtomicBool>) -> Option<JoinHandle<()>> {
+    fn background(&self, info: BackgroundInfo) -> Option<JoinHandle<()>> {
         None
     }
     fn apply_update(&mut self, update: BackgroundUpdate) {
@@ -126,19 +154,21 @@ pub struct ScreenManager {
     current_screen: Box<dyn Screen>,
     screen_storage: HashMap<String, Box<dyn Screen>>,
     backgrounds: Vec<JoinHandle<()>>,
-    stop: Arc<AtomicBool>,
-    app_sx: mpsc::Sender<Event>,
+    passable_info: BackgroundInfo,
 }
 
 #[allow(dead_code)]
 impl ScreenManager {
-    pub fn new(app_sx: mpsc::Sender<Event>) -> Self {
+    pub fn new(app_sx: mpsc::Sender<Event>, mal_client: mal::MalClient) -> Self {
         Self {
             current_screen: Box::new(launch::LaunchScreen::new()),
             screen_storage: HashMap::new(),
             backgrounds: Vec::new(),
-            stop: Arc::new(AtomicBool::new(false)),
-            app_sx,
+            passable_info: BackgroundInfo {
+                stop: Arc::new(AtomicBool::new(false)),
+                app_sx: app_sx.clone(),
+                mal_client,
+            },
         }
     }
 
@@ -155,9 +185,9 @@ impl ScreenManager {
         {
             self.current_screen.apply_update(update);
         } else {
+            // TODO: check if this actually works when not rendered?
             if let Some(screen) = self.screen_storage.get_mut(&update.screen_id) {
                 screen.apply_update(update);
-
             }
         }
     }
@@ -188,7 +218,7 @@ impl ScreenManager {
     // TODO: this stop is also goofy? as the application
     // TODO: this might be changed to only allow a single background per screen
     pub fn spawn_background(&mut self) {
-        if let Some(handle) = self.current_screen.background(&self.app_sx, self.stop.clone()) { 
+        if let Some(handle) = self.current_screen.background(self.passable_info.clone()) { 
             self.backgrounds.push(handle);
         }
     }
@@ -212,6 +242,7 @@ pub struct BackgroundUpdate {
     pub updates: HashMap<String, Box<dyn Any + Send + Sync>>,
 }
 
+#[allow(dead_code)]
 impl BackgroundUpdate {
     pub fn new(screen_id: String) -> Self {
         Self {

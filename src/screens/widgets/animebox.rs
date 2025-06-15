@@ -6,7 +6,7 @@ use ratatui::{
 };
 
 
-use crate::models::anime::{fields::*, Anime};
+use crate::mal::models::anime::{fields::*, Anime};
 pub struct AnimeBox<'a>{
     anime: &'a Anime,
     offset_x: u16,

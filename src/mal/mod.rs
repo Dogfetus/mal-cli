@@ -1,18 +1,21 @@
 mod oauth;
+pub mod models;
+
 use std::{fs, thread::JoinHandle};
 use ureq;
 use serde_json::{Value, json};
-use crate::models::anime::{self, Anime};
+use models::anime::{self, Anime};
 
 
-//TODO: idk where to place this callback function 
-//TODO: should this be oauth login or just login with options?
-//TODO: startup screen should include an option to signin or not (or profile side)
+
 //TODO: encrypt the tokens somehow
-//TODO: check if the tokens exists before trying to login 
-//TODO: read the tokens to memory, and start using them to request data (using some mal api wrapper)
+// OK NOW I HAVE THE SOLUTION:
+// here add so that the mal client uses a readwrite lock around the tokens
+// thus allows multiple threads to read the tokens and request at the same time
 
 
+
+#[derive(Debug, Clone)]
 pub struct MalClient {
     access_token: Option<String>,
     refresh_token: Option<String>,
@@ -27,7 +30,7 @@ impl MalClient {
             expires_in: None,
         };
 
-        client.load_from_file();
+        client.login_from_file();
         client
     }
 
@@ -45,7 +48,9 @@ impl MalClient {
         )
     }
 
-    pub fn load_from_file(&mut self) -> bool {
+
+    //TODO: add a check for token validity
+    pub fn login_from_file(&mut self) -> bool {
         if !fs::metadata(".mal/client").is_ok() {
             return false;
         }

@@ -1,6 +1,6 @@
 use super::widgets::navbar::NavBar;
 use super::{screens::*, Screen};
-use crate::models::anime::Anime;
+use crate::mal::models::anime::Anime;
 use crate::app::Action;
 use ratatui::layout::Margin;
 use ratatui::widgets::{Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};

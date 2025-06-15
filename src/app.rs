@@ -1,3 +1,4 @@
+use color_eyre::owo_colors::OwoColorize;
 use crossterm::event::KeyCode;
 use ratatui::DefaultTerminal;
 use ratatui_image::errors::Errors;
@@ -7,6 +8,7 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::{io, sync::mpsc};
 use crate::handlers::get_handlers;
+use crate::mal::MalClient;
 use crate::screens::{ScreenManager, screens::*, BackgroundUpdate};
 
 pub enum Action {
@@ -21,7 +23,6 @@ pub enum CurrentInfo {
     Manga,
 }
 
-
 #[allow(dead_code)]
 pub enum Event {
     KeyPress(crossterm::event::KeyEvent),
@@ -34,9 +35,9 @@ pub enum Event {
     Rerender
 }
 
-
 #[allow(dead_code)]
 pub struct App {
+    pub mal_client: MalClient,
     pub screen_manager: ScreenManager,
     pub current_info: Option<CurrentInfo>,
     pub is_running: bool,
@@ -49,9 +50,11 @@ pub struct App {
 impl App {
     pub fn new() -> App {
         let (sx, rx) = mpsc::channel::<Event>();
+        let mal_client = MalClient::new();
 
         App {
-            screen_manager: ScreenManager::new(sx.clone()),
+            mal_client: mal_client.clone(), 
+            screen_manager: ScreenManager::new(sx.clone(), mal_client),
             current_info: None,
             is_running: true,
 
@@ -121,8 +124,6 @@ impl App {
         }
     }
 }
-
-
 
 impl Drop for App {
     fn drop(&mut self) {
