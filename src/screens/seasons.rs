@@ -2,7 +2,8 @@ use super::widgets::navbar::NavBar;
 use super::{screens::*, Screen};
 use crate::mal::models::anime::Anime;
 use crate::app::Action;
-use ratatui::layout::Margin;
+use ratatui::layout::{Margin, Rect};
+use ratatui::text::Span;
 use ratatui::widgets::{Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};
 use ratatui::{
     layout::{Constraint, Direction, Layout}, style::{Color, Style}, widgets::{Block,  Borders, Clear}, Frame,
@@ -149,6 +150,12 @@ impl Screen for SeasonsScreen {
         frame.render_widget(Block::new().border_set(right_set).borders(right_border).border_style(color), bottom_right);
         frame.render_widget(Block::new().border_set(blt_set).borders(blt_border).border_style(color), bl_top);
         frame.render_widget(Block::new().border_set(blb_set).borders(blb_border).border_style(color), bl_bottom);
+
+        // try add some ttext to bl_top: vertical center
+        let title = Paragraph::new(format!("{}", "Spring 2024"))
+            .centered()
+            .block(Block::default().padding(Padding::vertical(1)));
+        frame.render_widget(title, bl_top);
 
 
 

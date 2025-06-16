@@ -37,7 +37,7 @@ pub enum Event {
 
 #[allow(dead_code)]
 pub struct App {
-    pub mal_client: MalClient,
+    pub mal_client: Arc<MalClient>,
     pub screen_manager: ScreenManager,
     pub current_info: Option<CurrentInfo>,
     pub is_running: bool,
@@ -50,7 +50,7 @@ pub struct App {
 impl App {
     pub fn new() -> App {
         let (sx, rx) = mpsc::channel::<Event>();
-        let mal_client = MalClient::new();
+        let mal_client = Arc::new(MalClient::new());
 
         App {
             mal_client: mal_client.clone(), 
@@ -109,9 +109,6 @@ impl App {
         }
     }
 
-    /// spawn the background threads (one for each handler)
-    ///TODO: find a better way to stop the threads when the app exits
-    // TODO: the keyhandler thread waits for input after stopping the app  (bad)
     // TODO: might not even need the stop since the thread will exit when the app exits
     fn spawn_background(&mut self) {
         for handler in get_handlers() {
@@ -125,17 +122,21 @@ impl App {
     }
 }
 
-impl Drop for App {
-    fn drop(&mut self) {
-        self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
 
-        println!("Stopping threads...");
-        for handle in self.threads.drain(..) {
-            let _ = handle.join();
-        }
 
-        // sending a fake key input to stop the input handler (for now?)
-
-    }
-}
-
+// TODO: check if this is even necessary? ii mean its rust right
+//
+// impl Drop for App {
+//     fn drop(&mut self) {
+//         self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+//
+//         println!("Stopping threads...");
+//         for handle in self.threads.drain(..) {
+//             let _ = handle.join();
+//         }
+//
+//         // sending a fake key input to stop the input handler (for now?)
+//
+//     }
+// }
+//

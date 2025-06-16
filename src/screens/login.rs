@@ -2,7 +2,7 @@ use std::{cmp::{max, min}, sync::{mpsc::Sender, RwLock}};
 use crate::{app::Event, mal::MalClient, screens::widgets::button::Button};
 use crossterm::event::{KeyCode, KeyEvent};
 use std::sync::atomic::AtomicBool;
-use super::{screens::*, BackgroundUpdate, Screen};
+use super::{screens::*, BackgroundInfo, BackgroundUpdate, Screen};
 use std::thread::JoinHandle;
 use crate::app::Action;
 use std::sync::Arc;
@@ -143,7 +143,7 @@ impl Screen for LoginScreen {
         Box::new(self.clone())
     }
 
-    fn background(&self, sx: &Sender<Event>, stop: Arc<AtomicBool>) -> Option<JoinHandle<()>> {
+    fn background(&self, info: BackgroundInfo) -> Option<JoinHandle<()>> {
         //TODO: the thread should receive a new transmitter / sender for each screen. to
         //communicate with events instead of polling ( might not be necessary for this login though )
 
@@ -152,8 +152,6 @@ impl Screen for LoginScreen {
             return None;
         }
 
-        let sx = sx.clone();
-        let stop = stop.clone();
         let login_url = self.login_url.clone();
         let id = self.get_name();
 
@@ -173,14 +171,14 @@ impl Screen for LoginScreen {
                 let new_url = url_to_print[0..i].to_string();
                 let update = BackgroundUpdate::new(id.clone())
                     .set("login_url", new_url);
-                let _ = sx.send(Event::BackgroundNotice(update));
+                let _ = info.app_sx.send(Event::BackgroundNotice(update));
             }
 
             joinable.join().unwrap();  
             let new_url = "Login successful".to_string();
             let update = BackgroundUpdate::new(id.clone())
                 .set("login_url", new_url);
-            let _ = sx.send(Event::BackgroundNotice(update));
+            let _ = info.app_sx.send(Event::BackgroundNotice(update));
         }))
     }
 

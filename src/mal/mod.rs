@@ -5,6 +5,7 @@ use std::{fs, thread::JoinHandle};
 use ureq;
 use serde_json::{Value, json};
 use models::anime::{self, Anime};
+use std::sync::{Arc, RwLock};
 
 
 
@@ -14,20 +15,27 @@ use models::anime::{self, Anime};
 // thus allows multiple threads to read the tokens and request at the same time
 
 
-
 #[derive(Debug, Clone)]
-pub struct MalClient {
+pub struct Identity {
     access_token: Option<String>,
     refresh_token: Option<String>,
     expires_in: Option<String>,
 }
 
+
+#[derive(Debug, Clone)]
+pub struct MalClient {
+    identity: Arc<RwLock<Identity>>,
+}
+
 impl MalClient {
     pub fn new() -> Self {
         let mut client = Self {
-            access_token: None,
-            refresh_token: None,
-            expires_in: None,
+            identity: Arc::new(RwLock::new(Identity {
+                access_token: None,
+                refresh_token: None,
+                expires_in: None,
+            })),
         };
 
         client.login_from_file();
@@ -55,14 +63,16 @@ impl MalClient {
             return false;
         }
 
+
         if let Ok(client_file) = fs::read_to_string(".mal/client") {
+            let mut identity = self.identity.write().unwrap();
             for line in client_file.lines() {
                 if line.starts_with("mal_access_token") {
-                    self.access_token = line.split("\"").nth(1).map(String::from);
+                    identity.access_token = line.split("\"").nth(1).map(String::from);
                 } else if line.starts_with("mal_refresh_token") {
-                    self.refresh_token = line.split("\"").nth(1).map(String::from);
+                    identity.refresh_token = line.split("\"").nth(1).map(String::from);
                 } else if line.starts_with("mal_token_expires_at") {
-                    self.expires_in = line.split("\"").nth(1).map(String::from);
+                    identity.expires_in = line.split("\"").nth(1).map(String::from);
                 }
             }
             return true;
@@ -86,9 +96,13 @@ impl MalClient {
     }
 
     pub fn test(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let token = self.identity.read().unwrap().access_token.clone();
+        if token.is_none() {
+            return Err("Access token is not set".into());
+        }
         let fields = anime::fields::ALL;
         let body = ureq::get("https://api.myanimelist.net/v2/anime/30230")
-            .header("Authorization", format!("Bearer {}", self.access_token.as_ref().unwrap()))
+            .header("Authorization", format!("Bearer {}", token.as_ref().unwrap()))
             .query("fields", &fields.join(","))
             .query("limit", "1")
             .call()?

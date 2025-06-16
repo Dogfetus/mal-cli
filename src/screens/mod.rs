@@ -101,7 +101,7 @@ define_screens! {
 
     // Placeholder for now, replace with actual screen
     LIST => "List" => launch::LaunchScreen, 
-    FILTER  => "Filter" => launch::LaunchScreen,
+    FILTER => "Filter" => launch::LaunchScreen,
 
     // Add more as needed:
     // SCREEN1 => "Screen1" => <module>::<structName>,
@@ -122,9 +122,9 @@ define_screens! {
 
 #[derive(Debug, Clone)]
 pub struct BackgroundInfo {
-    pub stop: Arc<AtomicBool>,
+    // pub stop: Arc<AtomicBool>,
     pub app_sx: mpsc::Sender<Event>,
-    pub mal_client: mal::MalClient,
+    pub mal_client: Arc<mal::MalClient>,
 }
 
 #[allow(dead_code, unused_variables)]
@@ -159,14 +159,14 @@ pub struct ScreenManager {
 
 #[allow(dead_code)]
 impl ScreenManager {
-    pub fn new(app_sx: mpsc::Sender<Event>, mal_client: mal::MalClient) -> Self {
+    pub fn new(app_sx: mpsc::Sender<Event>, mal_client: Arc<mal::MalClient>) -> Self {
         Self {
             current_screen: Box::new(launch::LaunchScreen::new()),
             screen_storage: HashMap::new(),
             backgrounds: Vec::new(),
             passable_info: BackgroundInfo {
-                stop: Arc::new(AtomicBool::new(false)),
-                app_sx: app_sx.clone(),
+                // stop: Arc::new(AtomicBool::new(false)),
+                app_sx,
                 mal_client,
             },
         }
@@ -214,21 +214,20 @@ impl ScreenManager {
         self.spawn_background();
     }
 
-
-    // TODO: this stop is also goofy? as the application
-    // TODO: this might be changed to only allow a single background per screen
     pub fn spawn_background(&mut self) {
         if let Some(handle) = self.current_screen.background(self.passable_info.clone()) { 
             self.backgrounds.push(handle);
         }
     }
 
+    // this stops all background threads and waits for them to finish
     pub fn stop_background(&mut self) {
         for handle in self.backgrounds.drain(..) {
             handle.join().unwrap();
         }
     }
 
+    // this cleans up the backgrounds by removing those that are finished
     pub fn cleanup_backgrounds(&mut self) {
         self.backgrounds.retain(|handle| !handle.is_finished());
     }

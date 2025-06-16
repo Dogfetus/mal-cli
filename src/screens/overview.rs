@@ -5,7 +5,7 @@ use std::thread::{self, JoinHandle};
 
 use super::widgets::image::CustomImage;
 use super::widgets::navbar::NavBar;
-use super::{screens::*, BackgroundUpdate, Screen};
+use super::{screens::*, BackgroundInfo, BackgroundUpdate, Screen};
 use crate::mal::models::anime::Anime;
 use crate::app::{Action, Event};
 use crate::utils::terminalCapabilities::get_picker;
@@ -22,12 +22,12 @@ use ratatui_image::{
 };
 
 
-// #[derive(Clone)]
+#[derive(Clone)]
 pub struct OverviewScreen { 
     animes: Vec<Anime>,
     scroll_offset: u16,
     navbar: NavBar,
-    async_state: ThreadProtocol,
+    // async_state: ThreadProtocol,
     rx: Arc<Mutex<mpsc::Receiver<ResizeRequest>>>,
 }
 
@@ -53,7 +53,7 @@ impl OverviewScreen {
                 .add_screen(PROFILE),
 
             scroll_offset: 0,
-            async_state: ThreadProtocol::new(sx_worker, Some(picker.new_resize_protocol(dyn_img))),
+            // async_state: ThreadProtocol::new(sx_worker, Some(picker.new_resize_protocol(dyn_img))),
             rx: Arc::new(Mutex::new(rec_worker)),
         }
     }
@@ -192,11 +192,11 @@ impl Screen for OverviewScreen {
             )
             .areas(bl_bottom);
 
-        let mut cimage = CustomImage::new("./assets/146836.jpg");
-        cimage.draw(frame, blb_left.inner(Margin {
-            vertical: 1,
-            horizontal: 1,
-        }));
+        // let mut cimage = CustomImage::new("./assets/146836.jpg");
+        // cimage.draw(frame, blb_left.inner(Margin {
+        //     vertical: 1,
+        //     horizontal: 1,
+        // }));
 
         for column in [blb_left, blb_middle, blb_right] {
             let [top, middle, bottom] = Layout::default()
@@ -357,28 +357,25 @@ impl Screen for OverviewScreen {
         None
     }
 
-    fn should_store(&self) -> bool {
-        false 
+    // fn should_store(&self) -> bool {
+    //     false 
+    // }
+
+    fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
+        Box::new(self.clone())
     }
 
-
-
-    // TODO: these kind of are tied together (kind of the same behaviour)
-    // the backgorund provides the information for the fields
-    // and then apply_update applies the information to the screen in the ui thread
-    // but this just mean i need to specify the same fields twice
-    // change this or not? is it good?
-    // i think its good
-    fn background(&self, sx: &mpsc::Sender<Event>, stop: Arc<AtomicBool>) -> Option<JoinHandle<()>> {
-        let rx = Arc::clone(&self.rx);
-        let sx = sx.clone();
+    fn background(&self, info: BackgroundInfo) -> Option<JoinHandle<()>> {
+        // let rx = Arc::clone(&self.rx);
         let id = self.get_name();
 
         Some(thread::spawn(move || {
             let update = BackgroundUpdate::new(id)
             .set("anime", Anime::empty());
 
-            let _ = sx.send(Event::BackgroundNotice(update));
+            thread::sleep(std::time::Duration::from_secs(2));
+            // let _ = info.mal_client.test();
+            let _ = info.app_sx.send(Event::BackgroundNotice(update));
         }))
     }
 
@@ -386,8 +383,4 @@ impl Screen for OverviewScreen {
         // Handle updates from the background thread if needed
         // For now, we do nothing
     }
-
-    // fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
-    //     Box::new(self.clone())
-    // }
 }
