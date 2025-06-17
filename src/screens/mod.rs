@@ -140,12 +140,13 @@ pub trait Screen: Send{
                self.get_name());
     }
     fn should_store(&self) -> bool { true }
+
+    //INFO: just create a backgground function that returns a JoinHandle and the screen will have
+    //background functionality. Use apply update to pass updates to the rendering thread
     fn background(&mut self, info: BackgroundInfo) -> Option<JoinHandle<()>> {
         None
     }
     fn apply_update(&mut self, update: BackgroundUpdate) {
-        // Default implementation does nothing
-        // Override in specific screens if needed
     }
 }
 

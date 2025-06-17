@@ -1,7 +1,9 @@
+use std::thread;
+
 use super::widgets::navbar::NavBar;
-use super::{screens::*, Screen};
+use super::{screens::*, BackgroundUpdate, Screen};
 use crate::mal::models::anime::Anime;
-use crate::app::Action;
+use crate::app::{Action, Event};
 use ratatui::layout::{Margin, Rect};
 use ratatui::text::Span;
 use ratatui::widgets::{Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};
@@ -17,6 +19,7 @@ pub struct SeasonsScreen {
     animes: Vec<Anime>,
     scroll_offset: u16,
     navbar: NavBar,
+    loading: bool,
 }
 
 impl SeasonsScreen {
@@ -37,6 +40,7 @@ impl SeasonsScreen {
                 .add_screen(PROFILE),
 
             scroll_offset: 0,
+            loading: false,
         }
     }
 }
@@ -314,6 +318,27 @@ impl Screen for SeasonsScreen {
 
     fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
         Box::new(self.clone())
+    }
+
+    fn background(&mut self, info: super::BackgroundInfo) -> Option<std::thread::JoinHandle<()>> {
+        if self.loading {
+            return None;
+        }
+        self.loading = true;
+
+        let nr_of_animes = self.animes.len();
+        let id = self.get_name(); 
+        Some(thread::spawn(move || {
+            if nr_of_animes <= 0 {
+                let animes = info.mal_client.get_current_season(0, 50);
+                let update = BackgroundUpdate::new(id)
+                    .set("animes", animes);
+                let _ = info.app_sx.send(Event::BackgroundNotice(update));
+            }
+
+            loop {
+            }
+        }))
     }
 }
 

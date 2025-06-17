@@ -4,9 +4,12 @@ pub mod models;
 use std::{fs, thread::JoinHandle};
 use ureq;
 use serde_json::{Value, json};
-use models::anime::{self, Anime, fields::*};
+use models::anime::{self, Anime, fields};
 use std::sync::{Arc, RwLock};
+use chrono::{Datelike, Local};
 
+
+const BASE_URL: &str = "https://api.myanimelist.net/v2";
 
 
 //TODO: encrypt the tokens somehow???
@@ -76,6 +79,10 @@ impl MalClient {
         false
     }
 
+    pub fn log_out() {
+        fs::remove_file(".mal/client").expect("Failed to remove client file");
+    }
+
     pub fn user_is_logged_in() -> bool {
         let client_file = fs::metadata(".mal/client");
         if client_file.is_ok() {
@@ -87,28 +94,63 @@ impl MalClient {
         false
     }
 
-    pub fn log_out() {
-        fs::remove_file(".mal/client").expect("Failed to remove client file");
+    pub fn get_current_season(&self, offset: u16, limit: u16) -> Option<Vec<Anime>> {
+        let now = Local::now();
+        let year = now.year() as u16;
+        let month = now.month();
+
+        println!("Current year: {}, month: {}", year, month);
+
+        let season = match month {
+            1 | 2 | 3 => "winter",
+            4 | 5 | 6 => "spring",
+            7 | 8 | 9 => "summer",
+            _ => "fall",
+        };
+
+        self.get_anime_season(year, season, offset, limit)
+    }
+
+    pub fn get_anime_season(&self, year: u16, season: &str, offset: u16, limit: u16) -> Option<Vec<Anime>> {
+        let response = self.send_request(&format!("{}/anime/season/{}/{}", BASE_URL, year, season), 
+            &[
+                ("fields", &fields::ALL.join(",")),
+                ("limit", &limit.to_string()),
+                ("offset", &offset.to_string()),
+            ],
+        ).ok()?;
+        let animes = Anime::from_body(&response);
+        Some(animes)
     }
 
     pub fn test(&self) -> Result<Vec<Anime>, Box<dyn std::error::Error>> {
+        let response = self.send_request(
+            &format!("{}/anime", BASE_URL), 
+            &[("fields", &fields::ALL.join(","))],
+        )?;
+        let animes = Anime::from_body(&response);
+        Ok(animes)
+    }
+    
+    fn send_request(&self, url: &str, parameters: &[(&str, &str)]) -> Result<Value, Box<dyn std::error::Error>> {
         let token = self.identity.read().unwrap().access_token.clone();
         if token.is_none() {
             return Err("Access token is not set".into());
         }
-        let body = ureq::get("https://api.myanimelist.net/v2/anime")
-            .header("Authorization", format!("Bearer {}", token.as_ref().unwrap()))
-            .query("fields", &ALLFIELDS.join(","))
-            .query("q", "one")
-            .query("limit", "2")
-            .call()?
+
+        let mut request = ureq::get(url)
+            .header("Authorization", format!("Bearer {}", token.as_ref().unwrap()));
+
+        for (key, value) in parameters {
+            request = request.query(&key, &value);
+        }
+
+        let response = request.call()?
             .body_mut()
             .read_to_string()?;
 
-        let parsed: serde_json::Value = serde_json::from_str(&body)?;
-        let animes = Anime::from_body(&parsed);
-
-        Ok(animes)
+        let parsed: Value = serde_json::from_str(&response)?;
+        Ok(parsed)
     }
 }
 

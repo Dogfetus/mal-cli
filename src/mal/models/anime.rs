@@ -38,7 +38,7 @@ pub mod fields {
     pub const RECOMMENDATIONS: &str          = "recommendations";
     pub const STUDIOS: &str                  = "studios";
     pub const STATISTICS: &str               = "statistics";
-    pub const ALLFIELDS: [&str; 32] = [
+    pub const ALL: [&str; 32] = [
         ID, TITLE, MAIN_PICTURE, ALTERNATIVE_TITLES, START_DATE, END_DATE, SYNOPSIS, MEAN, RANK, POPULARITY, 
         NUM_LIST_USERS, NUM_SCORING_USERS, NSFW, CREATED_AT, UPDATED_AT, MEDIA_TYPE, STATUS, GENRES, 
         MY_LIST_STATUS, NUM_EPISODES, START_SEASON, BROADCAST, SOURCE, AVERAGE_EPISODE_DURATION, RATING, 
@@ -155,66 +155,3 @@ impl Anime {
         Some(result)
     }
 }
-
-// {
-//   "data": [
-//     {
-//       "node": {
-//         "id": 57859,
-//         "title": "Egao no Taenai Shokuba desu.",
-//         "main_picture": {
-//           "medium": "https://cdn.myanimelist.net/images/anime/1826/148165.jpg",
-//           "large": "https://cdn.myanimelist.net/images/anime/1826/148165l.jpg"
-//         },
-//         "alternative_titles": {
-//           "synonyms": [
-//             "A Workplace Where You Can't Help But Smile"
-//           ],
-//           "en": "A Mangaka's Weirdly Wonderful Workplace",
-//           "ja": "笑顔のたえない職場です。"
-//         },
-//         "start_date": "2025-10",
-//         "synopsis": "New shoujo manga artist Nana Futami works hard every day while being supported by Kaede Satou, her female editor who is older than her, and Mizuki Hazama, her assistant. According to the girl herself, she sometimes drums up intense daydream delusions of occupational illness! A working girls comedy set in the entertainment industry, brought to you by an author who always draws various girls.\n\n(Source: Kodansha, translated)",
-//         "popularity": 9747,
-//         "num_list_users": 3989,
-//         "num_episodes": 0,
-//         "status": "not_yet_aired",
-//         "genres": [
-//           {
-//             "id": 50,
-//             "name": "Adult Cast"
-//           },
-//           {
-//             "id": 52,
-//             "name": "CGDCT"
-//           },
-//           {
-//             "id": 4,
-//             "name": "Comedy"
-//           },
-//           {
-//             "id": 69,
-//             "name": "Otaku Culture"
-//           },
-//           {
-//             "id": 48,
-//             "name": "Workplace"
-//           }
-//         ],
-//         "studios": [
-//           {
-//             "id": 2698,
-//             "name": "Voil"
-//           }
-//         ]
-//       }
-//     }
-//   ],
-//   "paging": {
-//     "next": "https://api.myanimelist.net/v2/anime/season/2025/fall?offset=1&fields=id%2Ctitle%2Cmain_picture%2Calternative_titles%2Cstart_date%2Cend_date%2Csynopsis%2Cmean%2Crank%2Cpopularity%2Cnum_list_users%2Cnum_episodes%2Cstatus%2Cpictures%2Cbackground%2Crelated_anime%2Crelated_manga%2Cgenres%2Cstudios%2Crecommendations%2Cstatistics%2Cmy_list_status%2Cbroadcast%2Copening_themes%2Cending_themes&limit=1"
-//   },
-//   "season": {
-//     "year": 2025,
-//     "season": "fall"
-//   }
-// }

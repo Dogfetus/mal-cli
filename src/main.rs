@@ -18,7 +18,22 @@ async fn main() -> Result<()> {
     ratatui::restore();
 
     let mal = app.mal_client.clone();
-    mal.test();
+    if let Some(animes) = mal.get_current_season(0, 10) {
+        for anime in animes.clone() {
+            println!("Title: {}", anime.get("title").unwrap_or(&"Unknown".to_string()));
+            println!();
+            println!();
+            println!();
+            println!();
+        }
+
+        println!("Fetched {} anime for the 2024 summer season.", animes.len());
+    } else {
+        eprintln!("Failed to fetch anime season data.");
+    };
+
+
+
 
     Ok(())
 }
