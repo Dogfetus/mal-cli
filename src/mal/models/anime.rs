@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use serde_json::Value;
+
 
 
 #[allow(unused)]
@@ -36,7 +38,7 @@ pub mod fields {
     pub const RECOMMENDATIONS: &str          = "recommendations";
     pub const STUDIOS: &str                  = "studios";
     pub const STATISTICS: &str               = "statistics";
-    pub const ALL: [&str; 32] = [
+    pub const ALLFIELDS: [&str; 32] = [
         ID, TITLE, MAIN_PICTURE, ALTERNATIVE_TITLES, START_DATE, END_DATE, SYNOPSIS, MEAN, RANK, POPULARITY, 
         NUM_LIST_USERS, NUM_SCORING_USERS, NSFW, CREATED_AT, UPDATED_AT, MEDIA_TYPE, STATUS, GENRES, 
         MY_LIST_STATUS, NUM_EPISODES, START_SEASON, BROADCAST, SOURCE, AVERAGE_EPISODE_DURATION, RATING, 
@@ -51,9 +53,75 @@ pub struct Anime {
 }
 
 impl Anime {
-    pub fn new() -> Self {
-        Self {
-            fields: HashMap::new(),
+    pub fn from_body(body: &Value) -> Vec<Self> {
+        let list = body["data"].as_array()
+            .map(|arr| arr.clone())
+            .unwrap_or_else(|| vec![body.clone()]);
+        
+        let mut anime_list = Vec::new();
+        
+        for item in list {
+            let anime_data = item.get("node").unwrap_or(&item);
+            anime_list.push(Self::from_node(anime_data));
+        }
+        
+        anime_list
+    }
+
+    pub fn from_node(node: &Value) -> Self {
+        let mut fields = HashMap::new();
+        
+        if let Some(obj) = node.as_object() {
+            for (key, val) in obj {
+                let string_value = Self::convert_json_value_to_string(val, key);
+                
+                if !string_value.is_empty() {
+                    fields.insert(key.clone(), string_value);
+                }
+            }
+        }
+        
+        Self { fields }
+    }
+
+    fn convert_json_value_to_string(val: &Value, key: &str) -> String {
+        match val {
+            Value::String(s) => s.clone(),
+            Value::Number(n) => n.to_string(),
+            Value::Bool(b) => b.to_string(),
+            Value::Array(arr) => {
+                // Handle specific array fields
+                match key {
+                    "genres" | "studios" => {
+                        arr.iter()
+                            .filter_map(|item| item.get("name").and_then(|name| name.as_str()))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    },
+                    _ => serde_json::to_string(arr).unwrap_or_default()
+                }
+            },
+            Value::Object(obj) => {
+                // Handle specific object fields
+                match key {
+                    "main_picture" => {
+                        obj.get("large")
+                            .or_else(|| obj.get("medium"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string()
+                    },
+                    "alternative_titles" => {
+                        obj.get("en")
+                            .or_else(|| obj.get("ja"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string()
+                    },
+                    _ => serde_json::to_string(obj).unwrap_or_default()
+                }
+            },
+            Value::Null => String::new(),
         }
     }
 

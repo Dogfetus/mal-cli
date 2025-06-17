@@ -24,6 +24,7 @@ use ratatui_image::{
 
 #[derive(Clone)]
 pub struct OverviewScreen { 
+    loading: bool,
     animes: Vec<Anime>,
     scroll_offset: u16,
     navbar: NavBar,
@@ -53,6 +54,7 @@ impl OverviewScreen {
                 .add_screen(PROFILE),
 
             scroll_offset: 0,
+            loading: false,
             // async_state: ThreadProtocol::new(sx_worker, Some(picker.new_resize_protocol(dyn_img))),
             rx: Arc::new(Mutex::new(rec_worker)),
         }
@@ -365,7 +367,12 @@ impl Screen for OverviewScreen {
         Box::new(self.clone())
     }
 
-    fn background(&self, info: BackgroundInfo) -> Option<JoinHandle<()>> {
+    fn background(&mut self, info: BackgroundInfo) -> Option<JoinHandle<()>> {
+        if self.loading {
+            return None;
+        }
+        self.loading = true; 
+
         // let rx = Arc::clone(&self.rx);
         let id = self.get_name();
 

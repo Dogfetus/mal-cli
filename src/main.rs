@@ -16,6 +16,10 @@ async fn main() -> Result<()> {
 
     // restore
     ratatui::restore();
+
+    let mal = app.mal_client.clone();
+    mal.test();
+
     Ok(())
 }
 

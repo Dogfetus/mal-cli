@@ -140,7 +140,7 @@ pub trait Screen: Send{
                self.get_name());
     }
     fn should_store(&self) -> bool { true }
-    fn background(&self, info: BackgroundInfo) -> Option<JoinHandle<()>> {
+    fn background(&mut self, info: BackgroundInfo) -> Option<JoinHandle<()>> {
         None
     }
     fn apply_update(&mut self, update: BackgroundUpdate) {
