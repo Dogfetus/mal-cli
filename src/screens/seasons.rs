@@ -2,10 +2,10 @@ use std::thread;
 
 use super::widgets::navbar::NavBar;
 use super::{screens::*, BackgroundUpdate, Screen};
-use crate::mal::models::anime::Anime;
+use crate::mal::{models::anime::Anime, MalClient};
 use crate::app::{Action, Event};
-use ratatui::layout::{Margin, Rect};
-use ratatui::text::Span;
+use ratatui::layout::{Alignment, Margin};
+use ratatui::symbols::scrollbar;
 use ratatui::widgets::{Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};
 use ratatui::{
     layout::{Constraint, Direction, Layout}, style::{Color, Style}, widgets::{Block,  Borders, Clear}, Frame,
@@ -20,27 +20,26 @@ pub struct SeasonsScreen {
     scroll_offset: u16,
     navbar: NavBar,
     loading: bool,
+    year: u16,
+    season: String,
 }
 
 impl SeasonsScreen {
     pub fn new() -> Self {
-        Self {
-            animes: vec![
-                Anime::empty(),
-                Anime::empty(),
-                Anime::empty(),
-                Anime::empty(),
-            ],
+        let (year, season) = MalClient::current_season();
 
+        Self {
+            animes: Vec::new(),
             navbar: NavBar::new()
                 .add_screen(OVERVIEW)
                 .add_screen(SEASONS)
                 .add_screen(LIST)
                 .add_screen(FILTER)
                 .add_screen(PROFILE),
-
             scroll_offset: 0,
             loading: false,
+            year,
+            season,
         }
     }
 }
@@ -156,7 +155,7 @@ impl Screen for SeasonsScreen {
         frame.render_widget(Block::new().border_set(blb_set).borders(blb_border).border_style(color), bl_bottom);
 
         // try add some ttext to bl_top: vertical center
-        let title = Paragraph::new(format!("{}", "Spring 2024"))
+        let title = Paragraph::new(format!("{}: {}", self.season, self.year))
             .centered()
             .block(Block::default().padding(Padding::vertical(1)));
         frame.render_widget(title, bl_top);
@@ -172,8 +171,8 @@ impl Screen for SeasonsScreen {
         * │     │
         * ╰─────╯
         */
-        let [blb_left, blb_middle, blb_right] = Layout::default()
-            .direction(Direction::Horizontal)
+        let [blb_top, blb_middle, blb_bottom] = Layout::default()
+            .direction(Direction::Vertical)
             .horizontal_margin(1)
             .constraints(
                 [
@@ -183,9 +182,9 @@ impl Screen for SeasonsScreen {
                 ]
             )
             .areas(bl_bottom);
-        for column in [blb_left, blb_middle, blb_right] {
-            let [top, middle, bottom] = Layout::default()
-                .direction(Direction::Vertical)
+        for (row_nr, &column) in [blb_top, blb_middle, blb_bottom].iter().enumerate() {
+            let [left, middle, right] = Layout::default()
+                .direction(Direction::Horizontal)
                 .constraints(
                     [
                         Constraint::Percentage(33),
@@ -194,8 +193,18 @@ impl Screen for SeasonsScreen {
                     ]
                 )
                 .areas(column);
-            for area in [top, middle, bottom] {
+            for (column_nr, &area) in [left, middle, right].iter().enumerate() {
+
+                let title_text = self.animes
+                    .get((3 * (row_nr + self.scroll_offset as usize)) + column_nr)
+                    .map(|anime| anime.title.clone())
+                    .unwrap_or("Loading...".to_string());
+
                 // the anime box should go here:
+                let title = Paragraph::new(title_text)
+                    .alignment(Alignment::Center)
+                    .block(Block::default().padding(Padding::new(1, 1, 1, 1)));
+                frame.render_widget(title, area);
                 frame.render_widget(Block::new().borders(Borders::ALL).border_style(color), area);
             }
         }
@@ -330,15 +339,19 @@ impl Screen for SeasonsScreen {
         let id = self.get_name(); 
         Some(thread::spawn(move || {
             if nr_of_animes <= 0 {
-                let animes = info.mal_client.get_current_season(0, 50);
-                let update = BackgroundUpdate::new(id)
-                    .set("animes", animes);
-                let _ = info.app_sx.send(Event::BackgroundNotice(update));
-            }
-
-            loop {
+                if let Some(animes) = info.mal_client.get_current_season(0, 50){
+                    let update = BackgroundUpdate::new(id)
+                        .set("animes", animes.clone());
+                    let _ = info.app_sx.send(Event::BackgroundNotice(update));
+                }
             }
         }))
+    }
+
+    fn apply_update(&mut self, update: BackgroundUpdate) {
+        if let Some(animes) = update.get::<Vec<Anime>>("animes") {
+            self.animes = animes.clone();
+        }
     }
 }
 

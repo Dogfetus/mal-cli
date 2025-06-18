@@ -4,7 +4,7 @@ pub mod models;
 use std::{fs, thread::JoinHandle};
 use ureq;
 use serde_json::{Value, json};
-use models::anime::{self, Anime, fields};
+use models::anime::{self, fields, Anime, AnimeResponse};
 use std::sync::{Arc, RwLock};
 use chrono::{Datelike, Local};
 
@@ -95,11 +95,14 @@ impl MalClient {
     }
 
     pub fn get_current_season(&self, offset: u16, limit: u16) -> Option<Vec<Anime>> {
+        let (year, season) = Self::current_season();
+        self.get_seasonal_anime(year, season, offset, limit)
+    }
+
+    pub fn current_season() ->  (u16, String) {
         let now = Local::now();
         let year = now.year() as u16;
         let month = now.month();
-
-        println!("Current year: {}, month: {}", year, month);
 
         let season = match month {
             1 | 2 | 3 => "winter",
@@ -108,31 +111,35 @@ impl MalClient {
             _ => "fall",
         };
 
-        self.get_anime_season(year, season, offset, limit)
+        (year, season.to_string())
     }
 
-    pub fn get_anime_season(&self, year: u16, season: &str, offset: u16, limit: u16) -> Option<Vec<Anime>> {
-        let response = self.send_request(&format!("{}/anime/season/{}/{}", BASE_URL, year, season), 
+    pub fn get_seasonal_anime(&self, year: u16, season: String, offset: u16, limit: u16) -> Option<Vec<Anime>> {
+        let animes = self.send_request::<AnimeResponse>(&format!("{}/anime/season/{}/{}", BASE_URL, year, season), 
             &[
                 ("fields", &fields::ALL.join(",")),
                 ("limit", &limit.to_string()),
                 ("offset", &offset.to_string()),
+                ("sort", "anime_num_list_users"),
             ],
         ).ok()?;
-        let animes = Anime::from_body(&response);
+        let animes: Vec<Anime> = Anime::from_body(&serde_json::from_str(&animes).unwrap_or(Value::Null));
         Some(animes)
     }
 
-    pub fn test(&self) -> Result<Vec<Anime>, Box<dyn std::error::Error>> {
-        let response = self.send_request(
-            &format!("{}/anime", BASE_URL), 
-            &[("fields", &fields::ALL.join(","))],
-        )?;
-        let animes = Anime::from_body(&response);
-        Ok(animes)
-    }
+    // pub fn test(&self) -> Result<Vec<Anime>, Box<dyn std::error::Error>> {
+    //     let response = self.send_request::<AnimeResponse>(
+    //         &format!("{}/anime", BASE_URL), 
+    //         &[("fields", &fields::ALL.join(","))],
+    //     );
+    //
+    // }
     
-    fn send_request(&self, url: &str, parameters: &[(&str, &str)]) -> Result<Value, Box<dyn std::error::Error>> {
+    fn send_request<T>(&self, url: &str, parameters: &[(&str, &str)]) -> Result<String, Box<dyn std::error::Error>> 
+    where
+        T: serde::de::DeserializeOwned,
+    {
+
         let token = self.identity.read().unwrap().access_token.clone();
         if token.is_none() {
             return Err("Access token is not set".into());
@@ -149,8 +156,7 @@ impl MalClient {
             .body_mut()
             .read_to_string()?;
 
-        let parsed: Value = serde_json::from_str(&response)?;
-        Ok(parsed)
+        Ok(response)
     }
 }
 

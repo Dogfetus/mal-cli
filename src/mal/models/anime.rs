@@ -1,5 +1,5 @@
-use std::collections::HashMap;
-
+use std::{collections::HashMap, fmt};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 
@@ -47,111 +47,215 @@ pub mod fields {
 }
 
 #[allow(unused)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Anime {
-    fields: HashMap<String, String>,
+    #[serde(default)]
+    pub id: u16,
+    #[serde(default)]
+    pub title: String,
+    pub main_picture: Option<Pictures>,
+    pub alternative_titles: Option<AlternativeTitles>,
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+    pub synopsis: Option<String>,
+    pub mean: Option<f32>,
+    pub rank: Option<u16>,
+    pub popularity: Option<u16>,
+    pub num_list_users: Option<u16>,
+    pub num_scoring_users: Option<u16>,
+    pub nsfw: Option<String>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+    pub media_type: Option<String>,
+    pub status: Option<String>,
+    pub genres: Option<Vec<Genre>>,
+    pub my_list_status: Option<MyListStatus>,
+    pub num_episodes: Option<u16>,
+    #[serde(default)]
+    pub start_season: StartSeason,
+    pub broadcast: Option<Broadcast>,
+    pub source: Option<String>,
+    pub average_episode_duration: Option<u16>,
+    pub rating: Option<String>,
+    pub pictures: Option<Vec<Pictures>>,
+    pub background: Option<String>,
+    pub related_anime: Option<Vec<RelatedAnime>>,
+    pub related_manga: Option<Vec<RelatedManga>>,
+    pub recommendations: Option<Vec<Recommendation>>,
+    pub studios: Option<Vec<Studio>>,
+    pub statistics: Option<Statistics>,
+
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AnimeResponse {
+    data: Vec<Anime>,
+    paging: Option<Value>,
 }
 
 impl Anime {
-    pub fn from_body(body: &Value) -> Vec<Self> {
-        let list = body["data"].as_array()
-            .map(|arr| arr.clone())
-            .unwrap_or_else(|| vec![body.clone()]);
-        
-        let mut anime_list = Vec::new();
-        
-        for item in list {
-            let anime_data = item.get("node").unwrap_or(&item);
-            anime_list.push(Self::from_node(anime_data));
-        }
-        
-        anime_list
-    }
-
-    pub fn from_node(node: &Value) -> Self {
-        let mut fields = HashMap::new();
-        
-        if let Some(obj) = node.as_object() {
-            for (key, val) in obj {
-                let string_value = Self::convert_json_value_to_string(val, key);
-                
-                if !string_value.is_empty() {
-                    fields.insert(key.clone(), string_value);
-                }
-            }
-        }
-        
-        Self { fields }
-    }
-
-    fn convert_json_value_to_string(val: &Value, key: &str) -> String {
-        match val {
-            Value::String(s) => s.clone(),
-            Value::Number(n) => n.to_string(),
-            Value::Bool(b) => b.to_string(),
-            Value::Array(arr) => {
-                // Handle specific array fields
-                match key {
-                    "genres" | "studios" => {
-                        arr.iter()
-                            .filter_map(|item| item.get("name").and_then(|name| name.as_str()))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    },
-                    _ => serde_json::to_string(arr).unwrap_or_default()
-                }
-            },
-            Value::Object(obj) => {
-                // Handle specific object fields
-                match key {
-                    "main_picture" => {
-                        obj.get("large")
-                            .or_else(|| obj.get("medium"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string()
-                    },
-                    "alternative_titles" => {
-                        obj.get("en")
-                            .or_else(|| obj.get("ja"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string()
-                    },
-                    _ => serde_json::to_string(obj).unwrap_or_default()
-                }
-            },
-            Value::Null => String::new(),
-        }
-    }
-
     pub fn empty() -> Self {
         Self {
-            fields: HashMap::new(),
+            id: 0,
+            title: String::new(),
+            main_picture: None,
+            alternative_titles: None,
+            start_date: None,
+            end_date: None,
+            synopsis: None,
+            mean: None,
+            rank: None,
+            popularity: None,
+            num_list_users: None,
+            num_scoring_users: None,
+            nsfw: None,
+            created_at: None,
+            updated_at: None,
+            media_type: None,
+            status: None,
+            genres: None,
+            my_list_status: None,
+            num_episodes: None,
+            start_season: StartSeason::default(),
+            broadcast: None,
+            source: None,
+            average_episode_duration: None,
+            rating: None,
+            pictures: None,
+            background: None,
+            related_anime: None,
+            related_manga: None,
+            recommendations: None,
+            studios: None,
+            statistics: None
         }
     }
 
-    pub fn get(&self, key: &str) -> Option<&str> {
-        if let Some(value) = self.fields.get(key) {
-            if !value.is_empty() {
-                return Some(value);
+    pub fn from_body(body: &Value) -> Vec<Anime> {
+        match serde_json::from_value::<AnimeResponse>(body.clone()) {
+            Ok(response) => response.data,
+            Err(e) => {
+                eprintln!("Failed to parse anime response: {}", e);
+                // Print the actual JSON for debugging
+                eprintln!("JSON structure: {}", serde_json::to_string_pretty(body).unwrap_or_default());
+                Vec::new()
             }
         }
-        None
     }
+}
 
-    pub fn gets(&self, keys: &Vec<String>) -> Option<Vec<&String>> {
-        let mut result = Vec::new();
-        for key in keys {
-            if let Some(value) = self.fields.get(key) {
-                if value.is_empty() {
-                    return None;
-                }
-                result.push(value);
-            } else {
-                return None;
-            }
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Pictures {
+    pub large: Option<String>,
+    pub medium: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AlternativeTitles {
+    pub synonyms: Option<Vec<String>>,
+    pub en: Option<String>,
+    pub ja: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Genre{
+    pub id: u16,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct MyListStatus {
+    pub status: Option<String>,
+    pub score: Option<u8>,
+    pub num_episodes_watched: Option<u16>,
+    pub is_rewatching: Option<bool>,
+    pub start_date: Option<String>,
+    pub finish_date: Option<String>,
+    pub priority: Option<u8>,
+    pub num_times_rewatched: Option<u8>,
+    pub rewatch_value: Option<u8>,
+    pub tags: Option<Vec<String>>,
+    pub comments: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct StartSeason {
+    pub year: Option<u16>,
+    pub season: Option<String>,
+}
+
+impl Default for StartSeason {
+    fn default() -> Self {
+        StartSeason {
+            year: None,
+            season: None,
         }
-        Some(result)
     }
+}
+
+impl fmt::Display for StartSeason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match (&self.year, &self.season) {
+            (Some(year), Some(season)) => write!(f, "{} {}", year, season),
+            (Some(year), None) => write!(f, "{}", year),
+            (None, Some(season)) => write!(f, "{}", season),
+            (None, None) => write!(f, "Unknown"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Broadcast {
+    pub day_of_the_week: Option<String>,
+    pub start_time: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Studio {
+    pub id: u16,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct RelatedAnime {
+    pub node: Node,
+    pub relation_type: Option<String>,
+    pub relation_type_formatted: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Recommendation {
+    pub node: Node,
+    pub num_recommendations: u16,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Status {
+    pub watching: u16,
+    pub completed: u16,
+    pub on_hold: u16,
+    pub dropped: u16,
+    pub plan_to_watch: u16,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Statistics {
+    pub status: Status,
+    pub num_list_users: u16,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct RelatedManga {
+    // TODO: related manga when adding manga
+    pub node: Node,
+    pub relation_type: String,
+    pub relation_type_formatted: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Node {
+    pub id: u16,
+    pub title: String,
+    pub main_picture: Option<Pictures>,
 }
