@@ -5,7 +5,6 @@ use super::{screens::*, BackgroundUpdate, Screen};
 use crate::mal::{models::anime::Anime, MalClient};
 use crate::app::{Action, Event};
 use ratatui::layout::{Alignment, Margin};
-use ratatui::symbols::scrollbar;
 use ratatui::widgets::{Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};
 use ratatui::{
     layout::{Constraint, Direction, Layout}, style::{Color, Style}, widgets::{Block,  Borders, Clear}, Frame,
@@ -13,10 +12,19 @@ use ratatui::{
 };
 use crossterm::event::{KeyCode, KeyEvent};
 
+#[derive(Debug, Clone)]
+enum Focus {
+    Navbar,
+    AnimeList,
+}
+
 
 #[derive(Clone)]
 pub struct SeasonsScreen { 
     animes: Vec<Anime>,
+    focus: Focus,
+    x: u16,
+    y: u16,
     scroll_offset: u16,
     navbar: NavBar,
     loading: bool,
@@ -37,6 +45,9 @@ impl SeasonsScreen {
                 .add_screen(FILTER)
                 .add_screen(PROFILE),
             scroll_offset: 0,
+            focus: Focus::AnimeList,
+            x: 0,
+            y: 0,
             loading: false,
             year,
             season,
@@ -194,15 +205,21 @@ impl Screen for SeasonsScreen {
                 )
                 .areas(column);
             for (column_nr, &area) in [left, middle, right].iter().enumerate() {
+                let index = (3 * (row_nr + self.scroll_offset as usize)) + column_nr;
 
                 let title_text = self.animes
-                    .get((3 * (row_nr + self.scroll_offset as usize)) + column_nr)
+                    .get(index)
                     .map(|anime| anime.title.clone())
                     .unwrap_or("Loading...".to_string());
 
+                let mut color = Color::Gray; 
+                if ((self.y)*3 + self.x) == index as u16 {
+                    color = Color::Yellow;
+                } 
                 // the anime box should go here:
                 let title = Paragraph::new(title_text)
                     .alignment(Alignment::Center)
+                    .style(Style::default().fg(color))
                     .block(Block::default().padding(Padding::new(1, 1, 1, 1)));
                 frame.render_widget(title, area);
                 frame.render_widget(Block::new().borders(Borders::ALL).border_style(color), area);
@@ -306,22 +323,68 @@ impl Screen for SeasonsScreen {
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
         if self.navbar.is_selected() {
-            if let Some(action) = self.navbar.handle_input(key_event) {
-                return Some(action);
+            self.focus = Focus::Navbar;
+        } else {
+            self.focus = Focus::AnimeList;
+        }
+
+        match self.focus {
+            Focus::Navbar => {
+                if let Some(action) = self.navbar.handle_input(key_event) {
+                    return Some(action);
+                }
+            }
+            Focus::AnimeList => {
+                match key_event.code {
+                    KeyCode::Up | KeyCode::Char('j') => {
+                        self.y = self.y.saturating_sub(1);
+                    }
+                    KeyCode::Down | KeyCode::Char('k') => {
+                        if self.y < self.animes.len() as u16 / 3 {
+                            self.y += 1;
+                        }
+                    }
+                    KeyCode::Left | KeyCode::Char('h') => {
+                        if self.x == 0 {
+                            if self.y != 0 {
+                                self.y = self.y.saturating_sub(1);
+                                self.x = 2;
+                            }
+                        }
+                        else {
+                            self.x = self.x.saturating_sub(1);
+                        }
+                    }
+                    KeyCode::Right | KeyCode::Char('l') => {
+                        if self.x == 2 {
+                            if self.y < self.animes.len() as u16 / 3 {
+                                self.y += 1;
+                                self.x = 0;
+                            }
+                        } else {
+                            self.x += 1;
+                        }
+                    }
+                    KeyCode::Enter => {
+                        self.navbar.select();
+                    }
+                    _ => {} 
+                };
+
+                match self.y as i16 - self.scroll_offset as i16 {
+                    3 => {
+                        self.scroll_offset += 1;
+                    }
+                    -1 => {
+                        self.scroll_offset = self.scroll_offset.saturating_sub(1);
+                    }
+                    _ => {
+                    }
+
+                }
             }
         }
-        match key_event.code {
-            KeyCode::Up | KeyCode::Char('j') => {
-                self.scroll_offset = self.scroll_offset.saturating_sub(1);
-            }
-            KeyCode::Down | KeyCode::Char('k') => {
-                self.scroll_offset += 1;
-            }
-            KeyCode::Enter => {
-                self.navbar.select();
-            }
-            _ => {} 
-        };
+
         None
     }
 
@@ -339,8 +402,19 @@ impl Screen for SeasonsScreen {
         let id = self.get_name(); 
         Some(thread::spawn(move || {
             if nr_of_animes <= 0 {
-                if let Some(animes) = info.mal_client.get_current_season(0, 50){
-                    let update = BackgroundUpdate::new(id)
+                //temporary
+                if let Some(animes) = info.mal_client.get_current_season(0, 9){
+                    let update = BackgroundUpdate::new(id.clone())
+                        .set("animes", animes.clone());
+                    let _ = info.app_sx.send(Event::BackgroundNotice(update));
+                }
+                if let Some(animes) = info.mal_client.get_current_season(9, 41){
+                    let update = BackgroundUpdate::new(id.clone())
+                        .set("animes", animes.clone());
+                    let _ = info.app_sx.send(Event::BackgroundNotice(update));
+                }
+                if let Some(animes) = info.mal_client.get_current_season(50, 500){
+                    let update = BackgroundUpdate::new(id.clone())
                         .set("animes", animes.clone());
                     let _ = info.app_sx.send(Event::BackgroundNotice(update));
                 }
@@ -350,7 +424,7 @@ impl Screen for SeasonsScreen {
 
     fn apply_update(&mut self, update: BackgroundUpdate) {
         if let Some(animes) = update.get::<Vec<Anime>>("animes") {
-            self.animes = animes.clone();
+            self.animes.extend(animes.iter().cloned());
         }
     }
 }

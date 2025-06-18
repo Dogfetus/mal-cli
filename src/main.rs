@@ -17,21 +17,6 @@ async fn main() -> Result<()> {
     // restore
     ratatui::restore();
 
-    
-    let mal = mal::MalClient::new();
-    if let Some(animes) = mal.get_current_season(0, 50){
-
-
-        for anime in animes.clone() {
-            println!("{}: {}",
-                anime.title, 
-                anime.start_season
-            );
-            println!();
-        }
-
-        println!("Current season animes: {}", animes.len());
-    };
     Ok(())
 }
 
