@@ -50,7 +50,7 @@ pub mod fields {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Anime {
     #[serde(default)]
-    pub id: u16,
+    pub id: u64,
     #[serde(default)]
     pub title: String,
     pub main_picture: Option<Pictures>,
@@ -59,10 +59,10 @@ pub struct Anime {
     pub end_date: Option<String>,
     pub synopsis: Option<String>,
     pub mean: Option<f32>,
-    pub rank: Option<u16>,
-    pub popularity: Option<u16>,
-    pub num_list_users: Option<u16>,
-    pub num_scoring_users: Option<u16>,
+    pub rank: Option<u64>,
+    pub popularity: Option<u64>,
+    pub num_list_users: Option<u64>,
+    pub num_scoring_users: Option<u64>,
     pub nsfw: Option<String>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
@@ -70,12 +70,12 @@ pub struct Anime {
     pub status: Option<String>,
     pub genres: Option<Vec<Genre>>,
     pub my_list_status: Option<MyListStatus>,
-    pub num_episodes: Option<u16>,
+    pub num_episodes: Option<u64>,
     #[serde(default)]
     pub start_season: StartSeason,
     pub broadcast: Option<Broadcast>,
     pub source: Option<String>,
-    pub average_episode_duration: Option<u16>,
+    pub average_episode_duration: Option<u64>,
     pub rating: Option<String>,
     pub pictures: Option<Vec<Pictures>>,
     pub background: Option<String>,
@@ -85,12 +85,6 @@ pub struct Anime {
     pub studios: Option<Vec<Studio>>,
     pub statistics: Option<Statistics>,
 
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct AnimeResponse {
-    data: Vec<Anime>,
-    paging: Option<Value>,
 }
 
 impl Anime {
@@ -131,17 +125,27 @@ impl Anime {
         }
     }
 
-    pub fn from_body(body: &Value) -> Vec<Anime> {
-        match serde_json::from_value::<AnimeResponse>(body.clone()) {
-            Ok(response) => response.data,
-            Err(e) => {
-                eprintln!("Failed to parse anime response: {}", e);
-                // Print the actual JSON for debugging
-                eprintln!("JSON structure: {}", serde_json::to_string_pretty(body).unwrap_or_default());
-                Vec::new()
-            }
-        }
+    pub fn from_response(response: AnimeResponse) -> Vec<Self> {
+        response.data.into_iter().map(|anime_node| anime_node.node).collect()
     }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AnimeResponse {
+    pub data: Vec<AnimeNode>,
+    pub paging: Option<Value>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AnimeNode {
+    pub node: Anime,
+    pub ranking: Option<u64>
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Ranking {
+    rank: u16,
+    previous_rank: Option<u16>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -159,7 +163,7 @@ pub struct AlternativeTitles {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Genre{
-    pub id: u16,
+    pub id: u64,
     pub name: String,
 }
 
@@ -167,7 +171,7 @@ pub struct Genre{
 pub struct MyListStatus {
     pub status: Option<String>,
     pub score: Option<u8>,
-    pub num_episodes_watched: Option<u16>,
+    pub num_episodes_watched: Option<u32>,
     pub is_rewatching: Option<bool>,
     pub start_date: Option<String>,
     pub finish_date: Option<String>,
@@ -197,10 +201,10 @@ impl Default for StartSeason {
 impl fmt::Display for StartSeason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match (&self.year, &self.season) {
-            (Some(year), Some(season)) => write!(f, "{} {}", year, season),
+            (Some(year), Some(season)) => write!(f, "{} {}", season, year),
             (Some(year), None) => write!(f, "{}", year),
             (None, Some(season)) => write!(f, "{}", season),
-            (None, None) => write!(f, "Unknown"),
+            (None, None) => write!(f, "idk bro"),
         }
     }
 }
@@ -213,7 +217,7 @@ pub struct Broadcast {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Studio {
-    pub id: u16,
+    pub id: u64,
     pub name: String,
 }
 
@@ -227,22 +231,22 @@ pub struct RelatedAnime {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Recommendation {
     pub node: Node,
-    pub num_recommendations: u16,
+    pub num_recommendations: u64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Status {
-    pub watching: u16,
-    pub completed: u16,
-    pub on_hold: u16,
-    pub dropped: u16,
-    pub plan_to_watch: u16,
+    pub watching: u64,
+    pub completed: u64,
+    pub on_hold: u64,
+    pub dropped: u64,
+    pub plan_to_watch: u64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Statistics {
     pub status: Status,
-    pub num_list_users: u16,
+    pub num_list_users: u64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -255,7 +259,7 @@ pub struct RelatedManga {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Node {
-    pub id: u16,
+    pub id: u64,
     pub title: String,
     pub main_picture: Option<Pictures>,
 }

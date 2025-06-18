@@ -6,7 +6,6 @@ mod utils;
 
 use crate::app::App;
 use anyhow::Result;
-use mal::models::anime::fields;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -21,19 +20,17 @@ async fn main() -> Result<()> {
     
     let mal = mal::MalClient::new();
     if let Some(animes) = mal.get_current_season(0, 50){
-        let anime = animes.get(0).unwrap();
-        println!("{}: {}",
-            anime.title,
-            anime.start_season
-        );
 
-        // for anime in animes {
-        //     println!("{}: {}",
-        //         anime.get(fields::TITLE).unwrap_or("unknown"), 
-        //         anime.get(fields::START_SEASON).unwrap_or("unknown")
-        //     );
-        //     println!();
-        // }
+
+        for anime in animes.clone() {
+            println!("{}: {}",
+                anime.title, 
+                anime.start_season
+            );
+            println!();
+        }
+
+        println!("Current season animes: {}", animes.len());
     };
     Ok(())
 }

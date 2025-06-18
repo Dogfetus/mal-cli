@@ -115,27 +115,26 @@ impl MalClient {
     }
 
     pub fn get_seasonal_anime(&self, year: u16, season: String, offset: u16, limit: u16) -> Option<Vec<Anime>> {
-        let animes = self.send_request::<AnimeResponse>(&format!("{}/anime/season/{}/{}", BASE_URL, year, season), 
+        let anime_response = self.send_request::<AnimeResponse>(&format!("{}/anime/season/{}/{}", BASE_URL, year, season), 
             &[
                 ("fields", &fields::ALL.join(",")),
                 ("limit", &limit.to_string()),
                 ("offset", &offset.to_string()),
                 ("sort", "anime_num_list_users"),
             ],
-        ).ok()?;
-        let animes: Vec<Anime> = Anime::from_body(&serde_json::from_str(&animes).unwrap_or(Value::Null));
+        );
+        let response = match anime_response {
+            Ok(response) => response,
+            Err(e) => {
+                eprintln!("Error fetching seasonal anime: {}", e);
+                return None;
+            }
+        };
+        let animes = Anime::from_response(response);
         Some(animes)
     }
 
-    // pub fn test(&self) -> Result<Vec<Anime>, Box<dyn std::error::Error>> {
-    //     let response = self.send_request::<AnimeResponse>(
-    //         &format!("{}/anime", BASE_URL), 
-    //         &[("fields", &fields::ALL.join(","))],
-    //     );
-    //
-    // }
-    
-    fn send_request<T>(&self, url: &str, parameters: &[(&str, &str)]) -> Result<String, Box<dyn std::error::Error>> 
+    fn send_request<T>(&self, url: &str, parameters: &[(&str, &str)]) -> Result<T, Box<dyn std::error::Error>> 
     where
         T: serde::de::DeserializeOwned,
     {
@@ -154,7 +153,7 @@ impl MalClient {
 
         let response = request.call()?
             .body_mut()
-            .read_to_string()?;
+            .read_json::<T>()?;
 
         Ok(response)
     }
