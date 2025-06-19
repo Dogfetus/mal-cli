@@ -21,6 +21,7 @@ enum Focus {
 
 #[derive(Clone)]
 pub struct SeasonsScreen { 
+    selected_anime: u16,
     animes: Vec<Anime>,
     focus: Focus,
     x: u16,
@@ -44,11 +45,12 @@ impl SeasonsScreen {
                 .add_screen(LIST)
                 .add_screen(FILTER)
                 .add_screen(PROFILE),
-            scroll_offset: 0,
             focus: Focus::AnimeList,
+            selected_anime: 0,
+            scroll_offset: 0,
+            loading: false,
             x: 0,
             y: 0,
-            loading: false,
             year,
             season,
         }
@@ -166,7 +168,7 @@ impl Screen for SeasonsScreen {
         frame.render_widget(Block::new().border_set(blb_set).borders(blb_border).border_style(color), bl_bottom);
 
         // try add some ttext to bl_top: vertical center
-        let title = Paragraph::new(format!("{}: {}", self.season, self.year))
+        let title = Paragraph::new(format!("{} {}", format!("{}{}", self.season[0..1].to_uppercase(), &self.season[1..]), self.year))
             .centered()
             .block(Block::default().padding(Padding::vertical(1)));
         frame.render_widget(title, bl_top);
@@ -212,8 +214,8 @@ impl Screen for SeasonsScreen {
                     .map(|anime| anime.title.clone())
                     .unwrap_or("Loading...".to_string());
 
-                let mut color = Color::Gray; 
-                if ((self.y)*3 + self.x) == index as u16 {
+                let mut color = Color::DarkGray; 
+                if self.selected_anime == index as u16 {
                     color = Color::Yellow;
                 } 
                 // the anime box should go here:
@@ -380,8 +382,9 @@ impl Screen for SeasonsScreen {
                     }
                     _ => {
                     }
-
                 }
+
+                self.selected_anime = (self.y * 3) + self.x;
             }
         }
 

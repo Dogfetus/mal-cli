@@ -1,7 +1,6 @@
 use crate::app::Action;
 
 use super::screens::*;
-use super::widgets::button::Button;
 use super::Screen;
 
 use crossterm::event::KeyCode;

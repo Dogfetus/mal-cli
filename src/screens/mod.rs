@@ -1,21 +1,21 @@
 use ratatui::Frame;
 use crate::app::{Action, Event};
 use crate::mal;
-use std::sync::atomic::AtomicBool;
 use std::sync::{mpsc, Arc};
 use std::collections::HashMap;
 use std::thread::JoinHandle;
 use std::any::Any;
 
-mod launch;
-mod info;
-mod list;
-mod profile;
+mod screen_template;
 mod settings;
 mod overview;
+mod profile;
 mod widgets;
-mod login;
 mod seasons;
+mod launch;
+mod login;
+mod info;
+mod list;
 
 // this is a macro to define screens in a more structured way
 // it allows for screens to be implemented in a single place and work across the app
@@ -71,14 +71,6 @@ macro_rules! define_screens {
 
 
 
-
-
-
-
-
-
-
-
 // INFO: make these screens structs and implement the trait for them.
 // INFO: they should take care of their own buttons and such
 // when adding new screens add them in define_screens then just call change_screen when you need to draw them
@@ -108,9 +100,6 @@ define_screens! {
     // SCREEN2 => "Screen2" => <module>::<structName>,
     // etc...
 }
-
-
-
 
 
 
