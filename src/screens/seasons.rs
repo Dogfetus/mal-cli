@@ -21,7 +21,7 @@ enum Focus {
 
 #[derive(Clone)]
 pub struct SeasonsScreen { 
-    selected_anime: u16,
+    selected_anime: usize,
     animes: Vec<Anime>,
     focus: Focus,
     x: u16,
@@ -53,6 +53,15 @@ impl SeasonsScreen {
             y: 0,
             year,
             season,
+        }
+    }
+
+    fn get_selected_anime(&self) -> Anime{
+        if let Some(anime) = self.animes.get(self.selected_anime){
+            anime.clone()
+        }
+        else{
+            Anime::empty()
         }
     }
 }
@@ -215,7 +224,7 @@ impl Screen for SeasonsScreen {
                     .unwrap_or("Loading...".to_string());
 
                 let mut color = Color::DarkGray; 
-                if self.selected_anime == index as u16 {
+                if self.selected_anime == index {
                     color = Color::Yellow;
                 } 
                 // the anime box should go here:
@@ -261,15 +270,36 @@ impl Screen for SeasonsScreen {
             )
             .areas(bottom_right);
 
-        let example_title = ["Fire Force Season 3", "Enen no Shouboutai: San no ShouEnen no Shouboutai: San no ShouEnen no Shouboutai: San no ShouEnen no Shouboutai: San no Shou"];
-
-
-        let title = Paragraph::new(format!("English:\n{}\n\nJapanese:\n{}", example_title[0], example_title[1]))
+        let anime = self.get_selected_anime();
+        let title = Paragraph::new(format!("English:\n{}\n\nJapanese:\n{}", anime.title, anime.alternative_titles.ja))
             .block(Block::default().padding(Padding::new(1, 1, 1, 1)));
         frame.render_widget(title, top);
 
-        let details = ["Type:", "Episodes:", "Status:", "Aired:", "Producers:", "Genres:", "Duration:", "Rating:", "Score:", "Ranked:", "Popularity:", "Members:", "Favorites:", "Studios"];
+        let details = [
+            ("Type:", anime.media_type),
+            ("Episodes:", &anime.num_episodes),
+            ("Status:", anime.status),
+            ("Aired:", anime.start_date),
+            ("Producers:", anime.produc),
+            ("Genres:", anime.genres),
+            ("Duration:", anime.average_episode_duration),
+            ("Rating:", anime.rating),
+            ("Score:", &anime.mean),
+            ("Ranked:", &anime.rank),
+            ("Popularity:", &anime.popularity),
+            ("Favorites:", &anime.favo),
+            ("Studios:", anime.studios.as_deref().unwrap_or("Unknown")),
+        ];
 
+        let details = [
+            "Type:", "Episodes:",
+            "Status:", "Aired:", 
+            "Producers:", "Genres:", 
+            "Duration:", "Rating:", 
+            "Score:", "Ranked:", 
+            "Popularity:", "Members:", 
+            "Favorites:", "Studios"
+        ];
         if middle.width > 50 {
             let [rigth, left] = Layout::default()
                 .direction(Direction::Horizontal)
@@ -293,18 +323,25 @@ impl Screen for SeasonsScreen {
         }
         else{
             let details = Paragraph::new(format!("{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}", details[0], details[1], details[2], details[3], details[4], details[5], details[6], details[7], details[8], details[9], details[10], details[11], details[12]))
-                .block(Block::default().padding(Padding::new(1, 1, 1, 1)).borders(Borders::TOP).padding(Padding::new(1, 2, 1, 1)));
+                .block(Block::default()
+                    .padding(Padding::new(1, 1, 1, 1))
+                    .borders(Borders::TOP)
+                    .padding(Padding::new(1, 2, 1, 1)));
             frame.render_widget(details, middle);
         }
+
 
 
         let desc_title = Paragraph::new("\n Description:");
         frame.render_widget(desc_title, bottom);
 
-        let description = Paragraph::new(format!("{} {}", "some long description that should be wrapped to fit the screen. This is a test description for the anime, it should be long enough to test the wrapping functionality of the terminal UI.some long description that should be wrapped to fit the screen. This is a test description for the anime, it should be long enough to test the wrapping functionality of the terminal UI.some long description that should be wrapped to fit the screen. This is a test description for the anime, it should be long enough to test the wrapping functionality of the terminal UI.some long description that should be wrapped to fit the screen. This is a test description for the anime, it should be long enough to test the wrapping functionality of the terminal UI.some long description that should be wrapped to fit the screen. This is a test description for the anime, it should be long enough to test the wrapping functionality of the terminal UI.some long description that should be wrapped to fit the screen. This is a test description for the anime, it should be long enough to test the wrapping functionality of the terminal UI.some long description that should be wrapped to fit the screen. This is a test description for the anime, it should be long enough to test the wrapping functionality of the terminal UI.some long description that should be wrapped to fit the screen. This is a test description for the anime, it should be long enough to test the wrapping functionality of the terminal UI.some long description that should be wrapped to fit the screen. This is a test description for the anime, it should be long enough to test the wrapping functionality of the terminal UI.some long description that should be wrapped to fit the screen. This is a test description for the anime, it should be long enough to test the wrapping functionality of the terminal UI.some long description that should be wrapped to fit the screen. This is a test description for the anime, it should be long enough to test the wrapping functionality of the terminal UI.some long description that should be wrapped to fit the screen. This is a test description for the anime, it should be long enough to test the wrapping functionality of the terminal UI.", bottom.width))
+        let description = Paragraph::new(anime.synopsis)
             .wrap(Wrap { trim: true })
             .scroll((self.scroll_offset, 0))
-            .block(Block::default().padding(Padding::new(1, 1, 0, 0)).borders(Borders::TOP).padding(Padding::new(1, 2, 1, 1)));
+            .block(Block::default()
+                .padding(Padding::new(1, 1, 0, 0))
+                .borders(Borders::TOP)
+                .padding(Padding::new(1, 2, 1, 1)));
         frame.render_widget(description, bottom);
         
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
@@ -383,8 +420,7 @@ impl Screen for SeasonsScreen {
                     _ => {
                     }
                 }
-
-                self.selected_anime = (self.y * 3) + self.x;
+                self.selected_anime = ((self.y * 3) + self.x) as usize;
             }
         }
 

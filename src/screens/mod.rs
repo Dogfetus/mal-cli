@@ -92,7 +92,7 @@ define_screens! {
     SEASONS => "Seasons" => seasons::SeasonsScreen,
 
     // Placeholder for now, replace with actual screen
-    LIST => "List" => launch::LaunchScreen, 
+    LIST => "List" => list::ListScreen, 
     FILTER => "Filter" => launch::LaunchScreen,
 
     // Add more as needed:

@@ -3,6 +3,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 
+fn na() -> String{
+    "N/A".to_string()
+}
 
 #[allow(unused)]
 pub mod fields {
@@ -51,13 +54,15 @@ pub mod fields {
 pub struct Anime {
     #[serde(default)]
     pub id: u64,
-    #[serde(default)]
+    #[serde(default="na")]
     pub title: String,
     pub main_picture: Option<Pictures>,
-    pub alternative_titles: Option<AlternativeTitles>,
+    #[serde(default)]
+    pub alternative_titles: AlternativeTitles,
     pub start_date: Option<String>,
     pub end_date: Option<String>,
-    pub synopsis: Option<String>,
+    #[serde(default="na")]
+    pub synopsis: String,
     pub mean: Option<f32>,
     pub rank: Option<u64>,
     pub popularity: Option<u64>,
@@ -93,10 +98,10 @@ impl Anime {
             id: 0,
             title: String::new(),
             main_picture: None,
-            alternative_titles: None,
+            alternative_titles: AlternativeTitles::default(),
             start_date: None,
             end_date: None,
-            synopsis: None,
+            synopsis: String::new(),
             mean: None,
             rank: None,
             popularity: None,
@@ -131,9 +136,15 @@ impl Anime {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Page{
+    pub previous: Option<String>,
+    pub next: Option<String>
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AnimeResponse {
     pub data: Vec<AnimeNode>,
-    pub paging: Option<Value>,
+    pub paging: Option<Page>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -157,8 +168,20 @@ pub struct Pictures {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AlternativeTitles {
     pub synonyms: Option<Vec<String>>,
-    pub en: Option<String>,
-    pub ja: Option<String>,
+    #[serde(default="na")]
+    pub en: String,
+    #[serde(default="na")]
+    pub ja: String,
+}
+
+impl Default for AlternativeTitles {
+    fn default() -> Self {
+        AlternativeTitles {
+            synonyms: None,
+            en: String::new(), 
+            ja: String::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

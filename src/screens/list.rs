@@ -43,7 +43,7 @@ impl Screen for ListScreen {
             ])
             .areas(area);
         let block = Block::new().borders(Borders::ALL)
-            .style(style::Style::default().fg(style::Color::LightBlue));
+            .style(style::Style::default().fg(style::Color::Cyan));
         frame.render_widget(block.clone(), left);
         frame.render_widget(block, right);
     }
