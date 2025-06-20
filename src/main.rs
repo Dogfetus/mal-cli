@@ -17,6 +17,10 @@ async fn main() -> Result<()> {
     // restore
     ratatui::restore();
 
+    let mal_client = mal::MalClient::new();
+    mal_client.get_current_season(0, 10);
+
+
     Ok(())
 }
 

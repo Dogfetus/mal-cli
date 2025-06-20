@@ -223,7 +223,7 @@ impl Screen for SeasonsScreen {
                     .map(|anime| anime.title.clone())
                     .unwrap_or("Loading...".to_string());
 
-                let mut color = Color::DarkGray; 
+                let mut color = Color::Gray; 
                 if self.selected_anime == index {
                     color = Color::Yellow;
                 } 
@@ -271,37 +271,49 @@ impl Screen for SeasonsScreen {
             .areas(bottom_right);
 
         let anime = self.get_selected_anime();
-        let title = Paragraph::new(format!("English:\n{}\n\nJapanese:\n{}", anime.title, anime.alternative_titles.ja))
+        let title = Paragraph::new(
+            format!("English:\n{}\n\nJapanese:\n{}", 
+                anime.title, 
+                anime.alternative_titles.ja)
+            )
             .block(Block::default().padding(Padding::new(1, 1, 1, 1)));
+        let genres_string = anime.genres.iter()
+            .map(|g| g.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let studios_string = anime.studios.iter()
+            .map(|g| g.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+
         frame.render_widget(title, top);
 
         let details = [
             ("Type:", anime.media_type),
-            ("Episodes:", &anime.num_episodes),
+            ("Episodes:", anime.num_episodes.to_string()),
             ("Status:", anime.status),
             ("Aired:", anime.start_date),
-            ("Producers:", anime.produc),
-            ("Genres:", anime.genres),
-            ("Duration:", anime.average_episode_duration),
+            ("Genres:", genres_string),
+            ("Duration:", anime.average_episode_duration.to_string()),
             ("Rating:", anime.rating),
-            ("Score:", &anime.mean),
-            ("Ranked:", &anime.rank),
-            ("Popularity:", &anime.popularity),
-            ("Favorites:", &anime.favo),
-            ("Studios:", anime.studios.as_deref().unwrap_or("Unknown")),
+            ("Score:", anime.mean.to_string()),
+            ("Ranked:", anime.rank.to_string()),
+            ("Popularity:", anime.popularity.to_string()),
+            ("Studios:", studios_string),
+            ("Season:", anime.start_season.to_string()),
+            ("Created at:", anime.created_at),
+            ("Updated at:", anime.updated_at),
         ];
 
-        let details = [
-            "Type:", "Episodes:",
-            "Status:", "Aired:", 
-            "Producers:", "Genres:", 
-            "Duration:", "Rating:", 
-            "Score:", "Ranked:", 
-            "Popularity:", "Members:", 
-            "Favorites:", "Studios"
-        ];
+        fn create_details_text(details: &[(&str, String)]) -> String {
+            details.iter()
+                .map(|(label, value)| format!("{} {}", label, value))
+                .collect::<Vec<_>>()
+                .join("\n\n")
+        }
+
         if middle.width > 50 {
-            let [rigth, left] = Layout::default()
+            let [right, left] = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints(
                     [
@@ -310,26 +322,30 @@ impl Screen for SeasonsScreen {
                     ]
                 )
                 .areas(middle);
-            let details_left = Paragraph::new(format!("{}\n\n{}\n\n{}\n\n{}\n\n{}\n\n{}\n\n{}",
-                details[0], details[1], details[2], details[3], details[4], details[5],
-                details[6]))
-                .block(Block::default().padding(Padding::new(1, 1, 1, 1)).borders(Borders::TOP).padding(Padding::new(1, 2, 1, 1)));
-            let details_right = Paragraph::new(format!("{}\n\n{}\n\n{}\n\n{}\n\n{}\n\n{}\n\n{}",
-                details[7], details[8], details[9], details[10], details[11], details[12],
-                details[13]))
-                .block(Block::default().padding(Padding::new(1, 1, 1, 1)).borders(Borders::TOP).padding(Padding::new(1, 2, 1, 1)));
+
+            let split = details.len() / 2;
+            let (left_details, right_details) = details.split_at(split);
+
+            let block_style = Block::default()
+                .borders(Borders::TOP)
+                .padding(Padding::new(1, 2, 1, 1));
+
+            let details_left = Paragraph::new(create_details_text(left_details))
+                .block(block_style.clone());
+
+            let details_right = Paragraph::new(create_details_text(right_details))
+                .block(block_style);
+
             frame.render_widget(details_left, left);
-            frame.render_widget(details_right, rigth);
+            frame.render_widget(details_right, right);
         }
         else{
-            let details = Paragraph::new(format!("{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}", details[0], details[1], details[2], details[3], details[4], details[5], details[6], details[7], details[8], details[9], details[10], details[11], details[12]))
+             let details_paragraph = Paragraph::new(create_details_text(&details))
                 .block(Block::default()
-                    .padding(Padding::new(1, 1, 1, 1))
                     .borders(Borders::TOP)
                     .padding(Padding::new(1, 2, 1, 1)));
-            frame.render_widget(details, middle);
+            frame.render_widget(details_paragraph, middle);
         }
-
 
 
         let desc_title = Paragraph::new("\n Description:");
@@ -343,7 +359,7 @@ impl Screen for SeasonsScreen {
                 .borders(Borders::TOP)
                 .padding(Padding::new(1, 2, 1, 1)));
         frame.render_widget(description, bottom);
-        
+
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .begin_symbol(Some("↑"))
             .end_symbol(Some("↓"));
@@ -443,18 +459,31 @@ impl Screen for SeasonsScreen {
             if nr_of_animes <= 0 {
                 //temporary
                 if let Some(animes) = info.mal_client.get_current_season(0, 9){
+                    let mut animes_to_send = Vec::<Anime>::new();
+                    let (current_year, current_season) = MalClient::current_season();
+                    for anime in animes.iter() {
+                        if anime.start_season.year == current_year &&
+                            anime.start_season.season == current_season {
+                            animes_to_send.push(anime.clone());
+                        }
+
+                    }
                     let update = BackgroundUpdate::new(id.clone())
-                        .set("animes", animes.clone());
+                        .set("animes", animes_to_send.clone());
                     let _ = info.app_sx.send(Event::BackgroundNotice(update));
                 }
-                if let Some(animes) = info.mal_client.get_current_season(9, 41){
+                if let Some(animes) = info.mal_client.get_current_season(9, 500){
+                    let mut animes_to_send = Vec::<Anime>::new();
+                    let (current_year, current_season) = MalClient::current_season();
+                    for anime in animes.iter() {
+                        if anime.start_season.year == current_year &&
+                            anime.start_season.season == current_season {
+                            animes_to_send.push(anime.clone());
+                        }
+
+                    }
                     let update = BackgroundUpdate::new(id.clone())
-                        .set("animes", animes.clone());
-                    let _ = info.app_sx.send(Event::BackgroundNotice(update));
-                }
-                if let Some(animes) = info.mal_client.get_current_season(50, 500){
-                    let update = BackgroundUpdate::new(id.clone())
-                        .set("animes", animes.clone());
+                        .set("animes", animes_to_send.clone());
                     let _ = info.app_sx.send(Event::BackgroundNotice(update));
                 }
             }

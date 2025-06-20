@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap, fmt::{self, Display}};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -59,35 +59,54 @@ pub struct Anime {
     pub main_picture: Option<Pictures>,
     #[serde(default)]
     pub alternative_titles: AlternativeTitles,
-    pub start_date: Option<String>,
-    pub end_date: Option<String>,
+    #[serde(default="na")]
+    pub start_date: String,
+    #[serde(default="na")]
+    pub end_date: String,
     #[serde(default="na")]
     pub synopsis: String,
-    pub mean: Option<f32>,
-    pub rank: Option<u64>,
-    pub popularity: Option<u64>,
-    pub num_list_users: Option<u64>,
-    pub num_scoring_users: Option<u64>,
-    pub nsfw: Option<String>,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
-    pub media_type: Option<String>,
-    pub status: Option<String>,
-    pub genres: Option<Vec<Genre>>,
+    #[serde(default)]
+    pub mean: f32,
+    #[serde(default)]
+    pub rank: u64,
+    #[serde(default)]
+    pub popularity: u64,
+    #[serde(default)]
+    pub num_list_users: u64,
+    #[serde(default)]
+    pub num_scoring_users: u64,
+    #[serde(default="na")]
+    pub nsfw: String,
+    #[serde(default="na")]
+    pub created_at: String,
+    #[serde(default="na")]
+    pub updated_at: String,
+    #[serde(default="na")]
+    pub media_type: String,
+    #[serde(default="na")]
+    pub status: String,
+    #[serde(default)]
+    pub genres: Vec<Genre>,
     pub my_list_status: Option<MyListStatus>,
-    pub num_episodes: Option<u64>,
+    #[serde(default)]
+    pub num_episodes: u64,
     #[serde(default)]
     pub start_season: StartSeason,
     pub broadcast: Option<Broadcast>,
-    pub source: Option<String>,
-    pub average_episode_duration: Option<u64>,
-    pub rating: Option<String>,
+    #[serde(default="na")]
+    pub source: String,
+    #[serde(default)]
+    pub average_episode_duration: u64,
+    #[serde(default="na")]
+    pub rating: String,
     pub pictures: Option<Vec<Pictures>>,
-    pub background: Option<String>,
+    #[serde(default="na")]
+    pub background: String,
     pub related_anime: Option<Vec<RelatedAnime>>,
     pub related_manga: Option<Vec<RelatedManga>>,
     pub recommendations: Option<Vec<Recommendation>>,
-    pub studios: Option<Vec<Studio>>,
+    #[serde(default)]
+    pub studios: Vec<Studio>,
     pub statistics: Option<Statistics>,
 
 }
@@ -99,33 +118,33 @@ impl Anime {
             title: String::new(),
             main_picture: None,
             alternative_titles: AlternativeTitles::default(),
-            start_date: None,
-            end_date: None,
+            start_date: String::new(),
+            end_date: String::new(),
             synopsis: String::new(),
-            mean: None,
-            rank: None,
-            popularity: None,
-            num_list_users: None,
-            num_scoring_users: None,
-            nsfw: None,
-            created_at: None,
-            updated_at: None,
-            media_type: None,
-            status: None,
-            genres: None,
+            mean: 0.0,
+            rank: 0,
+            popularity: 0,
+            num_list_users: 0,
+            num_scoring_users: 0,
+            nsfw: String::new(),
+            created_at: String::new(),
+            updated_at: String::new(),
+            media_type: String::new(),
+            status: String::new(),
+            genres: Vec::new(),
             my_list_status: None,
-            num_episodes: None,
+            num_episodes: 0,
             start_season: StartSeason::default(),
             broadcast: None,
-            source: None,
-            average_episode_duration: None,
-            rating: None,
+            source: String::new(),
+            average_episode_duration: 0,
+            rating: String::new(),
             pictures: None,
-            background: None,
+            background: String::new(),
             related_anime: None,
             related_manga: None,
             recommendations: None,
-            studios: None,
+            studios: Vec::new(),
             statistics: None
         }
     }
@@ -137,8 +156,10 @@ impl Anime {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Page{
-    pub previous: Option<String>,
-    pub next: Option<String>
+    #[serde(default="na")]
+    pub previous: String,
+    #[serde(default="na")]
+    pub next: String
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -161,8 +182,10 @@ pub struct Ranking {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Pictures {
-    pub large: Option<String>,
-    pub medium: Option<String>,
+    #[serde(default="na")]
+    pub large: String,
+    #[serde(default="na")]
+    pub medium: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -190,52 +213,73 @@ pub struct Genre{
     pub name: String,
 }
 
+impl fmt::Display for Genre {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MyListStatus {
-    pub status: Option<String>,
+    #[serde(default="na")]
+    pub status: String,
     pub score: Option<u8>,
     pub num_episodes_watched: Option<u32>,
     pub is_rewatching: Option<bool>,
-    pub start_date: Option<String>,
-    pub finish_date: Option<String>,
+    #[serde(default="na")]
+    pub start_date: String,
+    #[serde(default="na")]
+    pub finish_date: String,
     pub priority: Option<u8>,
     pub num_times_rewatched: Option<u8>,
     pub rewatch_value: Option<u8>,
     pub tags: Option<Vec<String>>,
-    pub comments: Option<String>,
-    pub updated_at: Option<String>,
+    #[serde(default="na")]
+    pub comments: String,
+    #[serde(default="na")]
+    pub updated_at: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct StartSeason {
-    pub year: Option<u16>,
-    pub season: Option<String>,
+    #[serde(default)]
+    pub year: u16,
+    #[serde(default="na")]
+    pub season: String,
 }
 
 impl Default for StartSeason {
     fn default() -> Self {
         StartSeason {
-            year: None,
-            season: None,
+            year: 0,
+            season: String::new(),
         }
     }
 }
 
 impl fmt::Display for StartSeason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match (&self.year, &self.season) {
-            (Some(year), Some(season)) => write!(f, "{} {}", season, year),
-            (Some(year), None) => write!(f, "{}", year),
-            (None, Some(season)) => write!(f, "{}", season),
-            (None, None) => write!(f, "idk bro"),
+        if self.year == 0 && !self.season.is_empty() {
+            write!(f, "{}", self.season)
+        }
+        else if self.season.is_empty() && self.year != 0 {
+            write!(f, "{}", self.year)
+        }
+        else if self.year == 0 && self.season.is_empty() {
+            write!(f, "N/A")
+        }
+        else {
+            write!(f, "{} {}", self.season, self.year)
         }
     }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Broadcast {
-    pub day_of_the_week: Option<String>,
-    pub start_time: Option<String>,
+    #[serde(default="na")]
+    pub day_of_the_week: String,
+    #[serde(default="na")]
+    pub start_time: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -244,11 +288,19 @@ pub struct Studio {
     pub name: String,
 }
 
+impl fmt::Display for Studio {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RelatedAnime {
     pub node: Node,
-    pub relation_type: Option<String>,
-    pub relation_type_formatted: Option<String>,
+    #[serde(default="na")]
+    pub relation_type: String,
+    #[serde(default="na")]
+    pub relation_type_formatted: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
