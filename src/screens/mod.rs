@@ -6,7 +6,8 @@ use std::collections::HashMap;
 use std::thread::JoinHandle;
 use std::any::Any;
 
-mod screen_template;
+#[allow(non_snake_case)]
+mod screenTemplate;
 mod settings;
 mod overview;
 mod profile;

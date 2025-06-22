@@ -1,9 +1,17 @@
 use std::thread;
 
-use super::widgets::navbar::NavBar;
-use super::{screens::*, BackgroundUpdate, Screen};
-use crate::mal::{models::anime::Anime, MalClient};
-use crate::app::{Action, Event};
+use super::{
+    screens::*,
+    BackgroundUpdate,
+    Screen, 
+    widgets::navbar::NavBar,
+    widgets::popup::Popup,
+};
+use crate::utils::stringManipulation::DisplayString;
+use crate::{
+    mal::{models::anime::Anime, MalClient},
+    app::{Action, Event}
+};
 use ratatui::layout::{Alignment, Margin};
 use ratatui::widgets::{Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};
 use ratatui::{
@@ -16,19 +24,25 @@ use crossterm::event::{KeyCode, KeyEvent};
 enum Focus {
     Navbar,
     AnimeList,
+    Popup
 }
 
 
 #[derive(Clone)]
 pub struct SeasonsScreen { 
-    selected_anime: usize,
     animes: Vec<Anime>,
+    navbar: NavBar,
+    popup: Popup,
     focus: Focus,
+
+    selected_anime: usize,
+    scroll_offset: u16,
     x: u16,
     y: u16,
-    scroll_offset: u16,
-    navbar: NavBar,
-    loading: bool,
+
+    fetching: bool,
+    bg_loaded: bool,
+
     year: u16,
     season: String,
 }
@@ -45,12 +59,17 @@ impl SeasonsScreen {
                 .add_screen(LIST)
                 .add_screen(FILTER)
                 .add_screen(PROFILE),
+            popup: Popup::new(),
             focus: Focus::AnimeList,
+
             selected_anime: 0,
             scroll_offset: 0,
-            loading: false,
             x: 0,
             y: 0,
+
+            fetching: false,
+            bg_loaded: false,
+
             year,
             season,
         }
@@ -68,6 +87,7 @@ impl SeasonsScreen {
 
 impl Screen for SeasonsScreen {
     fn draw(&self, frame: &mut Frame) {
+        let anime = self.get_selected_anime();
         let area = frame.area();
         frame.render_widget(Clear, area);
 
@@ -176,8 +196,15 @@ impl Screen for SeasonsScreen {
         frame.render_widget(Block::new().border_set(blt_set).borders(blt_border).border_style(color), bl_top);
         frame.render_widget(Block::new().border_set(blb_set).borders(blb_border).border_style(color), bl_bottom);
 
-        // try add some ttext to bl_top: vertical center
-        let title = Paragraph::new(format!("{} {}", format!("{}{}", self.season[0..1].to_uppercase(), &self.season[1..]), self.year))
+
+        // the season and year at the top:
+        let title = Paragraph::new(
+            DisplayString::new()
+                .add(&self.season)
+                .add(&self.year)
+                .capitalize(0)
+                .build("{0} {1}")
+            )
             .centered()
             .block(Block::default().padding(Padding::vertical(1)));
         frame.render_widget(title, bl_top);
@@ -204,6 +231,9 @@ impl Screen for SeasonsScreen {
                 ]
             )
             .areas(bl_bottom);
+
+        let placeholder = if self.fetching {"Loading..."} else {""};
+
         for (row_nr, &column) in [blb_top, blb_middle, blb_bottom].iter().enumerate() {
             let [left, middle, right] = Layout::default()
                 .direction(Direction::Horizontal)
@@ -211,7 +241,7 @@ impl Screen for SeasonsScreen {
                     [
                         Constraint::Percentage(33),
                         Constraint::Percentage(33),
-                        Constraint::Percentage(33),
+                        Constraint::Percentage(34),
                     ]
                 )
                 .areas(column);
@@ -221,9 +251,9 @@ impl Screen for SeasonsScreen {
                 let title_text = self.animes
                     .get(index)
                     .map(|anime| anime.title.clone())
-                    .unwrap_or("Loading...".to_string());
+                    .unwrap_or(placeholder.to_string());
 
-                let mut color = Color::Gray; 
+                let mut color = Color::DarkGray; 
                 if self.selected_anime == index {
                     color = Color::Yellow;
                 } 
@@ -270,7 +300,6 @@ impl Screen for SeasonsScreen {
             )
             .areas(bottom_right);
 
-        let anime = self.get_selected_anime();
         let title = Paragraph::new(
             format!("English:\n{}\n\nJapanese:\n{}", 
                 anime.title, 
@@ -325,15 +354,15 @@ impl Screen for SeasonsScreen {
 
             let split = details.len() / 2;
             let (left_details, right_details) = details.split_at(split);
-
             let block_style = Block::default()
                 .borders(Borders::TOP)
                 .padding(Padding::new(1, 2, 1, 1));
-
-            let details_left = Paragraph::new(create_details_text(left_details))
+            let details_left = Paragraph::new(
+                create_details_text(left_details))
                 .block(block_style.clone());
 
-            let details_right = Paragraph::new(create_details_text(right_details))
+            let details_right = Paragraph::new(
+                create_details_text(right_details))
                 .block(block_style);
 
             frame.render_widget(details_left, left);
@@ -347,10 +376,7 @@ impl Screen for SeasonsScreen {
             frame.render_widget(details_paragraph, middle);
         }
 
-
         let desc_title = Paragraph::new("\n Description:");
-        frame.render_widget(desc_title, bottom);
-
         let description = Paragraph::new(anime.synopsis)
             .wrap(Wrap { trim: true })
             .scroll((self.scroll_offset, 0))
@@ -358,33 +384,36 @@ impl Screen for SeasonsScreen {
                 .padding(Padding::new(1, 1, 0, 0))
                 .borders(Borders::TOP)
                 .padding(Padding::new(1, 2, 1, 1)));
-        frame.render_widget(description, bottom);
 
-        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+        let scrollbar = Scrollbar::new(
+            ScrollbarOrientation::VerticalRight)
             .begin_symbol(Some("↑"))
             .end_symbol(Some("↓"));
-        let mut scrollbar_state = ScrollbarState::new(20).position(self.scroll_offset as usize);
+        let mut scrollbar_state = ScrollbarState::new(20)
+            .position(self.scroll_offset as usize);
+
+        frame.render_widget(desc_title, bottom);
+        frame.render_widget(description, bottom);
         frame.render_stateful_widget(
     scrollbar,
     bottom.inner(Margin {
-            // using an inner vertical margin of 1 unit makes the scrollbar inside the block
             vertical: 1,
             horizontal: 0,
         }),
         &mut scrollbar_state,
     );
 
+        self.popup.render(frame);
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
-        if self.navbar.is_selected() {
-            self.focus = Focus::Navbar;
-        } else {
-            self.focus = Focus::AnimeList;
-        }
-
         match self.focus {
             Focus::Navbar => {
+                if key_event.code == KeyCode::Char('q') {
+                    self.navbar.deselect();
+                    self.focus = Focus::AnimeList;
+                }
+
                 if let Some(action) = self.navbar.handle_input(key_event) {
                     return Some(action);
                 }
@@ -421,7 +450,16 @@ impl Screen for SeasonsScreen {
                         }
                     }
                     KeyCode::Enter => {
+                        if self.selected_anime < self.animes.len() {
+                            self.popup.set_anime(self.get_selected_anime());
+                            self.popup.toggle();
+                            self.focus = Focus::Popup;
+                        }
+                    }
+
+                    KeyCode::Char('u') if key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
                         self.navbar.select();
+                        self.focus = Focus::Navbar;
                     }
                     _ => {} 
                 };
@@ -438,6 +476,13 @@ impl Screen for SeasonsScreen {
                 }
                 self.selected_anime = ((self.y * 3) + self.x) as usize;
             }
+
+            Focus::Popup => {
+                if key_event.code == KeyCode::Char('q') {
+                    self.focus = Focus::AnimeList;
+                }
+                self.popup.handle_input(key_event);
+            }
         }
 
         None
@@ -448,10 +493,11 @@ impl Screen for SeasonsScreen {
     }
 
     fn background(&mut self, info: super::BackgroundInfo) -> Option<std::thread::JoinHandle<()>> {
-        if self.loading {
+        if self.bg_loaded {
             return None;
         }
-        self.loading = true;
+        self.bg_loaded = true;
+        self.fetching = true;
 
         let nr_of_animes = self.animes.len();
         let id = self.get_name(); 
@@ -487,12 +533,19 @@ impl Screen for SeasonsScreen {
                     let _ = info.app_sx.send(Event::BackgroundNotice(update));
                 }
             }
+
+            let update = BackgroundUpdate::new(id.clone())
+                .set("fetching", false);
+            let _ = info.app_sx.send(Event::BackgroundNotice(update));
         }))
     }
 
     fn apply_update(&mut self, update: BackgroundUpdate) {
         if let Some(animes) = update.get::<Vec<Anime>>("animes") {
             self.animes.extend(animes.iter().cloned());
+        }
+        if let Some(fetching) = update.get::<bool>("fetching"){
+            self.fetching = *fetching;
         }
     }
 }

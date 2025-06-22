@@ -1,2 +1,3 @@
-#[allow(non_snake_case)]
+#![allow(non_snake_case)]
 pub mod terminalCapabilities;
+pub mod stringManipulation;
