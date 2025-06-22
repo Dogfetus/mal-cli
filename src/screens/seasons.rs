@@ -20,13 +20,14 @@ use ratatui::{
 };
 use crossterm::event::{KeyCode, KeyEvent};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Focus {
     Navbar,
+    SeasonSelection,
     AnimeList,
+    AnimeDetails,
     Popup
 }
-
 
 #[derive(Clone)]
 pub struct SeasonsScreen { 
@@ -35,6 +36,8 @@ pub struct SeasonsScreen {
     popup: Popup,
     focus: Focus,
 
+    detail_scroll_x: u16,
+    detail_scroll_y: u16,
     selected_anime: usize,
     scroll_offset: u16,
     x: u16,
@@ -62,6 +65,8 @@ impl SeasonsScreen {
             popup: Popup::new(),
             focus: Focus::AnimeList,
 
+            detail_scroll_x: 0,
+            detail_scroll_y: 0,
             selected_anime: 0,
             scroll_offset: 0,
             x: 0,
@@ -227,7 +232,7 @@ impl Screen for SeasonsScreen {
                 [
                     Constraint::Percentage(33),
                     Constraint::Percentage(33),
-                    Constraint::Percentage(34),
+                    Constraint::Percentage(33),
                 ]
             )
             .areas(bl_bottom);
@@ -254,9 +259,10 @@ impl Screen for SeasonsScreen {
                     .unwrap_or(placeholder.to_string());
 
                 let mut color = Color::DarkGray; 
-                if self.selected_anime == index {
+                if self.selected_anime == index && self.focus == Focus::AnimeList {
                     color = Color::Yellow;
                 } 
+
                 // the anime box should go here:
                 let title = Paragraph::new(title_text)
                     .alignment(Alignment::Center)
@@ -264,6 +270,7 @@ impl Screen for SeasonsScreen {
                     .block(Block::default().padding(Padding::new(1, 1, 1, 1)));
                 frame.render_widget(title, area);
                 frame.render_widget(Block::new().borders(Borders::ALL).border_style(color), area);
+                // the anime box shoul go here^
             }
         }
 
@@ -379,7 +386,7 @@ impl Screen for SeasonsScreen {
         let desc_title = Paragraph::new("\n Description:");
         let description = Paragraph::new(anime.synopsis)
             .wrap(Wrap { trim: true })
-            .scroll((self.scroll_offset, 0))
+            .scroll((self.detail_scroll_y, 0))
             .block(Block::default()
                 .padding(Padding::new(1, 1, 0, 0))
                 .borders(Borders::TOP)
@@ -390,7 +397,7 @@ impl Screen for SeasonsScreen {
             .begin_symbol(Some("↑"))
             .end_symbol(Some("↓"));
         let mut scrollbar_state = ScrollbarState::new(20)
-            .position(self.scroll_offset as usize);
+            .position(self.detail_scroll_y as usize);
 
         frame.render_widget(desc_title, bottom);
         frame.render_widget(description, bottom);
@@ -409,7 +416,7 @@ impl Screen for SeasonsScreen {
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
         match self.focus {
             Focus::Navbar => {
-                if key_event.code == KeyCode::Char('q') {
+                if key_event.code == KeyCode::Char('k') && key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
                     self.navbar.deselect();
                     self.focus = Focus::AnimeList;
                 }
@@ -419,51 +426,65 @@ impl Screen for SeasonsScreen {
                 }
             }
             Focus::AnimeList => {
-                match key_event.code {
-                    KeyCode::Up | KeyCode::Char('j') => {
-                        self.y = self.y.saturating_sub(1);
-                    }
-                    KeyCode::Down | KeyCode::Char('k') => {
-                        if self.y < self.animes.len() as u16 / 3 {
-                            self.y += 1;
+                if key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
+                    match key_event.code {
+                        KeyCode::Char('j') => {
+                            self.navbar.select();
+                            self.focus = Focus::Navbar;
                         }
-                    }
-                    KeyCode::Left | KeyCode::Char('h') => {
-                        if self.x == 0 {
-                            if self.y != 0 {
-                                self.y = self.y.saturating_sub(1);
-                                self.x = 2;
-                            }
+                        KeyCode::Char('l') => {
+                            self.focus = Focus::AnimeDetails;
                         }
-                        else {
-                            self.x = self.x.saturating_sub(1);
-                        }
+                        _ => {}
                     }
-                    KeyCode::Right | KeyCode::Char('l') => {
-                        if self.x == 2 {
+                }
+
+                else {
+                    match key_event.code {
+                        KeyCode::Up | KeyCode::Char('j') => {
+                            self.y = self.y.saturating_sub(1);
+                        }
+                        KeyCode::Down | KeyCode::Char('k') => {
                             if self.y < self.animes.len() as u16 / 3 {
                                 self.y += 1;
-                                self.x = 0;
                             }
-                        } else {
-                            self.x += 1;
                         }
-                    }
-                    KeyCode::Enter => {
-                        if self.selected_anime < self.animes.len() {
-                            self.popup.set_anime(self.get_selected_anime());
-                            self.popup.toggle();
-                            self.focus = Focus::Popup;
+                        KeyCode::Left | KeyCode::Char('h') => {
+                            if self.x == 0 {
+                                if self.y != 0 {
+                                    self.y = self.y.saturating_sub(1);
+                                    self.x = 2;
+                                }
+                            }
+                            else {
+                                self.x = self.x.saturating_sub(1);
+                            }
                         }
-                    }
+                        KeyCode::Right | KeyCode::Char('l') => {
+                            if self.x == 2 {
+                                if self.y < self.animes.len() as u16 / 3 {
+                                    self.y += 1;
+                                    self.x = 0;
+                                }
+                            } else {
+                                self.x += 1;
+                            }
+                        }
+                        KeyCode::Enter => {
+                            if self.selected_anime < self.animes.len() {
+                                self.popup.set_anime(self.get_selected_anime());
+                                self.popup.toggle();
+                                self.focus = Focus::Popup;
+                            }
+                        }
+                        _ => {} 
+                    };
 
-                    KeyCode::Char('u') if key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
-                        self.navbar.select();
-                        self.focus = Focus::Navbar;
-                    }
-                    _ => {} 
-                };
+                    self.detail_scroll_y = 0;
+                    self.detail_scroll_x = 0;
+                }
 
+                // Handle scrolling
                 match self.y as i16 - self.scroll_offset as i16 {
                     3 => {
                         self.scroll_offset += 1;
@@ -482,6 +503,42 @@ impl Screen for SeasonsScreen {
                     self.focus = Focus::AnimeList;
                 }
                 self.popup.handle_input(key_event);
+            }
+
+            Focus::AnimeDetails => {
+                if key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
+                    match key_event.code {
+                        KeyCode::Char('j') | KeyCode::Right => {
+                            self.navbar.select();
+                            self.focus = Focus::Navbar;
+                        }
+                        KeyCode::Char('h') | KeyCode::Left => {
+                            self.focus = Focus::AnimeList;
+                        }
+                        _ => {}
+                    }
+                } 
+                else {
+                    match key_event.code {
+                        KeyCode::Char('k') | KeyCode::Down => {
+                            self.detail_scroll_y += 1;
+                        }
+                        KeyCode::Char('j') | KeyCode::Up => {
+                            self.detail_scroll_y = self.detail_scroll_y.saturating_sub(1);
+                        }
+                        KeyCode::Char('h') | KeyCode::Left => {
+                            self.detail_scroll_x = self.detail_scroll_x.saturating_sub(1);
+                        }
+                        KeyCode::Char('l') | KeyCode::Right => {
+                            self.detail_scroll_x += 1;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            Focus::SeasonSelection => {
+                // Handle season selection input here if needed
             }
         }
 

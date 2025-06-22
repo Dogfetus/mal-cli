@@ -63,9 +63,7 @@ impl NavBar {
                     return Some(Action::SwitchScreen(name_to_screen(screen_name)));
                 }
             },
-            _ => {
-                self.deselect();
-            },
+            _ => {},
         }
         None
     }
