@@ -1,19 +1,23 @@
+use crate::{
+    app::Action,
+    mal::models::anime::Anime,
+    screens::{name_to_screen, screen_to_name},
+};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect}, 
-    style::{Color, Style}, 
-    symbols::{self, border}, 
-    text::Line, 
-    widgets::{Block, Borders, Clear, Paragraph}, 
-    Frame
+    Frame,
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Color, Style},
+    symbols::{self, border},
+    text::Line,
+    widgets::{Block, Borders, Clear, Paragraph},
 };
-use crate::{app::Action, mal::models::anime::Anime, screens::{name_to_screen, screen_to_name}};
-
 
 #[derive(Clone)]
 pub struct Popup {
     pub anime: Anime,
     pub toggled: bool,
+    pub buttons: Vec<&'static str>,
 }
 
 impl Popup {
@@ -21,6 +25,13 @@ impl Popup {
         Self {
             anime: Anime::empty(),
             toggled: false,
+            buttons: vec![
+                "Play",
+                "Add to List",
+                "Add to Favorites",
+                "Rate",
+                "Share"
+            ],
         }
     }
 
@@ -39,23 +50,21 @@ impl Popup {
             KeyCode::Char('q') => {
                 self.toggled = false;
                 None
-            },
+            }
             _ => None,
         }
     }
+
     pub fn render(&self, frame: &mut Frame) {
         if !self.toggled {
             return;
         }
         let area = frame.area();
 
-        let [height, width] = [
-            area.height * 7 / 10,
-            area.width / 2,
-        ];
+        let [height, width] = [area.height * 7 / 10, area.width / 2];
         let popup_area = Rect::new(
-            area.x + (area.width - width)/2,
-            area.y + (area.height - height)/2,
+            area.x + (area.width - width) / 2,
+            area.y + (area.height - height) / 2,
             width,
             height,
         );
@@ -64,19 +73,56 @@ impl Popup {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
-            .title("Anime Details")
             .style(Style::default().fg(Color::White));
         frame.render_widget(block.clone(), popup_area);
 
-        let inner_area = block.inner(popup_area);
-        let text = format!(
-            "Title: {}\nStatus: {}\nEpisodes: {}\nScore: {}",
-            self.anime.title, self.anime.status, self.anime.num_episodes, self.anime.mean
+        let [left, right] = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
+            .areas(popup_area);
+        let [top, bottom] = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .areas(right);
+
+        let (right_set, right_border) = (
+            symbols::border::Set {
+                bottom_left: symbols::line::ROUNDED_BOTTOM_RIGHT,
+                top_right: symbols::line::ROUNDED_BOTTOM_RIGHT,
+                ..symbols::border::ROUNDED
+            },
+            Borders::ALL,
         );
-        let paragraph = Paragraph::new(text)
-            .alignment(Alignment::Left);
-        frame.render_widget(paragraph, inner_area);
+
+        let right_block = Block::default()
+            .borders(right_border)
+            .border_set(right_set)
+            .style(Style::default().fg(Color::White));
+
+        let bottom_area = Rect::new(
+            bottom.x + 1,
+            bottom.y + 1,
+            bottom.width - 1,
+            bottom.height - 1, // Leave space for the border
+        );
+
+        frame.render_widget(Clear, bottom);
+        frame.render_widget(right_block, bottom);
+        frame.render_widget(Clear, bottom_area);
+
+        let button_areas = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Ratio(1, self.buttons.len() as u32); self.buttons.len()])
+            .split(bottom_area);
+
+        for (button, &area) in self.buttons.iter().zip(button_areas.iter()) {
+            let paragraph = Paragraph::new(button.to_string())
+                .block(Block::default()
+                    .borders(Borders::ALL)
+                    .border_set(border::ROUNDED))
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(Color::White));
+            frame.render_widget(paragraph, area);
+        }
     }
-
 }
-

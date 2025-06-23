@@ -203,6 +203,11 @@ impl Screen for SeasonsScreen {
 
 
         // the season and year at the top:
+        let season_color = if self.focus == Focus::SeasonSelection {
+            Color::Yellow
+        } else {
+            Color::DarkGray
+        };
         let title = Paragraph::new(
             DisplayString::new()
                 .add(&self.season)
@@ -211,6 +216,7 @@ impl Screen for SeasonsScreen {
                 .build("{0} {1}")
             )
             .centered()
+            .style(Style::default().fg(season_color))
             .block(Block::default().padding(Padding::vertical(1)));
         frame.render_widget(title, bl_top);
 
@@ -418,7 +424,7 @@ impl Screen for SeasonsScreen {
             Focus::Navbar => {
                 if key_event.code == KeyCode::Char('k') && key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
                     self.navbar.deselect();
-                    self.focus = Focus::AnimeList;
+                    self.focus = Focus::SeasonSelection;
                 }
 
                 if let Some(action) = self.navbar.handle_input(key_event) {
@@ -428,11 +434,10 @@ impl Screen for SeasonsScreen {
             Focus::AnimeList => {
                 if key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
                     match key_event.code {
-                        KeyCode::Char('j') => {
-                            self.navbar.select();
-                            self.focus = Focus::Navbar;
+                        KeyCode::Char('j') | KeyCode::Up => {
+                            self.focus = Focus::SeasonSelection;
                         }
-                        KeyCode::Char('l') => {
+                        KeyCode::Char('l') | KeyCode::Right => {
                             self.focus = Focus::AnimeDetails;
                         }
                         _ => {}
@@ -470,7 +475,7 @@ impl Screen for SeasonsScreen {
                                 self.x += 1;
                             }
                         }
-                        KeyCode::Enter => {
+                        KeyCode::Enter | KeyCode::Char(' ') => {
                             if self.selected_anime < self.animes.len() {
                                 self.popup.set_anime(self.get_selected_anime());
                                 self.popup.toggle();
@@ -508,11 +513,11 @@ impl Screen for SeasonsScreen {
             Focus::AnimeDetails => {
                 if key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
                     match key_event.code {
-                        KeyCode::Char('j') | KeyCode::Right => {
+                        KeyCode::Char('j') | KeyCode::Up => {
                             self.navbar.select();
                             self.focus = Focus::Navbar;
                         }
-                        KeyCode::Char('h') | KeyCode::Left => {
+                        KeyCode::Char('h') | KeyCode::Down => {
                             self.focus = Focus::AnimeList;
                         }
                         _ => {}
@@ -539,6 +544,30 @@ impl Screen for SeasonsScreen {
 
             Focus::SeasonSelection => {
                 // Handle season selection input here if needed
+                if key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
+                    match key_event.code {
+                        KeyCode::Char('j') | KeyCode::Up => {
+                            self.navbar.select();
+                            self.focus = Focus::Navbar;
+                        }
+                        KeyCode::Char('l') | KeyCode::Right => {
+                            self.focus = Focus::AnimeDetails;
+                        }
+                        KeyCode::Char('k') | KeyCode::Down => {
+                            self.focus = Focus::AnimeList;
+                        }
+                        _ => {}
+                    }
+                }
+                else{
+                    match key_event.code {
+                        KeyCode::Enter | KeyCode::Char(' ') => {
+
+                        }
+
+                        _ => {}
+                    }
+                }
             }
         }
 
