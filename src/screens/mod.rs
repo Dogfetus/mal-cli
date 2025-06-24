@@ -1,4 +1,6 @@
 use ratatui::Frame;
+use ratatui_image::errors::Errors;
+use ratatui_image::thread::ResizeResponse;
 use crate::app::{Action, Event};
 use crate::mal;
 use std::sync::{mpsc, Arc};
@@ -138,6 +140,9 @@ pub trait Screen: Send{
     }
     fn apply_update(&mut self, update: BackgroundUpdate) {
     }
+    fn image_redraw(&mut self, id: usize, response: Result<ResizeResponse, Errors>) {
+        // Default implementation does nothing
+    }
 }
 
 
@@ -181,6 +186,10 @@ impl ScreenManager {
                 screen.apply_update(update);
             }
         }
+    }
+
+    pub fn redraw_image(&mut self, id: usize, response: Result<ResizeResponse, Errors>) {
+        self.current_screen.image_redraw(id, response);
     }
 
 

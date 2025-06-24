@@ -18,6 +18,8 @@ use ratatui::{
     symbols,
     widgets::{Block, Borders, Clear},
 };
+use ratatui_image::errors::Errors;
+use ratatui_image::thread::ResizeResponse;
 
 #[derive(Debug, Clone)]
 enum LocalEvent {
@@ -281,6 +283,14 @@ impl Screen for SeasonsScreen {
                         .border_style(color)
                         .border_set(symbols::border::ROUNDED),
                     area,
+                );
+                self.image_manager.try_lock().unwrap().render_image(
+                    self.animes.get(index).map_or(0, |anime| anime.id),
+                    frame,
+                    area.inner(Margin {
+                        vertical: 1,
+                        horizontal: 1,
+                    }),
                 );
                 // the anime box shoul go here^
             }
@@ -582,18 +592,19 @@ impl Screen for SeasonsScreen {
         if self.bg_loaded {
             return None;
         }
+        self.image_manager.lock().unwrap().init(info.app_sx.clone());
+        let manager = self.image_manager.clone();
         let nr_of_animes = self.animes.len();
         let id = self.get_name();
         let (sender, receiver) = channel::<LocalEvent>();
         self.bg_loaded = true;
         self.fetching = true;
         self.bg_notifier = Some(sender);
-        self.image_manager.lock().unwrap().init(info.app_sx.clone());
 
         Some(thread::spawn(move || {
             if nr_of_animes <= 0 {
                 //temporary
-                if let Some(animes) = info.mal_client.get_current_season(0, 9) {
+                if let Some(animes) = info.mal_client.get_current_season(0, 20) {
                     let mut animes_to_send = Vec::<Anime>::new();
                     let (current_year, current_season) = MalClient::current_season();
                     for anime in animes.iter() {
@@ -603,11 +614,21 @@ impl Screen for SeasonsScreen {
                             animes_to_send.push(anime.clone());
                         }
                     }
+                    for (i, anime) in animes_to_send.iter().enumerate() {
+                        if i >= 9 {
+                            break;
+                        }
+
+                        manager.lock().unwrap().load_image(
+                            anime.id,
+                            "assets/146836.jpg",
+                        );
+                    }
                     let update =
                         BackgroundUpdate::new(id.clone()).set("animes", animes_to_send.clone());
                     let _ = info.app_sx.send(Event::BackgroundNotice(update));
                 }
-                if let Some(animes) = info.mal_client.get_current_season(9, 500) {
+                if let Some(animes) = info.mal_client.get_current_season(20, 500) {
                     let mut animes_to_send = Vec::<Anime>::new();
                     let (current_year, current_season) = MalClient::current_season();
                     for anime in animes.iter() {
@@ -647,5 +668,9 @@ impl Screen for SeasonsScreen {
         if let Some(fetching) = update.get::<bool>("fetching") {
             self.fetching = *fetching;
         }
+    }
+
+    fn image_redraw(&mut self, id: usize, response: Result<ResizeResponse, Errors>) {
+        self.image_manager.lock().unwrap().update_image(id, response);
     }
 }

@@ -1,3 +1,4 @@
+use ratatui::layout::Rect;
 use ratatui_image::{StatefulImage, picker::Picker, thread::{ResizeRequest, ResizeResponse, ThreadProtocol}};
 use std::sync::mpsc::{Sender, Receiver, channel};
 use ratatui_image::errors::Errors;
@@ -41,6 +42,9 @@ impl ImageManager {
                     }
                 });
             }
+            else {
+                eprintln!("Failed to open image at path: {}", image_path);
+            }
         }
     }
 
@@ -48,7 +52,7 @@ impl ImageManager {
         self.protocols.remove(&id);
     }
 
-    pub fn render_image(&mut self, frame: &mut ratatui::Frame, id: usize, area: ratatui::layout::Rect) {
+    pub fn render_image(&mut self, id: usize, frame: &mut ratatui::Frame,  area: Rect) {
         if let Some(protocol) = self.protocols.get_mut(&id) {
             frame.render_stateful_widget(StatefulImage::new(), area, protocol);
         }

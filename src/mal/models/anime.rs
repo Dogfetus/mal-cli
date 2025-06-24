@@ -55,7 +55,7 @@ pub mod fields {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Anime {
     #[serde(default)]
-    pub id: u64,
+    pub id: usize,
     #[serde(default="na")]
     pub title: String,
     #[serde(default)]

@@ -29,8 +29,6 @@ pub enum Event {
     MouseClick(crossterm::event::MouseEvent),
     Resize(u16, u16), 
     BackgroundNotice(BackgroundUpdate),
-
-    // TODO: remove these?:
     ImageRedraw(usize, Result<ResizeResponse, Errors>), 
     Rerender
 }
@@ -75,6 +73,7 @@ impl App {
             match self.rx.recv().unwrap() {
                 Event::KeyPress(key_event) => self.handle_input(key_event),           
                 Event::BackgroundNotice(update) => {self.screen_manager.update_screen(update);},
+                Event::ImageRedraw(id, response) => {self.screen_manager.redraw_image(id, response);},
                 _ => {}
             }
         }
