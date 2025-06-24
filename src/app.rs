@@ -31,7 +31,7 @@ pub enum Event {
     BackgroundNotice(BackgroundUpdate),
 
     // TODO: remove these?:
-    ImageRedraw(Result<ResizeResponse, Errors>), 
+    ImageRedraw(usize, Result<ResizeResponse, Errors>), 
     Rerender
 }
 

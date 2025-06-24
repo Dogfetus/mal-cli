@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 
+// season limit (first season ever) : year: 1917 season: winter
+
 fn na() -> String{
     "N/A".to_string()
 }
@@ -56,7 +58,8 @@ pub struct Anime {
     pub id: u64,
     #[serde(default="na")]
     pub title: String,
-    pub main_picture: Option<Pictures>,
+    #[serde(default)]
+    pub main_picture: Pictures,
     #[serde(default)]
     pub alternative_titles: AlternativeTitles,
     #[serde(default="na")]
@@ -108,7 +111,6 @@ pub struct Anime {
     #[serde(default)]
     pub studios: Vec<Studio>,
     pub statistics: Option<Statistics>,
-
 }
 
 impl Anime {
@@ -116,7 +118,7 @@ impl Anime {
         Self {
             id: 0,
             title: String::new(),
-            main_picture: None,
+            main_picture: Pictures::default(),
             alternative_titles: AlternativeTitles::default(),
             start_date: String::new(),
             end_date: String::new(),
@@ -186,6 +188,15 @@ pub struct Pictures {
     pub large: String,
     #[serde(default="na")]
     pub medium: String,
+}
+
+impl Default for Pictures {
+    fn default() -> Self {
+        Pictures {
+            large: String::new(),
+            medium: String::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

@@ -25,13 +25,7 @@ impl Popup {
         Self {
             anime: Anime::empty(),
             toggled: false,
-            buttons: vec![
-                "Play",
-                "Add to List",
-                "Add to Favorites",
-                "Rate",
-                "Share"
-            ],
+            buttons: vec!["Play", "Add to List", "Add to Favorites", "Rate", "Share"],
         }
     }
 
@@ -61,7 +55,7 @@ impl Popup {
         }
         let area = frame.area();
 
-        let [height, width] = [area.height * 7 / 10, area.width / 2];
+        let [height, width] = [area.height * 8 / 10, area.width * 7 / 10];
         let popup_area = Rect::new(
             area.x + (area.width - width) / 2,
             area.y + (area.height - height) / 2,
@@ -76,11 +70,11 @@ impl Popup {
             .style(Style::default().fg(Color::White));
         frame.render_widget(block.clone(), popup_area);
 
-        let [left, right] = Layout::default()
+        let [_, right] = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
             .areas(popup_area);
-        let [top, bottom] = Layout::default()
+        let [_, bottom] = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .areas(right);
@@ -112,17 +106,40 @@ impl Popup {
 
         let button_areas = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Ratio(1, self.buttons.len() as u32); self.buttons.len()])
+            .constraints(vec![
+                Constraint::Ratio(1, self.buttons.len() as u32);
+                self.buttons.len()
+            ])
             .split(bottom_area);
 
         for (button, &area) in self.buttons.iter().zip(button_areas.iter()) {
             let paragraph = Paragraph::new(button.to_string())
-                .block(Block::default()
-                    .borders(Borders::ALL)
-                    .border_set(border::ROUNDED))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_set(border::ROUNDED),
+                )
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(Color::White));
             frame.render_widget(paragraph, area);
         }
+
+        let title = format!("Anime: {}", self.anime.main_picture.large);
+        let title_paragraph = Paragraph::new(Line::from(title))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_set(border::ROUNDED)
+                    .title("Anime Details")
+                    .title_alignment(Alignment::Center),
+            )
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(Color::White));
+        frame.render_widget(title_paragraph, Rect::new(
+            popup_area.x + 1,
+            popup_area.y + 1,
+            popup_area.width - 2,
+            3, // Height for the title
+        ));
     }
 }

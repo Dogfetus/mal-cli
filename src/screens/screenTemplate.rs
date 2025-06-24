@@ -88,6 +88,20 @@ impl Screen for TempScreen {
     // fn should_store(&self) -> bool {
     // false 
     // }
+
+    fn background(&mut self, info: super::BackgroundInfo) -> Option<std::thread::JoinHandle<()>> {
+        todo!("Background functionality for TempScreen");
+        // code to start a background thread
+        // ...
+        // ...
+        // ...
+        // example:
+        // let handle = std::thread::spawn(move || {
+        //     // background functionality here
+        //     // use info.app_sx to send events to the app
+        // });
+        // Some(handle)
+    }
 }
 
 

@@ -78,6 +78,12 @@ impl NavBar {
             .constraints(constraints)
             .split(area);
 
+        let overall_color = if self.is_selected {
+            Style::default().fg(Color::White)
+        } else {
+            Style::default().fg(Color::DarkGray)
+        };
+
         for (i, opt) in self.options.iter().enumerate() {
             let option_rect = option_rects[i];
 
@@ -110,10 +116,12 @@ impl NavBar {
                 ),
             };
 
+
+
             let option = Block::new()
                 .border_set(border_set)
                 .borders(borders)
-                .border_style(Style::default().fg(Color::Cyan));
+                .border_style(overall_color);
             frame.render_widget(&option, option_rect);
 
             let inner = option.inner(option_rect);
@@ -122,7 +130,7 @@ impl NavBar {
             let style = if self.is_selected && i == self.selected_button {
                 Style::default().fg(Color::Yellow)
             } else {
-                Style::default().fg(Color::Cyan)
+                overall_color
             };
 
             frame.render_widget(
