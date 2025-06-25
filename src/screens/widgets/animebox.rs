@@ -1,87 +1,82 @@
-use std::fmt::format;
+use std::{fmt::format, sync::{Arc, Mutex}};
 
 use ratatui::{
-    buffer::Buffer, layout::{Alignment, Constraint, Direction, Layout, Rect}, 
-    style::{Color, Modifier, Style}, widgets::{Block, Borders, Clear, Paragraph, Widget}, Frame
+    buffer::Buffer, layout::{Alignment, Constraint, Direction, Layout, Margin, Rect}, style::{Color, Modifier, Style}, symbols, widgets::{Block, Borders, Clear, Padding, Paragraph, Widget}, Frame
 };
 
 
-use crate::mal::models::anime::{fields::*, Anime};
-pub struct AnimeBox<'a>{
-    anime: &'a Anime,
-    offset_x: u16,
-    offset_y: u16,
-    width: u16,
-    height: u16,
-    is_selected: bool,
-    is_centered_x: bool,
-    is_centered_y: bool,
+use crate::{mal::models::anime::{fields::*, Anime}, utils::imageManager::ImageManager};
+pub struct AnimeBox{
 }
-impl<'a> AnimeBox<'a> {
-    pub fn new(anime: &'a Anime) -> Self {
-        Self {
-            anime,
-            offset_x: 0,
-            offset_y: 0,
-            width: 40,
-            height: 18,
-            is_selected: false,
-            is_centered_x: false,
-            is_centered_y: false,
+
+impl AnimeBox {
+    pub fn render(anime: &Anime, image_manager: Arc<Mutex<ImageManager>>, frame: &mut Frame, area: Rect, highlight: bool) {
+        if anime.id == 0 {
+            let title = Paragraph::new("")
+                .alignment(Alignment::Center)
+                .block(Block::default().borders(Borders::ALL).padding(Padding::new(1, 1, 1, 1)));
+            frame.render_widget(title, area);
+            return;
         }
-    }
 
-    #[allow(dead_code)]
-    pub fn offset(mut self, (offset_x, offset_y): (u16, u16)) -> Self {
-        self.offset_y = offset_y;
-        self.offset_x = offset_x;  
-        self
-    }
+        let color = if highlight {Color::Yellow} else {Color::DarkGray};
+        let title_text = anime.title.clone(); 
 
-    pub fn offset_area(mut self, area: Rect) -> Self {
-        self.offset_y = area.y;
-        self.offset_x = area.x;
-        self
-    }
+        let [left_part, right_part] = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(50),
+                Constraint::Percentage(50)
+            ])
+            .areas(area);
 
-    #[allow(dead_code)]
-    pub fn size(mut self, (width, height): (u16, u16)) -> Self {
-        self.width = width;
-        self.height = height;
-        self
-    }
+        let title = Paragraph::new(title_text)
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(color))
+            .block(Block::default().padding(Padding::new(1, 1, 1, 1)));
+        frame.render_widget(title, right_part);
+        if highlight {
+            frame.render_widget(
+                Block::new()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::Yellow))
+                    .border_set(symbols::border::ROUNDED),
+                area,
+            );
 
-    #[allow(dead_code)]
-    pub fn selected(mut self, selected: bool) -> Self {
-        self.is_selected = selected;
-        self
-    }
+            let (box_set, box_border) = (
+                symbols::border::Set {
+                    bottom_left: symbols::line::HORIZONTAL_UP,
+                    top_left: symbols::line::HORIZONTAL_DOWN,
+                    ..symbols::border::PLAIN
+                },
+                Borders::ALL,
+            );
 
-    #[allow(dead_code)]
-    pub fn center(mut self) -> Self {
-        self.is_centered_x = true;
-        self.is_centered_y = true;
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn center_x(mut self) -> Self {
-        self.is_centered_x = true;
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn center_y(mut self) -> Self {
-        self.is_centered_y = true;
-        self
-    }
-
-    pub fn render(&self, frame: &mut Frame) {
-        let anime_box_rect = Rect::new(
-            self.offset_x,
-            self.offset_y,
-            self.width,
-            self.height
-        );
+            frame.render_widget(
+                Block::new()
+                    .borders(box_border)
+                    .border_style(color)
+                    .border_set(box_set),
+                right_part,
+            );
+        } 
+        else{
+            frame.render_widget(
+                Block::new()
+                    .borders(Borders::ALL)
+                    .border_style(color)
+                    .border_set(symbols::border::ROUNDED),
+                right_part,
+            );
+        }
+        let image_area = left_part.inner(Margin::new(1, 1,));
+        if let Ok(mut manager) = image_manager.try_lock() {
+            manager.render_image(
+                anime.id,
+                frame,
+                image_area
+            );
+        } 
     }
 }

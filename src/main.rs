@@ -9,6 +9,7 @@ use anyhow::Result;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+
     // start the terminal view
     let mut terminal = ratatui::init();
     let mut app = App::new();

@@ -124,7 +124,7 @@ impl Popup {
             frame.render_widget(paragraph, area);
         }
 
-        let title = format!("Anime: {}", self.anime.main_picture.large);
+        let title = format!("Anime: {}", self.anime.main_picture.medium);
         let title_paragraph = Paragraph::new(Line::from(title))
             .block(
                 Block::default()

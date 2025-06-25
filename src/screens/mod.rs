@@ -266,4 +266,11 @@ impl BackgroundUpdate {
     pub fn fields(&self) -> impl Iterator<Item = &String> {
         self.updates.keys()
     }
+
+    pub fn take<T: Any + Send + Sync>(&mut self, field: &str) -> Option<T> {
+        self.updates.remove(field)?
+            .downcast::<T>()
+            .ok()
+            .map(|boxed| *boxed)
+    }
 }

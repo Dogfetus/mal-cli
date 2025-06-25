@@ -1,15 +1,21 @@
-use color_eyre::owo_colors::OwoColorize;
+use ratatui_image::thread::ResizeResponse;
+use std::thread::{self, JoinHandle};
+use ratatui_image::errors::Errors;
+use std::sync::atomic::AtomicBool;
 use crossterm::event::KeyCode;
 use ratatui::DefaultTerminal;
-use ratatui_image::errors::Errors;
-use ratatui_image::thread::ResizeResponse;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
-use std::thread::{self, JoinHandle};
 use std::{io, sync::mpsc};
-use crate::handlers::get_handlers;
-use crate::mal::MalClient;
-use crate::screens::{ScreenManager, screens::*, BackgroundUpdate};
+use image::DynamicImage;
+use std::sync::Arc;
+use crate::{
+    screens::{
+        ScreenManager, 
+        screens::*, 
+        BackgroundUpdate
+    },
+    mal::MalClient,
+    handlers::get_handlers
+};
 
 pub enum Action {
     SwitchScreen(&'static str),
@@ -30,6 +36,7 @@ pub enum Event {
     Resize(u16, u16), 
     BackgroundNotice(BackgroundUpdate),
     ImageRedraw(usize, Result<ResizeResponse, Errors>), 
+    ImageCached(usize, DynamicImage),
     Rerender
 }
 

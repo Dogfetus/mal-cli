@@ -1,5 +1,6 @@
 mod oauth;
 pub mod models;
+pub mod network;
 
 use std::{fs, thread::JoinHandle};
 use ureq;

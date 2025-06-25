@@ -2,6 +2,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use super::{BackgroundUpdate, Screen, screens::*, widgets::navbar::NavBar, widgets::popup::Popup};
+use crate::screens::widgets::animebox::AnimeBox;
 use crate::utils::imageManager::ImageManager;
 use crate::{
     app::{Action, Event},
@@ -19,7 +20,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear},
 };
 use ratatui_image::errors::Errors;
-use ratatui_image::thread::ResizeResponse;
+use ratatui_image::thread::{ResizeResponse, ThreadProtocol};
 
 #[derive(Debug, Clone)]
 enum LocalEvent {
@@ -57,7 +58,6 @@ pub struct SeasonsScreen {
     year: u16,
     season: String,
 
-    //how tf does one render images in a good way
     image_manager: Arc<Mutex<ImageManager>>,
 }
 
@@ -246,53 +246,40 @@ impl Screen for SeasonsScreen {
             ])
             .areas(bl_bottom);
 
-        let placeholder = if self.fetching { "Loading..." } else { "" };
+        if self.fetching && self.animes.len() < 9{
+            let [_, middle, _] = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Fill(1), Constraint::Length(1), Constraint::Fill(1)])
+                .areas(blb_middle);
 
-        for (row_nr, &column) in [blb_top, blb_middle, blb_bottom].iter().enumerate() {
-            let [left, middle, right] = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([
-                    Constraint::Percentage(33),
-                    Constraint::Percentage(33),
-                    Constraint::Percentage(34),
-                ])
-                .areas(column);
-            for (column_nr, &area) in [left, middle, right].iter().enumerate() {
-                let index = (3 * (row_nr + self.scroll_offset as usize)) + column_nr;
+            let title = Paragraph::new("Loading...")
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(Color::Gray)) ;
+            frame.render_widget(title, middle);
+        }
+        else {
+            for (row_nr, &column) in [blb_top, blb_middle, blb_bottom].iter().enumerate() {
+                let [left, middle, right] = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([
+                        Constraint::Percentage(33),
+                        Constraint::Percentage(33),
+                        Constraint::Percentage(34),
+                    ])
+                    .areas(column);
+                for (column_nr, &area) in [left, middle, right].iter().enumerate() {
+                    let index = (3 * (row_nr + self.scroll_offset as usize)) + column_nr;
+                    let highlight = self.selected_anime == index && self.focus == Focus::AnimeList;
 
-                let title_text = self
-                    .animes
-                    .get(index)
-                    .map(|anime| anime.title.clone())
-                    .unwrap_or(placeholder.to_string());
-
-                let mut color = Color::DarkGray;
-                if self.selected_anime == index && self.focus == Focus::AnimeList {
-                    color = Color::Yellow;
+                    // this is each anime box:
+                    let anime = if index < self.animes.len() {
+                        &self.animes[index]
+                    } else {
+                        &Anime::empty()
+                    };
+                    AnimeBox::render(anime, self.image_manager.clone(), frame, area, highlight);
+                    // this is each anime box^
                 }
-
-                // the anime box should go here:
-                let title = Paragraph::new(title_text)
-                    .alignment(Alignment::Center)
-                    .style(Style::default().fg(color))
-                    .block(Block::default().padding(Padding::new(1, 1, 1, 1)));
-                frame.render_widget(title, area);
-                frame.render_widget(
-                    Block::new()
-                        .borders(Borders::ALL)
-                        .border_style(color)
-                        .border_set(symbols::border::ROUNDED),
-                    area,
-                );
-                self.image_manager.try_lock().unwrap().render_image(
-                    self.animes.get(index).map_or(0, |anime| anime.id),
-                    frame,
-                    area.inner(Margin {
-                        vertical: 1,
-                        horizontal: 1,
-                    }),
-                );
-                // the anime box shoul go here^
             }
         }
 
@@ -592,10 +579,10 @@ impl Screen for SeasonsScreen {
         if self.bg_loaded {
             return None;
         }
-        self.image_manager.lock().unwrap().init(info.app_sx.clone());
+        let id = self.get_name();
+        self.image_manager.lock().unwrap().init(info.app_sx.clone(), id.clone());
         let manager = self.image_manager.clone();
         let nr_of_animes = self.animes.len();
-        let id = self.get_name();
         let (sender, receiver) = channel::<LocalEvent>();
         self.bg_loaded = true;
         self.fetching = true;
@@ -618,11 +605,7 @@ impl Screen for SeasonsScreen {
                         if i >= 9 {
                             break;
                         }
-
-                        manager.lock().unwrap().load_image(
-                            anime.id,
-                            "assets/146836.jpg",
-                        );
+                        manager.lock().unwrap().prepare_image(anime);
                     }
                     let update =
                         BackgroundUpdate::new(id.clone()).set("animes", animes_to_send.clone());
@@ -661,12 +644,20 @@ impl Screen for SeasonsScreen {
         }))
     }
 
-    fn apply_update(&mut self, update: BackgroundUpdate) {
+    fn apply_update(&mut self, mut update: BackgroundUpdate) {
         if let Some(animes) = update.get::<Vec<Anime>>("animes") {
             self.animes.extend(animes.iter().cloned());
         }
         if let Some(fetching) = update.get::<bool>("fetching") {
             self.fetching = *fetching;
+        }
+        if let Some(protocol) = update.take::<ThreadProtocol>("thread_protocol") {
+            if let Some(anime_id) = update.get::<usize>("anime_id") {
+                self.image_manager.lock().unwrap().load_image(
+                    *anime_id,
+                    protocol,
+                );
+            }
         }
     }
 
