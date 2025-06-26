@@ -1,4 +1,3 @@
-use ratatui_image::thread::ResizeResponse;
 use std::thread::{self, JoinHandle};
 use ratatui_image::errors::Errors;
 use std::sync::atomic::AtomicBool;
@@ -8,13 +7,9 @@ use std::{io, sync::mpsc};
 use image::DynamicImage;
 use std::sync::Arc;
 use crate::{
-    screens::{
-        ScreenManager, 
-        screens::*, 
-        BackgroundUpdate
-    },
-    mal::MalClient,
-    handlers::get_handlers
+    handlers::get_handlers, mal::MalClient, screens::{
+        screens::*, BackgroundUpdate, ScreenManager
+    }, utils::customThreadProtocol::CustomResizeResponse
 };
 
 pub enum Action {
@@ -35,7 +30,7 @@ pub enum Event {
     MouseClick(crossterm::event::MouseEvent),
     Resize(u16, u16), 
     BackgroundNotice(BackgroundUpdate),
-    ImageRedraw(usize, Result<ResizeResponse, Errors>), 
+    ImageRedraw(usize, Result<CustomResizeResponse, Errors>), 
     ImageCached(usize, DynamicImage),
     Rerender
 }

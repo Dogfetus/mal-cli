@@ -3,6 +3,7 @@ use ratatui_image::errors::Errors;
 use ratatui_image::thread::ResizeResponse;
 use crate::app::{Action, Event};
 use crate::mal;
+use crate::utils::customThreadProtocol::CustomResizeResponse;
 use std::sync::{mpsc, Arc};
 use std::collections::HashMap;
 use std::thread::JoinHandle;
@@ -140,7 +141,7 @@ pub trait Screen: Send{
     }
     fn apply_update(&mut self, update: BackgroundUpdate) {
     }
-    fn image_redraw(&mut self, id: usize, response: Result<ResizeResponse, Errors>) {
+    fn image_redraw(&mut self, id: usize, response: Result<CustomResizeResponse, Errors>) {
         // Default implementation does nothing
     }
 }
@@ -188,10 +189,9 @@ impl ScreenManager {
         }
     }
 
-    pub fn redraw_image(&mut self, id: usize, response: Result<ResizeResponse, Errors>) {
+    pub fn redraw_image(&mut self, id: usize, response: Result<CustomResizeResponse, Errors>) {
         self.current_screen.image_redraw(id, response);
     }
-
 
     // change screen stores the previous screen if not specified otherwise
     // the current screen is removed from the storage if it exists, or created anew

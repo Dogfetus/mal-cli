@@ -1,8 +1,9 @@
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{channel, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use super::{BackgroundUpdate, Screen, screens::*, widgets::navbar::NavBar, widgets::popup::Popup};
 use crate::screens::widgets::animebox::AnimeBox;
+use crate::utils::customThreadProtocol::{CustomResizeResponse, CustomThreadProtocol};
 use crate::utils::imageManager::ImageManager;
 use crate::{
     app::{Action, Event},
@@ -20,7 +21,6 @@ use ratatui::{
     widgets::{Block, Borders, Clear},
 };
 use ratatui_image::errors::Errors;
-use ratatui_image::thread::{ResizeResponse, ThreadProtocol};
 
 #[derive(Debug, Clone)]
 enum LocalEvent {
@@ -580,7 +580,7 @@ impl Screen for SeasonsScreen {
             return None;
         }
         let id = self.get_name();
-        self.image_manager.lock().unwrap().init(info.app_sx.clone(), id.clone());
+        self.image_manager.lock().unwrap().init_with_threads(info.app_sx.clone(), id.clone());
         let manager = self.image_manager.clone();
         let nr_of_animes = self.animes.len();
         let (sender, receiver) = channel::<LocalEvent>();
@@ -601,10 +601,7 @@ impl Screen for SeasonsScreen {
                             animes_to_send.push(anime.clone());
                         }
                     }
-                    for (i, anime) in animes_to_send.iter().enumerate() {
-                        if i >= 9 {
-                            break;
-                        }
+                    for anime in animes_to_send.iter() {
                         manager.lock().unwrap().prepare_image(anime);
                     }
                     let update =
@@ -620,6 +617,9 @@ impl Screen for SeasonsScreen {
                         {
                             animes_to_send.push(anime.clone());
                         }
+                    }
+                    for anime in animes_to_send.iter() {
+                        manager.lock().unwrap().fetch_image(anime);
                     }
                     let update =
                         BackgroundUpdate::new(id.clone()).set("animes", animes_to_send.clone());
@@ -651,7 +651,7 @@ impl Screen for SeasonsScreen {
         if let Some(fetching) = update.get::<bool>("fetching") {
             self.fetching = *fetching;
         }
-        if let Some(protocol) = update.take::<ThreadProtocol>("thread_protocol") {
+        if let Some(protocol) = update.take::<CustomThreadProtocol>("thread_protocol") {
             if let Some(anime_id) = update.get::<usize>("anime_id") {
                 self.image_manager.lock().unwrap().load_image(
                     *anime_id,
@@ -661,7 +661,7 @@ impl Screen for SeasonsScreen {
         }
     }
 
-    fn image_redraw(&mut self, id: usize, response: Result<ResizeResponse, Errors>) {
+    fn image_redraw(&mut self, id: usize, response: Result<CustomResizeResponse, Errors>) {
         self.image_manager.lock().unwrap().update_image(id, response);
     }
 }

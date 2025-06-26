@@ -1,7 +1,6 @@
 use crate::{
     app::Action,
     mal::models::anime::Anime,
-    screens::{name_to_screen, screen_to_name},
 };
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
@@ -102,7 +101,6 @@ impl Popup {
 
         frame.render_widget(Clear, bottom);
         frame.render_widget(right_block, bottom);
-        frame.render_widget(Clear, bottom_area);
 
         let button_areas = Layout::default()
             .direction(Direction::Vertical)
