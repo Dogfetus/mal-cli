@@ -1,15 +1,12 @@
+use std::sync::{Arc, Mutex};
+
 use crate::{
     app::Action,
-    mal::models::anime::Anime,
+    mal::models::anime::Anime, utils::imageManager::ImageManager,
 };
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
-    Frame,
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
-    symbols::{self, border},
-    text::Line,
-    widgets::{Block, Borders, Clear, Paragraph},
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect}, style::{Color, Style}, symbols::{self, border}, text::Line, widgets::{Block, Borders, Clear, Paragraph}, Frame
 };
 
 #[derive(Clone)]
@@ -48,7 +45,7 @@ impl Popup {
         }
     }
 
-    pub fn render(&self, frame: &mut Frame) {
+    pub fn render(&self, image_manager: &Arc<Mutex<ImageManager>> , frame: &mut Frame) {
         if !self.toggled {
             return;
         }
@@ -121,23 +118,12 @@ impl Popup {
                 .style(Style::default().fg(Color::White));
             frame.render_widget(paragraph, area);
         }
+        ImageManager::render_image(
+            image_manager,
+            self.anime.id,
+            frame,
+            popup_area,
+        );
 
-        let title = format!("Anime: {}", self.anime.main_picture.medium);
-        let title_paragraph = Paragraph::new(Line::from(title))
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_set(border::ROUNDED)
-                    .title("Anime Details")
-                    .title_alignment(Alignment::Center),
-            )
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(Color::White));
-        frame.render_widget(title_paragraph, Rect::new(
-            popup_area.x + 1,
-            popup_area.y + 1,
-            popup_area.width - 2,
-            3, // Height for the title
-        ));
     }
 }

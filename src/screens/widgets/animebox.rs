@@ -10,10 +10,11 @@ pub struct AnimeBox{
 }
 
 impl AnimeBox {
-    pub fn render(anime: &Anime, image_manager: Arc<Mutex<ImageManager>>, frame: &mut Frame, area: Rect, highlight: bool) {
+    pub fn render(anime: &Anime, image_manager: &Arc<Mutex<ImageManager>>, frame: &mut Frame, area: Rect, highlight: bool) {
         if anime.id == 0 {
             let title = Paragraph::new("")
                 .alignment(Alignment::Center)
+                .style(Style::default().fg(if highlight {Color::Yellow} else {Color::DarkGray}))
                 .block(Block::default().borders(Borders::ALL).padding(Padding::new(1, 1, 1, 1)));
             frame.render_widget(title, area);
             return;
@@ -71,12 +72,11 @@ impl AnimeBox {
             );
         }
         let image_area = left_part.inner(Margin::new(1, 1,));
-        if let Ok(mut manager) = image_manager.try_lock() {
-            manager.render_image(
+        ImageManager::render_image(
+                &image_manager,
                 anime.id,
                 frame,
                 image_area
             );
-        } 
     }
 }

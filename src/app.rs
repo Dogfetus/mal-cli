@@ -72,11 +72,21 @@ impl App {
         // WARNING: don't use just unwrap here
         while self.is_running {
             terminal.draw( |frame| self.screen_manager.render_screen(frame))?;
-            match self.rx.recv().unwrap() {
-                Event::KeyPress(key_event) => self.handle_input(key_event),           
-                Event::BackgroundNotice(update) => {self.screen_manager.update_screen(update);},
-                Event::ImageRedraw(id, response) => {self.screen_manager.redraw_image(id, response);},
-                _ => {}
+
+            let first_event = self.rx.recv().unwrap();
+            let mut events = vec![first_event];
+
+            while let Ok(event) = self.rx.try_recv() {
+                events.push(event);
+            }
+
+            for event in events {
+                match event {
+                    Event::KeyPress(key_event) => self.handle_input(key_event),           
+                    Event::BackgroundNotice(update) => {self.screen_manager.update_screen(update);},
+                    Event::ImageRedraw(id, response) => {self.screen_manager.redraw_image(id, response);},
+                    _ => {}
+                }
             }
         }
 

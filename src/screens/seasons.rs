@@ -64,6 +64,7 @@ pub struct SeasonsScreen {
 impl SeasonsScreen {
     pub fn new() -> Self {
         let (year, season) = MalClient::current_season();
+        let image_manager = Arc::new(Mutex::new(ImageManager::new()));
 
         Self {
             animes: Vec::new(),
@@ -90,7 +91,7 @@ impl SeasonsScreen {
             year,
             season,
 
-            image_manager: Arc::new(Mutex::new(ImageManager::new())),
+            image_manager,
         }
     }
 
@@ -277,7 +278,7 @@ impl Screen for SeasonsScreen {
                     } else {
                         &Anime::empty()
                     };
-                    AnimeBox::render(anime, self.image_manager.clone(), frame, area, highlight);
+                    AnimeBox::render(anime, &self.image_manager, frame, area, highlight);
                     // this is each anime box^
                 }
             }
@@ -407,7 +408,7 @@ impl Screen for SeasonsScreen {
             &mut scrollbar_state,
         );
 
-        self.popup.render(frame);
+        self.popup.render(&self.image_manager, frame);
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
@@ -580,8 +581,8 @@ impl Screen for SeasonsScreen {
             return None;
         }
         let id = self.get_name();
-        self.image_manager.lock().unwrap().init_with_threads(info.app_sx.clone(), id.clone());
         let manager = self.image_manager.clone();
+        ImageManager::init_with_dedicated_thread(&manager, info.app_sx.clone(), id.clone());
         let nr_of_animes = self.animes.len();
         let (sender, receiver) = channel::<LocalEvent>();
         self.bg_loaded = true;
@@ -590,7 +591,7 @@ impl Screen for SeasonsScreen {
 
         Some(thread::spawn(move || {
             if nr_of_animes <= 0 {
-                //temporary
+
                 if let Some(animes) = info.mal_client.get_current_season(0, 20) {
                     let mut animes_to_send = Vec::<Anime>::new();
                     let (current_year, current_season) = MalClient::current_season();
@@ -602,7 +603,7 @@ impl Screen for SeasonsScreen {
                         }
                     }
                     for anime in animes_to_send.iter() {
-                        manager.lock().unwrap().prepare_image(anime);
+                        ImageManager::fetch_image_sequential(&manager, anime);
                     }
                     let update =
                         BackgroundUpdate::new(id.clone()).set("animes", animes_to_send.clone());
@@ -619,7 +620,7 @@ impl Screen for SeasonsScreen {
                         }
                     }
                     for anime in animes_to_send.iter() {
-                        manager.lock().unwrap().fetch_image(anime);
+                        ImageManager::fetch_image_sequential(&manager, anime);
                     }
                     let update =
                         BackgroundUpdate::new(id.clone()).set("animes", animes_to_send.clone());
