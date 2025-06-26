@@ -308,10 +308,19 @@ impl Screen for SeasonsScreen {
             ])
             .areas(bottom_right);
 
-        let title = Paragraph::new(format!(
-            "English:\n{}\n\nJapanese:\n{}",
-            anime.title, anime.alternative_titles.ja
-        ))
+        let has_english_title = !anime.alternative_titles.en.is_empty();
+        let title = if has_english_title {
+                Paragraph::new(format!(
+                    "English:\n{}\n\nJapanese:\n{}",
+                    anime.alternative_titles.en, anime.title
+                ))
+            }
+            else {
+                Paragraph::new(format!(
+                    "English:\n{}\n\nJapanese:\n{}",
+                    anime.title, anime.alternative_titles.ja
+                ))
+            }
         .block(Block::default().padding(Padding::new(1, 1, 1, 1)));
         let genres_string = anime
             .genres

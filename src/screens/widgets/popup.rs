@@ -122,8 +122,16 @@ impl Popup {
             image_manager,
             self.anime.id,
             frame,
-            popup_area,
+            popup_area.inner(Margin::new(1, 1)),
         );
 
     }
+}
+
+
+#[derive(Clone)]
+pub struct SeasonPopup{
+    pub toggled: bool,
+    pub season: String,
+    pub year: u32,
 }

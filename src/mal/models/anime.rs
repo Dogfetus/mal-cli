@@ -1,5 +1,5 @@
 use std::{collections::HashMap, fmt::{self, Display}};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
 
@@ -7,6 +7,36 @@ use serde_json::Value;
 
 fn na() -> String{
     "N/A".to_string()
+}
+
+fn status<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    let status = match s.as_str() {
+        "currently_airing" => "airing".to_string(),
+        "finished_airing" => "finished".to_string(),
+        "not_yet_aired" => "upcoming".to_string(),
+        _ => s,
+    };
+    Ok(status)
+}
+
+fn my_status<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    let status = match s.as_str() {
+        "watching" => "watching".to_string(),
+        "completed" => "completed".to_string(),
+        "on_hold" => "on hold".to_string(),
+        "dropped" => "dropped".to_string(),
+        "plan_to_watch" => "plan to watch".to_string(),
+        _ => s,
+    };
+    Ok(status)
 }
 
 #[allow(unused)]
@@ -86,11 +116,12 @@ pub struct Anime {
     pub updated_at: String,
     #[serde(default="na")]
     pub media_type: String,
-    #[serde(default="na")]
+    #[serde(deserialize_with = "status", default="na")]
     pub status: String,
     #[serde(default)]
     pub genres: Vec<Genre>,
-    pub my_list_status: Option<MyListStatus>,
+    #[serde(default)]
+    pub my_list_status: MyListStatus,
     #[serde(default)]
     pub num_episodes: u64,
     #[serde(default)]
@@ -134,7 +165,7 @@ impl Anime {
             media_type: String::new(),
             status: String::new(),
             genres: Vec::new(),
-            my_list_status: None,
+            my_list_status: MyListStatus::default(),
             num_episodes: 0,
             start_season: StartSeason::default(),
             broadcast: None,
@@ -232,7 +263,7 @@ impl fmt::Display for Genre {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MyListStatus {
-    #[serde(default="na")]
+    #[serde(deserialize_with="my_status" ,default="na")]
     pub status: String,
     pub score: Option<u8>,
     pub num_episodes_watched: Option<u32>,
@@ -249,6 +280,25 @@ pub struct MyListStatus {
     pub comments: String,
     #[serde(default="na")]
     pub updated_at: String,
+}
+
+impl Default for MyListStatus {
+    fn default() -> Self {
+        MyListStatus {
+            status: String::new(),
+            score: None,
+            num_episodes_watched: None,
+            is_rewatching: None,
+            start_date: String::new(),
+            finish_date: String::new(),
+            priority: None,
+            num_times_rewatched: None,
+            rewatch_value: None,
+            tags: None,
+            comments: String::new(),
+            updated_at: String::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
