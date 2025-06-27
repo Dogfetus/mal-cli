@@ -76,6 +76,7 @@ impl App {
             let first_event = self.rx.recv().unwrap();
             let mut events = vec![first_event];
 
+            // in case multiple events happen at the same time, we want to process them all
             while let Ok(event) = self.rx.try_recv() {
                 events.push(event);
             }

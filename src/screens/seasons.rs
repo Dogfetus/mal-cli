@@ -1,7 +1,8 @@
 use std::sync::mpsc::{channel, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use super::{BackgroundUpdate, Screen, screens::*, widgets::navbar::NavBar, widgets::popup::Popup};
+use super::widgets::popup::SeasonPopup;
+use super::{BackgroundUpdate, Screen, screens::*, widgets::navbar::NavBar, widgets::popup::AnimePopup};
 use crate::screens::widgets::animebox::AnimeBox;
 use crate::utils::customThreadProtocol::{CustomResizeResponse, CustomThreadProtocol};
 use crate::utils::imageManager::ImageManager;
@@ -41,7 +42,8 @@ enum Focus {
 pub struct SeasonsScreen {
     animes: Vec<Anime>,
     navbar: NavBar,
-    popup: Popup,
+    popup: AnimePopup,
+    season_popup: SeasonPopup,
     focus: Focus,
 
     detail_scroll_x: u16,
@@ -74,7 +76,8 @@ impl SeasonsScreen {
                 .add_screen(LIST)
                 .add_screen(FILTER)
                 .add_screen(PROFILE),
-            popup: Popup::new(),
+            popup: AnimePopup::new(),
+            season_popup: SeasonPopup::new(),
             focus: Focus::AnimeList,
 
             detail_scroll_x: 0,
@@ -418,6 +421,7 @@ impl Screen for SeasonsScreen {
         );
 
         self.popup.render(&self.image_manager, frame);
+        self.season_popup.render(frame, bl_top);
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
@@ -568,10 +572,15 @@ impl Screen for SeasonsScreen {
                         }
                         _ => {}
                     }
+                    self.season_popup.hide();
                 } else {
+                    if self.season_popup.is_toggled() {
+                        return self.season_popup.handle_input(key_event);
+                    }
                     match key_event.code {
-                        KeyCode::Enter | KeyCode::Char(' ') => {}
-
+                        KeyCode::Enter | KeyCode::Char(' ') => {
+                            self.season_popup.toggle();
+                        }
                         _ => {}
                     }
                 }
@@ -628,9 +637,9 @@ impl Screen for SeasonsScreen {
                             animes_to_send.push(anime.clone());
                         }
                     }
-                    for anime in animes_to_send.iter() {
-                        ImageManager::fetch_image_sequential(&manager, anime);
-                    }
+                    // for anime in animes_to_send.iter() {
+                    //     ImageManager::fetch_image_sequential(&manager, anime);
+                    // }
                     let update =
                         BackgroundUpdate::new(id.clone()).set("animes", animes_to_send.clone());
                     let _ = info.app_sx.send(Event::BackgroundNotice(update));
@@ -654,20 +663,12 @@ impl Screen for SeasonsScreen {
         }))
     }
 
-    fn apply_update(&mut self, mut update: BackgroundUpdate) {
+    fn apply_update(&mut self, update: BackgroundUpdate) {
         if let Some(animes) = update.get::<Vec<Anime>>("animes") {
             self.animes.extend(animes.iter().cloned());
         }
         if let Some(fetching) = update.get::<bool>("fetching") {
             self.fetching = *fetching;
-        }
-        if let Some(protocol) = update.take::<CustomThreadProtocol>("thread_protocol") {
-            if let Some(anime_id) = update.get::<usize>("anime_id") {
-                self.image_manager.lock().unwrap().load_image(
-                    *anime_id,
-                    protocol,
-                );
-            }
         }
     }
 

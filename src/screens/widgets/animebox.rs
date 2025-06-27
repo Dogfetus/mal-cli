@@ -164,7 +164,7 @@ impl AnimeBox {
         let user_stats_value_paragraph = Paragraph::new(user_stats_value_text)
             .alignment(Alignment::Center)
             .style(Style::default().fg(color))
-            .block(Block::default().padding(Padding::new(0, 1, 0, 1)));
+            .block(Block::default().padding(Padding::new(0, 2, 0, 1)));
 
         frame.render_widget(info_paragraph, info);
         frame.render_widget(value_paragraph, value);

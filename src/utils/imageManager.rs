@@ -188,7 +188,8 @@ impl ImageManager {
             self_lock.fetcher_tx = Some(fetcher_tx);
         }
 
-        let instance_clone = Arc::clone(&instance);
+        let instance_clone_1 = Arc::clone(&instance);
+        let instance_clone_2 = Arc::clone(&instance);
         let app_sx = app_sx.clone();
 
         std::thread::spawn(move || {
@@ -200,7 +201,7 @@ impl ImageManager {
                     let thread_protocol =
                         CustomThreadProtocol::new(anime_id, image_tx.clone(), Some(protocol));
 
-                    instance_clone
+                    instance_clone_1
                         .lock()
                         .unwrap()
                         .load_image(anime_id, thread_protocol);
@@ -215,12 +216,12 @@ impl ImageManager {
             while let Ok(request) = image_rx.recv() {
                 let anime_id = request.image_id();
                 let result = request.resize_encode();
-                // instance_clone
-                //     .lock()
-                //     .unwrap()
-                //     .update_image(anime_id, result);
-                //
-                let _ = app_sx.send(Event::ImageRedraw(anime_id, result));
+                instance_clone_2
+                    .lock()
+                    .unwrap()
+                    .update_image(anime_id, result);
+
+                let _ = app_sx.send(Event::Rerender);
             }
         });
     }
