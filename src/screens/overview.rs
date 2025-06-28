@@ -3,7 +3,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread::{self, JoinHandle};
 
-use super::widgets::image::CustomImage;
 use super::widgets::navbar::NavBar;
 use super::{screens::*, BackgroundInfo, BackgroundUpdate, Screen};
 use crate::mal::models::anime::Anime;

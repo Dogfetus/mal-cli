@@ -282,7 +282,7 @@ impl ImageManager {
         std::thread::spawn(move || {
             let (image_tx, image_rx) = channel::<CustomResizeRequest>();
 
-            match fetch_image(anime.main_picture.large) {
+            match fetch_image(anime.main_picture.medium) {
                 Ok(dyn_img) => {
                     let picker = get_picker();
                     let protocol = picker.new_resize_protocol(dyn_img);

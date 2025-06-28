@@ -2,10 +2,10 @@ mod oauth;
 pub mod models;
 pub mod network;
 
+use network::fetch_anime;
+use crate::params;
 use std::{fs, thread::JoinHandle};
-use ureq;
-use serde_json::{Value, json};
-use models::anime::{self, fields, Anime, AnimeResponse};
+use models::anime::{fields, Anime};
 use std::sync::{Arc, RwLock};
 use chrono::{Datelike, Local};
 
@@ -116,14 +116,23 @@ impl MalClient {
     }
 
     pub fn get_seasonal_anime(&self, year: u16, season: String, offset: u16, limit: u16) -> Option<Vec<Anime>> {
-        let anime_response = self.send_request::<AnimeResponse>(&format!("{}/anime/season/{}/{}", BASE_URL, year, season), 
-            &[
-                ("fields", &fields::ALL.join(",")),
-                ("limit", &limit.to_string()),
-                ("offset", &offset.to_string()),
-                ("sort", "anime_num_list_users"),
+        let token = self.identity.read().unwrap().access_token.clone();
+        if token.is_none() {
+            eprintln!("User is not logged in. Cannot fetch seasonal anime.");
+            return None;
+        }
+
+        let anime_response = fetch_anime(
+            token.unwrap(),
+            format!("{}/anime/season/{}/{}", BASE_URL, year, season.to_lowercase()), 
+           params![
+               "fields" => fields::ALL.join(","),
+                "limit" => limit.to_string(),
+                "offset" => offset.to_string(),
+                "sort" => "anime_num_list_users".to_string(),
             ],
         );
+
         let response = match anime_response {
             Ok(response) => response,
             Err(e) => {
@@ -135,28 +144,5 @@ impl MalClient {
         Some(animes)
     }
 
-    fn send_request<T>(&self, url: &str, parameters: &[(&str, &str)]) -> Result<T, Box<dyn std::error::Error>> 
-    where
-        T: serde::de::DeserializeOwned,
-    {
-
-        let token = self.identity.read().unwrap().access_token.clone();
-        if token.is_none() {
-            return Err("Access token is not set".into());
-        }
-
-        let mut request = ureq::get(url)
-            .header("Authorization", format!("Bearer {}", token.as_ref().unwrap()));
-
-        for (key, value) in parameters {
-            request = request.query(&key, &value);
-        }
-
-        let response = request.call()?
-            .body_mut()
-            .read_json::<T>()?;
-
-        Ok(response)
-    }
 }
 

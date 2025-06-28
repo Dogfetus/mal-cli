@@ -27,6 +27,7 @@ use std::thread;
 
 #[derive(Debug, Clone)]
 enum LocalEvent {
+    SeasonSwitch(u16, String),
     AnimeSelected,
     Stop,
 }
@@ -106,6 +107,29 @@ impl SeasonsScreen {
         } else {
             Anime::empty()
         }
+    }
+
+    fn fetch_season(&mut self) {
+        if let Some(sender) = &self.bg_notifier {
+            self.animes.clear();
+            self.fetching = true;
+            let event = LocalEvent::SeasonSwitch(self.year, self.season.clone());
+            sender.send(event).unwrap_or_else(|e| {
+                eprintln!("Failed to send season switch event: {}", e);
+            });
+        }
+    }
+
+    // used by the backend when fetching seasons
+    fn filter_animes(animes: &[Anime], target_year: u16, target_season: &str) -> Vec<Anime> {
+        animes
+            .iter()
+            .filter(|anime| {
+                anime.start_season.year == target_year
+                    && anime.start_season.season.to_lowercase() == target_season.to_lowercase()
+            })
+            .cloned()
+            .collect()
     }
 }
 
@@ -580,8 +604,13 @@ impl Screen for SeasonsScreen {
                 } else {
                     if self.season_popup.is_toggled() {
                         if let Some((year, season)) = self.season_popup.handle_input(key_event) {
+                            if year == self.year && season == self.season {
+                                return None; // No change, do nothing
+                            }
                             self.year = year;
                             self.season = season;
+
+                            self.fetch_season();
                         }
                     }
                     match key_event.code {
@@ -615,54 +644,41 @@ impl Screen for SeasonsScreen {
         self.bg_notifier = Some(sender);
 
         Some(thread::spawn(move || {
-            if nr_of_animes <= 0 {
-                if let Some(animes) = info.mal_client.get_current_season(0, 20) {
-                    let mut animes_to_send = Vec::<Anime>::new();
-                    let (current_year, current_season) = MalClient::current_season();
-                    for anime in animes.iter() {
-                        if anime.start_season.year == current_year
-                            && anime.start_season.season == current_season
-                        {
-                            animes_to_send.push(anime.clone());
-                        }
-                    }
-                    for anime in animes_to_send.iter() {
+            let process_animes = |animes: Vec<Anime>, fetch_images: bool| {
+                if fetch_images {
+                    for anime in &animes {
                         ImageManager::fetch_image_sequential(&manager, anime);
                     }
-                    let update =
-                        BackgroundUpdate::new(id.clone()).set("animes", animes_to_send.clone());
-                    let _ = info.app_sx.send(Event::BackgroundNotice(update));
                 }
-                if let Some(animes) = info.mal_client.get_current_season(20, 500) {
-                    let mut animes_to_send = Vec::<Anime>::new();
-                    let (current_year, current_season) = MalClient::current_season();
-                    for anime in animes.iter() {
-                        if anime.start_season.year == current_year
-                            && anime.start_season.season == current_season
-                        {
-                            animes_to_send.push(anime.clone());
-                        }
-                    }
-                    // for anime in animes_to_send.iter() {
-                    //     ImageManager::fetch_image_sequential(&manager, anime);
-                    // }
-                    let update =
-                        BackgroundUpdate::new(id.clone()).set("animes", animes_to_send.clone());
-                    let _ = info.app_sx.send(Event::BackgroundNotice(update));
+                let update = BackgroundUpdate::new(id.clone()).set("animes", animes);
+                let _ = info.app_sx.send(Event::BackgroundNotice(update));
+            };
+
+            if nr_of_animes <= 0 {
+                let (current_year, current_season) = MalClient::current_season();
+                if let Some(animes) = info.mal_client.get_current_season(0, 20) {
+                    let filtered = Self::filter_animes(&animes, current_year, &current_season);
+                    process_animes(filtered, true);
                 }
             }
+
             let update = BackgroundUpdate::new(id.clone()).set("fetching", false);
             let _ = info.app_sx.send(Event::BackgroundNotice(update));
 
             while let Ok(event) = receiver.recv() {
                 match event {
-                    LocalEvent::AnimeSelected => {
-                        // Handle anime selection event if needed
-                        // For now, just break the loop
-                        break;
-                    }
-                    LocalEvent::Stop => {
-                        return;
+                    LocalEvent::AnimeSelected => break,
+                    LocalEvent::Stop => return,
+                    LocalEvent::SeasonSwitch(year, season) => {
+                        if let Some(animes) =
+                            info.mal_client
+                                .get_seasonal_anime(year, season.clone(), 0, 20)
+                        {
+                            let filtered = Self::filter_animes(&animes, year, &season);
+                            process_animes(filtered, true);
+                            let update = BackgroundUpdate::new(id.clone()).set("fetching", false);
+                            let _ = info.app_sx.send(Event::BackgroundNotice(update));
+                        }
                     }
                 }
             }

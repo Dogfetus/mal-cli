@@ -1,18 +1,16 @@
-use super::{screens::*, widgets::image::CustomImage, Screen};
-use crate::screens::widgets::{button::Button, navbar::NavBar};
+use super::{screens::*, Screen};
+use crate::screens::widgets::button::Button; 
 use crate::app::Action;
 use crate::mal::MalClient;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout}, style::{Color, Style}, widgets::{Clear, Paragraph}, Frame 
 };
 use crossterm::event::{KeyCode, KeyEvent};
-use std::sync::RwLock;
 
 
 pub struct LaunchScreen { 
     selected_button: usize,
     buttons: Vec<&'static str>,
-    image: RwLock<CustomImage>
 }
 
 impl LaunchScreen {
@@ -24,7 +22,6 @@ impl LaunchScreen {
                 if !MalClient::user_is_logged_in() { "Log In" } else { "Log Out" },
                 "Exit",
             ],
-            image: RwLock::new(CustomImage::new("./assets/Untitled.png")),
         }
     }
 }

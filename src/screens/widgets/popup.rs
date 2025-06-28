@@ -11,7 +11,6 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Style},
     symbols::{self, border},
-    text::Line,
     widgets::{Block, Borders, Clear, Padding, Paragraph},
 };
 use std::cmp::min;
@@ -141,8 +140,6 @@ impl AnimePopup {
 #[derive(Clone)]
 pub struct SeasonPopup {
     toggled: bool,
-    season: String,
-    year: u16,
     year_scroll: u16,
     season_scroll: u16,
     year_selected: bool,
@@ -164,8 +161,6 @@ impl SeasonPopup {
 
         Self {
             toggled: false,
-            season,
-            year,
             year_scroll: 0,
             season_scroll,
             available_years: all_years.clone(),
@@ -250,6 +245,7 @@ impl SeasonPopup {
                 None
             }
             KeyCode::Enter | KeyCode::Char(' ') => {
+                let (year, _) = MalClient::current_season();
                 let season = AVAILABLE_SEASONS
                     .get(self.season_scroll as usize)
                     .unwrap_or(&FIRST_SEASON)
@@ -258,7 +254,7 @@ impl SeasonPopup {
                 let year = self.available_years
                     .get(self.year_scroll as usize)
                     .and_then(|y| y.parse::<u16>().ok())
-                    .unwrap_or(self.year);
+                    .unwrap_or(year);
 
                 self.entered_number.clear();
                 self.filter_years();

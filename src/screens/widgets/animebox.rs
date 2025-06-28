@@ -1,16 +1,14 @@
-use std::{
-    fmt::format,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use ratatui::{
-    buffer::Buffer, layout::{Alignment, Constraint, Direction, Layout, Margin, Rect}, style::{Color, Modifier, Style}, symbols, widgets::{Block, Borders, Clear, Padding, Paragraph, Widget, Wrap}, Frame
+    Frame,
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
+    style::{Color, Modifier, Style},
+    symbols,
+    widgets::{Block, Borders, Padding, Paragraph, Wrap},
 };
 
-use crate::{
-    mal::models::anime::{Anime, fields::*},
-    utils::imageManager::ImageManager,
-};
+use crate::{mal::models::anime::Anime, utils::imageManager::ImageManager};
 pub struct AnimeBox {}
 
 impl AnimeBox {
@@ -28,7 +26,6 @@ impl AnimeBox {
                     Color::Yellow
                 } else {
                     Color::DarkGray
-
                 }))
                 .block(
                     Block::default()
@@ -44,8 +41,7 @@ impl AnimeBox {
         } else {
             if anime.my_list_status.status.is_empty() {
                 Color::DarkGray
-            }
-            else {
+            } else {
                 Color::Green
             }
         };
@@ -57,11 +53,6 @@ impl AnimeBox {
             anime.title.clone()
         };
 
-        let [left_part, right_part] = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-            .areas(area);
-
         frame.render_widget(
             Block::new()
                 .borders(Borders::ALL)
@@ -69,9 +60,6 @@ impl AnimeBox {
                 .border_set(symbols::border::ROUNDED),
             area,
         );
-
-
-
 
         // title + split into info area
         let [title_area, info_area] = Layout::default()
@@ -94,13 +82,6 @@ impl AnimeBox {
             .style(Style::default().fg(color));
         frame.render_widget(info_block, info_area);
 
-        // let title_area = Rect {
-        //     x: right_part.x,
-        //     y: right_part.y,
-        //     width: right_part.width,
-        //     height: title_area.height,
-        // };
-
         let title = Paragraph::new(title_text)
             .alignment(Alignment::Center)
             .style(Style::default().fg(color).add_modifier(Modifier::BOLD))
@@ -115,25 +96,14 @@ impl AnimeBox {
         let image_area = image_area.inner(Margin::new(1, 1));
         ImageManager::render_image(&image_manager, anime.id, frame, image_area);
 
-        let info_text = 
-            "Score:\nType:\nEpisodes:\nStatus:\nAired:";
+        let info_text = "Score:\nType:\nEpisodes:\nStatus:\nAired:";
 
         let value_text = format!(
             "{}\n{}\n{}\n{}",
-            anime.mean,
-            anime.media_type,
-            anime.num_episodes,
-            anime.status,
+            anime.mean, anime.media_type, anime.num_episodes, anime.status,
         );
-        let airing_text = format!(
-            "{} -> {}",
-            anime.start_date,
-            anime.end_date
-        );
-        let user_stats_value_text = format!(
-            "{}",
-            anime.my_list_status.status,
-        );
+        let airing_text = format!("{} -> {}", anime.start_date, anime.end_date);
+        let user_stats_value_text = format!("{}", anime.my_list_status.status,);
 
         let [info, value] = Layout::default()
             .direction(Direction::Horizontal)
@@ -153,7 +123,7 @@ impl AnimeBox {
         let airing_paragraph = Paragraph::new(airing_text)
             .alignment(Alignment::Center)
             .style(Style::default().fg(color))
-            .wrap(Wrap { trim: true })  
+            .wrap(Wrap { trim: true })
             .block(Block::default().padding(Padding::new(0, 2, 6, 1)));
 
         let [info_area, user_stats_area] = Layout::default()

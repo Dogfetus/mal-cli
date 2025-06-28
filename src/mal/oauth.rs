@@ -112,7 +112,7 @@ where
                 return Some((port, joinable));
             }
 
-            Err(err) => {
+            Err(_) => {
                 port += 1;
                 // eprintln!("Failed to start server on {}: {}, retrying... port {}  ", url, err, port);
             }
