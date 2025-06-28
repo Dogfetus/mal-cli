@@ -2,11 +2,17 @@ use std::sync::{Arc, Mutex};
 
 use crate::{
     app::Action,
-    mal::{models::anime::Anime, MalClient}, utils::imageManager::ImageManager,
+    mal::{MalClient, models::anime::Anime},
+    utils::imageManager::ImageManager,
 };
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect}, style::{Color, Style}, symbols::{self, border}, text::Line, widgets::{Block, Borders, Clear, Padding, Paragraph}, Frame
+    Frame,
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
+    style::{Color, Style},
+    symbols::{self, border},
+    text::Line,
+    widgets::{Block, Borders, Clear, Padding, Paragraph},
 };
 use std::cmp::min;
 
@@ -50,7 +56,7 @@ impl AnimePopup {
         }
     }
 
-    pub fn render(&self, image_manager: &Arc<Mutex<ImageManager>> , frame: &mut Frame) {
+    pub fn render(&self, image_manager: &Arc<Mutex<ImageManager>>, frame: &mut Frame) {
         if !self.toggled {
             return;
         }
@@ -129,19 +135,20 @@ impl AnimePopup {
             frame,
             popup_area.inner(Margin::new(1, 1)),
         );
-
     }
 }
 
-
 #[derive(Clone)]
-pub struct SeasonPopup{
+pub struct SeasonPopup {
     toggled: bool,
     season: String,
     year: u16,
     year_scroll: u16,
     season_scroll: u16,
     year_selected: bool,
+    available_years: Vec<String>,
+    all_years: Vec<String>,
+    entered_number: String,
 }
 impl SeasonPopup {
     pub fn new() -> Self {
@@ -151,14 +158,34 @@ impl SeasonPopup {
             .position(|&s| s.to_lowercase() == season.to_lowercase())
             .unwrap_or(0) as u16;
 
+        let all_years: Vec<String> = (FIRST_YEAR..=year).rev()
+            .map(|y| y.to_string())
+            .collect();
+
         Self {
             toggled: false,
             season,
             year,
             year_scroll: 0,
             season_scroll,
+            available_years: all_years.clone(),
+            all_years,
             year_selected: false,
+            entered_number: String::new(),
         }
+    }
+
+    fn filter_years(&mut self) {
+        if self.entered_number.is_empty() {
+            self.available_years = self.all_years.clone();
+        } else {
+            self.available_years = self.all_years
+                .iter()
+                .filter(|year| year.contains(&self.entered_number))
+                .cloned()
+                .collect();
+        }
+        self.year_scroll = 0;
     }
 
     pub fn hide(&mut self) -> &Self {
@@ -166,8 +193,15 @@ impl SeasonPopup {
         self
     }
 
-    pub fn toggle(&mut self) -> &Self {
+    pub fn toggle(&mut self, year: u16) -> &Self {
         self.toggled = !self.toggled;
+
+        if self.toggled {
+            self.year_scroll = self.available_years
+                .iter()
+                .position(|y| y.parse::<u16>().unwrap_or(0) == year)
+                .unwrap_or(0) as u16;
+        }
         self
     }
 
@@ -175,10 +209,11 @@ impl SeasonPopup {
         self.toggled
     }
 
-    pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
+    pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<(u16, String)> {
         match key_event.code {
             KeyCode::Char('q') => {
                 self.toggled = false;
+                self.entered_number.clear();
                 None
             }
 
@@ -204,7 +239,7 @@ impl SeasonPopup {
             }
             KeyCode::Down | KeyCode::Char('k') => {
                 if self.year_selected {
-                    if self.year_scroll < (self.year - FIRST_YEAR) as u16 {
+                    if self.year_scroll < (self.available_years.len() - 1) as u16 {
                         self.year_scroll += 1;
                     }
                 } else {
@@ -215,6 +250,32 @@ impl SeasonPopup {
                 None
             }
             KeyCode::Enter | KeyCode::Char(' ') => {
+                let season = AVAILABLE_SEASONS
+                    .get(self.season_scroll as usize)
+                    .unwrap_or(&FIRST_SEASON)
+                    .to_string();  
+
+                let year = self.available_years
+                    .get(self.year_scroll as usize)
+                    .and_then(|y| y.parse::<u16>().ok())
+                    .unwrap_or(self.year);
+
+                self.entered_number.clear();
+                self.filter_years();
+                Some((year, season))
+            },
+            KeyCode::Backspace => {
+                if !self.entered_number.is_empty() {
+                    self.entered_number.pop();
+                    self.filter_years();
+                }
+                None
+            }
+            KeyCode::Char(c) => {
+                if c.is_digit(10) {
+                    self.entered_number.push(c);
+                    self.filter_years();
+                }
                 None
             }
             _ => None,
@@ -242,7 +303,11 @@ impl SeasonPopup {
             .style(Style::default().fg(Color::White));
         frame.render_widget(block.clone(), popup_area);
 
-        let text = format!("'q': quit");
+        let text = if self.entered_number.is_empty() {
+            self.entered_number.clone()
+        } else {
+            format!("Search: {}", self.entered_number)
+        };
         let paragraph = Paragraph::new(text)
             .block(block)
             .alignment(Alignment::Center)
@@ -251,29 +316,35 @@ impl SeasonPopup {
 
         let [year_area, middle_area, season_area] = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(40), Constraint::Percentage(20), Constraint::Percentage(40)])
+            .constraints([
+                Constraint::Percentage(40),
+                Constraint::Percentage(20),
+                Constraint::Percentage(40),
+            ])
             .areas(popup_area);
         let season_area = Rect {
-            x: season_area.x,
+            x: season_area.x + 1,
             y: season_area.y + 1,
-            width: season_area.width,
+            width: season_area.width - 2,
             height: season_area.height - 2,
         };
+        let year_area = Rect {
+            x: year_area.x + 1,
+            y: year_area.y + 1,
+            width: year_area.width - 2,
+            height: year_area.height - 2,
+        };
 
-        let divider = "|"; 
-        let left_arrow = if self.year_selected {
-            "◀"
-        } else {
-            " "
-        };
-        let right_arrow = if !self.year_selected {
-            "▶"
-        } else {
-            " "
-        };
+        let divider = "|";
+        let left_arrow = if self.year_selected { "◀" } else { " " };
+        let right_arrow = if !self.year_selected { "▶" } else { " " };
         let [middle_area_left, middle_area, middle_area_right] = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Fill(1), Constraint::Length(1), Constraint::Fill(1)])
+            .constraints([
+                Constraint::Fill(1),
+                Constraint::Length(1),
+                Constraint::Fill(1),
+            ])
             .areas(middle_area);
 
         let middle_area = Rect {
@@ -297,37 +368,80 @@ impl SeasonPopup {
             height: middle_area_right.height - 3,
         };
 
-        let left_paragraph = Paragraph::new( left_arrow)
-            .block(Block::default().padding(Padding::new(0, 0, middle_area_left.height/2, 0)))
+        let left_paragraph = Paragraph::new(left_arrow)
+            .block(Block::default().padding(Padding::new(0, 0, middle_area_left.height / 2, 0)))
             .alignment(Alignment::Left)
-            .style(Style::default().fg(if self.year_selected { Color::Yellow } else { Color::White }));
+            .style(Style::default().fg(if self.year_selected {
+                Color::Yellow
+            } else {
+                Color::White
+            }));
         let middle_paragraph = Paragraph::new(divider)
-            .block(Block::default().padding(Padding::new(0, 0, middle_area.height/2, 0)))
+            .block(Block::default().padding(Padding::new(0, 0, middle_area.height / 2, 0)))
             .alignment(Alignment::Center)
             .style(Style::default().fg(Color::White));
         let right_paragraph = Paragraph::new(right_arrow)
-            .block(Block::default().padding(Padding::new(0, 0, middle_area_right.height/2, 0)))
+            .block(Block::default().padding(Padding::new(0, 0, middle_area_right.height / 2, 0)))
             .alignment(Alignment::Right)
-            .style(Style::default().fg(if !self.year_selected { Color::Yellow } else { Color::White }));
+            .style(Style::default().fg(if !self.year_selected {
+                Color::Yellow
+            } else {
+                Color::White
+            }));
 
         frame.render_widget(left_paragraph, middle_area_left);
         frame.render_widget(middle_paragraph, middle_area);
         frame.render_widget(right_paragraph, middle_area_right);
 
         for (i, season) in AVAILABLE_SEASONS.iter().enumerate() {
-            let text = Line::from(season.to_string());
-            let paragraph = Paragraph::new(text)
-                .block(
-                    Block::default()
-                        .padding(Padding::new(0, 0, 3-self.season_scroll+i as u16, 0)),
-                )
+            let y_position = (3 + season_area.y + i as u16).saturating_sub(self.season_scroll);
+            if y_position >= season_area.y + season_area.height {
+                break;
+            }
+            let individual_season_area = Rect {
+                x: season_area.x,
+                y: y_position,
+                width: season_area.width,
+                height: 1,
+            };
+            let paragraph = Paragraph::new(season.to_string())
                 .alignment(Alignment::Center)
-                .style(Style::default().fg(Color::White));
-            frame.render_widget(paragraph, season_area);
+                .style(Style::default().fg(
+                    if !self.year_selected && self.season_scroll == i as u16 {
+                        Color::Yellow
+                    } else {
+                        Color::White
+                    },
+                ));
+            frame.render_widget(paragraph, individual_season_area);
+        }
+
+        for (i, year) in self.available_years.iter().enumerate() {
+            let y_position = (3 + year_area.y + i as u16).saturating_sub(self.year_scroll);
+            if y_position >= year_area.y + year_area.height {
+                break;
+            } else if y_position < year_area.y {
+                continue;
+            }
+            let individual_year_area = Rect {
+                x: year_area.x,
+                y: y_position,
+                width: year_area.width,
+                height: 1,
+            };
+            let paragraph = Paragraph::new(year.to_string())
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(
+                    if self.year_selected && self.year_scroll == i as u16 {
+                        Color::Yellow
+                    } else {
+                        Color::White
+                    },
+                ));
+            frame.render_widget(paragraph, individual_year_area);
         }
     }
 }
-
 
 #[derive(Clone)]
 pub struct SearchPopup {

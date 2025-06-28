@@ -1,5 +1,6 @@
 #![allow(unused)]
 //TODO: use the one thread per image approach again
+//TODO: fix these doc strings
 //
 //! claude used to generate doc strings lol
 //! Image management utilities for terminal-based anime applications.

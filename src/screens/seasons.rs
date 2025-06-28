@@ -1,15 +1,14 @@
-use std::sync::mpsc::{channel, Sender};
-use std::sync::{Arc, Mutex};
-use std::thread;
 use super::widgets::popup::SeasonPopup;
-use super::{BackgroundUpdate, Screen, screens::*, widgets::navbar::NavBar, widgets::popup::AnimePopup};
+use super::{
+    BackgroundUpdate, Screen, screens::*, widgets::navbar::NavBar, widgets::popup::AnimePopup,
+};
 use crate::screens::widgets::animebox::AnimeBox;
 use crate::utils::customThreadProtocol::{CustomResizeResponse, CustomThreadProtocol};
 use crate::utils::imageManager::ImageManager;
 use crate::{
     app::{Action, Event},
     mal::{MalClient, models::anime::Anime},
-    utils::stringManipulation::DisplayString
+    utils::stringManipulation::DisplayString,
 };
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Margin};
@@ -22,6 +21,9 @@ use ratatui::{
     widgets::{Block, Borders, Clear},
 };
 use ratatui_image::errors::Errors;
+use std::sync::mpsc::{Sender, channel};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 #[derive(Debug, Clone)]
 enum LocalEvent {
@@ -250,18 +252,21 @@ impl Screen for SeasonsScreen {
             ])
             .areas(bl_bottom);
 
-        if self.fetching && self.animes.len() < 9{
+        if self.fetching && self.animes.len() < 9 {
             let [_, middle, _] = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([Constraint::Fill(1), Constraint::Length(1), Constraint::Fill(1)])
+                .constraints([
+                    Constraint::Fill(1),
+                    Constraint::Length(1),
+                    Constraint::Fill(1),
+                ])
                 .areas(blb_middle);
 
             let title = Paragraph::new("Loading...")
                 .alignment(Alignment::Center)
-                .style(Style::default().fg(Color::Gray)) ;
+                .style(Style::default().fg(Color::Gray));
             frame.render_widget(title, middle);
-        }
-        else {
+        } else {
             for (row_nr, &column) in [blb_top, blb_middle, blb_bottom].iter().enumerate() {
                 let [left, middle, right] = Layout::default()
                     .direction(Direction::Horizontal)
@@ -313,17 +318,16 @@ impl Screen for SeasonsScreen {
 
         let has_english_title = !anime.alternative_titles.en.is_empty();
         let title = if has_english_title {
-                Paragraph::new(format!(
-                    "English:\n{}\n\nJapanese:\n{}",
-                    anime.alternative_titles.en, anime.title
-                ))
-            }
-            else {
-                Paragraph::new(format!(
-                    "English:\n{}\n\nJapanese:\n{}",
-                    anime.title, anime.alternative_titles.ja
-                ))
-            }
+            Paragraph::new(format!(
+                "English:\n{}\n\nJapanese:\n{}",
+                anime.alternative_titles.en, anime.title
+            ))
+        } else {
+            Paragraph::new(format!(
+                "English:\n{}\n\nJapanese:\n{}",
+                anime.title, anime.alternative_titles.ja
+            ))
+        }
         .block(Block::default().padding(Padding::new(1, 1, 1, 1)));
         let genres_string = anime
             .genres
@@ -575,11 +579,14 @@ impl Screen for SeasonsScreen {
                     self.season_popup.hide();
                 } else {
                     if self.season_popup.is_toggled() {
-                        return self.season_popup.handle_input(key_event);
+                        if let Some((year, season)) = self.season_popup.handle_input(key_event) {
+                            self.year = year;
+                            self.season = season;
+                        }
                     }
                     match key_event.code {
                         KeyCode::Enter | KeyCode::Char(' ') => {
-                            self.season_popup.toggle();
+                            self.season_popup.toggle(self.year);
                         }
                         _ => {}
                     }
@@ -609,7 +616,6 @@ impl Screen for SeasonsScreen {
 
         Some(thread::spawn(move || {
             if nr_of_animes <= 0 {
-
                 if let Some(animes) = info.mal_client.get_current_season(0, 20) {
                     let mut animes_to_send = Vec::<Anime>::new();
                     let (current_year, current_season) = MalClient::current_season();
@@ -673,6 +679,9 @@ impl Screen for SeasonsScreen {
     }
 
     fn image_redraw(&mut self, id: usize, response: Result<CustomResizeResponse, Errors>) {
-        self.image_manager.lock().unwrap().update_image(id, response);
+        self.image_manager
+            .lock()
+            .unwrap()
+            .update_image(id, response);
     }
 }
