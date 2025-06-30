@@ -1,6 +1,5 @@
 use ratatui::Frame;
 use ratatui_image::errors::Errors;
-use ratatui_image::thread::ResizeResponse;
 use crate::app::{Action, Event};
 use crate::mal;
 use crate::utils::customThreadProtocol::CustomResizeResponse;
@@ -16,6 +15,7 @@ mod overview;
 mod profile;
 mod widgets;
 mod seasons;
+mod filter;
 mod launch;
 mod login;
 mod info;
@@ -94,10 +94,8 @@ define_screens! {
     LOGIN => "Login" => login::LoginScreen,
     PROFILE => "Profile" => profile::ProfileScreen,
     SEASONS => "Seasons" => seasons::SeasonsScreen,
-
-    // Placeholder for now, replace with actual screen
+    FILTER => "Filter" => filter::FilterScreen,
     LIST => "List" => list::ListScreen, 
-    FILTER => "Filter" => launch::LaunchScreen,
 
     // Add more as needed:
     // SCREEN1 => "Screen1" => <module>::<structName>,

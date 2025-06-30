@@ -76,8 +76,8 @@ impl SeasonsScreen {
             navbar: NavBar::new()
                 .add_screen(OVERVIEW)
                 .add_screen(SEASONS)
-                .add_screen(LIST)
                 .add_screen(FILTER)
+                .add_screen(LIST)
                 .add_screen(PROFILE),
             popup: AnimePopup::new(),
             season_popup: SeasonPopup::new(),
@@ -151,7 +151,7 @@ impl Screen for SeasonsScreen {
          * */
         let [top, bottom] = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(4), Constraint::Percentage(100)])
+            .constraints([Constraint::Length(3), Constraint::Percentage(100)])
             .areas(area);
 
         let [bottom_left, bottom_right] = Layout::default()

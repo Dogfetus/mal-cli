@@ -142,3 +142,8 @@ impl AnimeBox {
         frame.render_widget(user_stats_value_paragraph, user_stats_area);
     }
 }
+
+
+
+pub struct AnimeBoxList {}
+

@@ -48,8 +48,8 @@ impl OverviewScreen {
             navbar: NavBar::new()
                 .add_screen(OVERVIEW)
                 .add_screen(SEASONS)
-                .add_screen(LIST)
                 .add_screen(FILTER)
+                .add_screen(LIST)
                 .add_screen(PROFILE),
 
             scroll_offset: 0,
@@ -80,7 +80,7 @@ impl Screen for OverviewScreen {
             .direction(Direction::Vertical)
             .constraints(
                 [
-                    Constraint::Length(4),
+                    Constraint::Length(3),
                     Constraint::Percentage(100),
                 ]
             )

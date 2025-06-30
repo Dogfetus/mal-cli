@@ -134,6 +134,7 @@ impl AnimePopup {
             frame,
             popup_area.inner(Margin::new(1, 1)),
         );
+
     }
 }
 

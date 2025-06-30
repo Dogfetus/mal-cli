@@ -182,6 +182,50 @@ impl Anime {
         }
     }
 
+    pub fn example() -> Self {
+        Self {
+            id: 1,
+            title: "Example Anime".to_string(),
+            main_picture: Pictures {
+                large: "https://cdn.myanimelist.net/images/anime/1712/148299l.jpg".to_string(),
+                medium: "https://cdn.myanimelist.net/images/anime/1526/148873.jpg".to_string(),
+            },
+            alternative_titles: AlternativeTitles {
+                synonyms: Some(vec!["Synonym 1".to_string(), "Synonym 2".to_string()]),
+                en: "Example Anime EN".to_string(),
+                ja: "Example Anime JA".to_string(),
+            },
+            start_date: "2023-01-01".to_string(),
+            end_date: "2023-12-31".to_string(),
+            synopsis: "This is an example anime synopsis.".to_string(),
+            mean: 8.5,
+            rank: 1,
+            popularity: 1000,
+            num_list_users: 5000,
+            num_scoring_users: 3000,
+            nsfw: "safe".to_string(),
+            created_at: "2023-01-01T00:00:00Z".to_string(),
+            updated_at: "2023-01-02T00:00:00Z".to_string(),
+            media_type: "TV".to_string(),
+            status: "finished".to_string(),
+            genres: vec![Genre { id: 1, name: "Action".to_string() }],
+            my_list_status: MyListStatus::default(),
+            num_episodes: 12,
+            start_season: StartSeason { year: 2023, season: "Winter".to_string() },
+            broadcast: Some(Broadcast { day_of_the_week: "Monday".to_string(), start_time: "18:00".to_string() }),
+            source: "Manga".to_string(),
+            average_episode_duration: 24,
+            rating: "PG-13".to_string(),
+            pictures: Some(vec![Pictures::default()]),
+            background: "Background image URL or description.".to_string(),
+            related_anime: None,
+            related_manga: None,
+            recommendations: None,
+            studios: vec![Studio { id: 1, name: "Studio Example".to_string() }],
+            statistics: None
+        }
+    }
+
     pub fn from_response(response: AnimeResponse) -> Vec<Self> {
         response.data.into_iter().map(|anime_node| anime_node.node).collect()
     }
