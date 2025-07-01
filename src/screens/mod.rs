@@ -156,6 +156,7 @@ pub struct ScreenManager {
 impl ScreenManager {
     pub fn new(app_sx: mpsc::Sender<Event>, mal_client: Arc<mal::MalClient>) -> Self {
         Self {
+            // default screen is the launch screen
             current_screen: Box::new(launch::LaunchScreen::new()),
             screen_storage: HashMap::new(),
             backgrounds: Vec::new(),

@@ -9,7 +9,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
-    style::{Color, Style},
+    style::{self, Color, Style},
     symbols::{self, border},
     widgets::{Block, Borders, Clear, Padding, Paragraph},
 };
@@ -134,7 +134,6 @@ impl AnimePopup {
             frame,
             popup_area.inner(Margin::new(1, 1)),
         );
-
     }
 }
 
@@ -156,9 +155,7 @@ impl SeasonPopup {
             .position(|&s| s.to_lowercase() == season.to_lowercase())
             .unwrap_or(0) as u16;
 
-        let all_years: Vec<String> = (FIRST_YEAR..=year).rev()
-            .map(|y| y.to_string())
-            .collect();
+        let all_years: Vec<String> = (FIRST_YEAR..=year).rev().map(|y| y.to_string()).collect();
 
         Self {
             toggled: false,
@@ -175,7 +172,8 @@ impl SeasonPopup {
         if self.entered_number.is_empty() {
             self.available_years = self.all_years.clone();
         } else {
-            self.available_years = self.all_years
+            self.available_years = self
+                .all_years
                 .iter()
                 .filter(|year| year.contains(&self.entered_number))
                 .cloned()
@@ -193,7 +191,8 @@ impl SeasonPopup {
         self.toggled = !self.toggled;
 
         if self.toggled {
-            self.year_scroll = self.available_years
+            self.year_scroll = self
+                .available_years
                 .iter()
                 .position(|y| y.parse::<u16>().unwrap_or(0) == year)
                 .unwrap_or(0) as u16;
@@ -210,6 +209,7 @@ impl SeasonPopup {
             KeyCode::Char('q') => {
                 self.toggled = false;
                 self.entered_number.clear();
+                self.filter_years();
                 None
             }
 
@@ -217,10 +217,12 @@ impl SeasonPopup {
                 self.year_selected = false;
                 None
             }
+
             KeyCode::Left | KeyCode::Char('h') => {
                 self.year_selected = true;
                 None
             }
+
             KeyCode::Up | KeyCode::Char('j') => {
                 if self.year_selected {
                     if self.year_scroll > 0 {
@@ -250,9 +252,10 @@ impl SeasonPopup {
                 let season = AVAILABLE_SEASONS
                     .get(self.season_scroll as usize)
                     .unwrap_or(&FIRST_SEASON)
-                    .to_string();  
+                    .to_string();
 
-                let year = self.available_years
+                let year = self
+                    .available_years
                     .get(self.year_scroll as usize)
                     .and_then(|y| y.parse::<u16>().ok())
                     .unwrap_or(year);
@@ -260,7 +263,7 @@ impl SeasonPopup {
                 self.entered_number.clear();
                 self.filter_years();
                 Some((year, season))
-            },
+            }
             KeyCode::Backspace => {
                 if !self.entered_number.is_empty() {
                     self.entered_number.pop();
@@ -436,6 +439,125 @@ impl SeasonPopup {
                     },
                 ));
             frame.render_widget(paragraph, individual_year_area);
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct SelectionPopup {
+    pub is_open: bool,
+    pub options: Vec<&'static str>,
+    pub selected_index: usize,
+}
+
+impl SelectionPopup {
+    pub fn new() -> Self {
+        Self {
+            is_open: false,
+            options: Vec::new(),
+            selected_index: 0,
+        }
+    }
+
+    pub fn add_option(mut self, option: &'static str) -> Self {
+        self.options.push(option);
+        self
+    }
+
+    pub fn open(&mut self) -> &Self {
+        self.is_open = true;
+        self.selected_index = 0;
+        self
+    }
+
+    pub fn close(&mut self) -> &Self {
+        self.is_open = false;
+        self.selected_index = 0;
+        self
+    }
+
+    pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
+        if !self.is_open {
+            match key_event.code{
+                KeyCode::Enter => {
+                    self.open();
+                }
+                _ => {},
+            }
+            None
+        }
+        else{
+            match key_event.code {
+                KeyCode::Char('q') => {
+                    self.is_open = false;
+                    None
+                }
+                KeyCode::Up | KeyCode::Char('j') => {
+                    if self.selected_index > 0 {
+                        self.selected_index -= 1;
+                    }
+                    None
+                }
+                KeyCode::Down | KeyCode::Char('k') => {
+                    if self.selected_index < self.options.len() - 1 {
+                        self.selected_index += 1;
+                    }
+                    None
+                }
+                _ => None,
+            }
+        }
+    }
+
+    pub fn render(&self, frame: &mut Frame, area: Rect, highlighted: bool) {
+        let filter = Paragraph::new(
+            *self.options.get(self.selected_index).unwrap_or(&"No options")
+            ).block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_set(border::ROUNDED),
+            )
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(if highlighted {
+                Color::Yellow
+            } else {
+                Color::DarkGray
+            }));
+        frame.render_widget(filter, area);
+
+        if self.is_open {
+            let options_area = Rect::new(
+                area.x,
+                area.y + area.height,
+                area.width,
+                self.options.len() as u16 + 2,
+            );
+
+            frame.render_widget(Clear, options_area);
+
+            let options_block = Block::default()
+                .borders(Borders::ALL)
+                .border_set(border::ROUNDED)
+                .style(Style::default().fg(Color::DarkGray));
+
+            frame.render_widget(options_block, options_area);
+
+            for (i, option) in self.options.iter().enumerate() {
+                let option_area = Rect::new(
+                    options_area.x,
+                    options_area.y + i as u16 + 1,
+                    options_area.width-1,
+                    1,
+                );
+                let option_paragraph = Paragraph::new(option.to_string())
+                    .alignment(Alignment::Center)
+                    .style(Style::default().fg(if highlighted && i == self.selected_index {
+                        Color::Yellow
+                    } else {
+                        Color::DarkGray
+                    }));
+                frame.render_widget(option_paragraph, option_area);
+            }
         }
     }
 }
