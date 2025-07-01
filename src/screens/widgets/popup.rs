@@ -443,11 +443,21 @@ impl SeasonPopup {
     }
 }
 
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum Arrows {
+    None,
+    Static,
+    Dynamic,
+}
+
 #[derive(Clone)]
 pub struct SelectionPopup {
-    pub is_open: bool,
-    pub options: Vec<&'static str>,
-    pub selected_index: usize,
+    is_open: bool,
+    options: Vec<String>,
+    selected_index: usize,
+    next_index: usize,
+    arrows: Arrows,
+    longest_word: usize,
 }
 
 impl SelectionPopup {
@@ -456,53 +466,72 @@ impl SelectionPopup {
             is_open: false,
             options: Vec::new(),
             selected_index: 0,
+            next_index: 0,
+            arrows: Arrows::None,
+            longest_word: 0,
         }
     }
 
-    pub fn add_option(mut self, option: &'static str) -> Self {
+    pub fn with_arrows(mut self, arrow_type: Arrows) -> Self {
+        self.arrows = arrow_type;
+        self
+    }
+
+    pub fn add_option(mut self, option: impl Into<String>) -> Self {
+        let option = option.into();
+        if option.len() > self.longest_word {
+            self.longest_word = option.len();
+        }
         self.options.push(option);
         self
     }
 
     pub fn open(&mut self) -> &Self {
         self.is_open = true;
-        self.selected_index = 0;
         self
     }
 
     pub fn close(&mut self) -> &Self {
         self.is_open = false;
-        self.selected_index = 0;
         self
     }
 
-    pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
+    pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<String> {
         if !self.is_open {
-            match key_event.code{
+            match key_event.code {
                 KeyCode::Enter => {
                     self.open();
                 }
-                _ => {},
+                _ => {}
             }
             None
-        }
-        else{
+        } else {
             match key_event.code {
                 KeyCode::Char('q') => {
                     self.is_open = false;
                     None
                 }
                 KeyCode::Up | KeyCode::Char('j') => {
-                    if self.selected_index > 0 {
-                        self.selected_index -= 1;
+                    if self.next_index > 0 {
+                        self.next_index -= 1;
                     }
                     None
                 }
                 KeyCode::Down | KeyCode::Char('k') => {
-                    if self.selected_index < self.options.len() - 1 {
-                        self.selected_index += 1;
+                    if self.next_index < self.options.len() - 1 {
+                        self.next_index += 1;
                     }
                     None
+                }
+                KeyCode::Enter | KeyCode::Char(' ') => {
+                    if self.options.is_empty() {
+                        return None;
+                    }
+
+                    let selected_option = self.options[self.next_index].clone();
+                    self.selected_index = self.next_index;
+                    self.close();
+                    Some(selected_option)
                 }
                 _ => None,
             }
@@ -511,18 +540,22 @@ impl SelectionPopup {
 
     pub fn render(&self, frame: &mut Frame, area: Rect, highlighted: bool) {
         let filter = Paragraph::new(
-            *self.options.get(self.selected_index).unwrap_or(&"No options")
-            ).block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_set(border::ROUNDED),
-            )
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(if highlighted {
-                Color::Yellow
-            } else {
-                Color::DarkGray
-            }));
+            self.options
+                .get(self.selected_index)
+                .unwrap_or(&"No options available".to_string())
+                .clone(),
+        )
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_set(border::ROUNDED),
+        )
+        .alignment(Alignment::Center)
+        .style(Style::default().fg(if highlighted {
+            Color::Yellow
+        } else {
+            Color::DarkGray
+        }));
         frame.render_widget(filter, area);
 
         if self.is_open {
@@ -544,19 +577,56 @@ impl SelectionPopup {
 
             for (i, option) in self.options.iter().enumerate() {
                 let option_area = Rect::new(
-                    options_area.x,
+                    options_area.x + 1,
                     options_area.y + i as u16 + 1,
-                    options_area.width-1,
+                    options_area.width.saturating_sub(2),
                     1,
                 );
-                let option_paragraph = Paragraph::new(option.to_string())
-                    .alignment(Alignment::Center)
-                    .style(Style::default().fg(if highlighted && i == self.selected_index {
-                        Color::Yellow
-                    } else {
-                        Color::DarkGray
-                    }));
-                frame.render_widget(option_paragraph, option_area);
+
+                let [left_side, option_area, right_side] = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([
+                        Constraint::Fill(1),
+                        Constraint::Length(min(
+                            self.longest_word as u16 + 2,
+                            option_area.width.saturating_sub(2),
+                        )),
+                        Constraint::Fill(1),
+                    ])
+                    .areas(option_area);
+
+                if i == self.next_index {
+                    let mut text = option.to_string();
+
+                    if self.arrows == Arrows::Dynamic {
+                        text = format!("▶ {} ◀", option.to_string());
+                    }
+
+                    let option_paragraph = Paragraph::new(text)
+                        .alignment(Alignment::Center)
+                        .style(Style::default().fg(Color::Yellow));
+                    frame.render_widget(option_paragraph, option_area);
+
+                    if self.arrows != Arrows::Static {
+                        continue;
+                    }
+
+                    let left_paragraph = Paragraph::new("▶")
+                        .alignment(Alignment::Right)
+                        .style(Style::default().fg(Color::Yellow));
+
+                    let right_paragraph = Paragraph::new("◀")
+                        .alignment(Alignment::Left)
+                        .style(Style::default().fg(Color::Yellow));
+
+                    frame.render_widget(left_paragraph, left_side);
+                    frame.render_widget(right_paragraph, right_side);
+                } else {
+                    let option_paragraph = Paragraph::new(option.to_string())
+                        .alignment(Alignment::Center)
+                        .style(Style::default().fg(Color::DarkGray));
+                    frame.render_widget(option_paragraph, option_area);
+                }
             }
         }
     }

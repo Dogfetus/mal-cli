@@ -1,8 +1,12 @@
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::mpsc::Sender;
+use std::sync::mpsc::channel;
+use std::thread::JoinHandle;
 
 use crate::mal::models::anime::Anime;
 use crate::utils::imageManager::ImageManager;
+use crate::utils::input::Input;
 use crate::{app::Action, screens::Screen, screens::screens::*};
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
@@ -15,13 +19,21 @@ use ratatui::symbols;
 use ratatui::widgets::Block;
 use ratatui::widgets::Borders;
 use ratatui::widgets::Clear;
+use ratatui::widgets::Paragraph;
 
 use super::widgets::animebox::AnimeBox;
 use super::widgets::navbar::NavBar;
-use super::widgets::popup::SelectionPopup;
+use super::widgets::popup::{Arrows, SelectionPopup};
+
+#[derive(Debug, Clone)]
+enum LocalEvent {
+    FilterSwitch(String),
+    Search(String),
+}
 
 #[derive(PartialEq, Debug, Clone)]
 enum Focus {
+    NavBar,
     Filter,
     Search,
     AnimeList,
@@ -30,19 +42,21 @@ enum Focus {
 #[derive(Clone)]
 pub struct FilterScreen {
     navbar: super::widgets::navbar::NavBar,
-    selected_button: usize,
-    buttons: Vec<&'static str>,
     image_manager: Arc<Mutex<ImageManager>>,
-    filter_type: String,
-    filter_popup: SelectionPopup,
     focus: Focus,
+
+    filter_popup: SelectionPopup,
+    search_input: Input,
+
+    searching: bool,
+    bg_sender: Option<Sender<LocalEvent>>,
+    bg_loaded: bool,
+
 }
 
 impl FilterScreen {
     pub fn new() -> Self {
         Self {
-            selected_button: 0,
-            buttons: vec!["Back", "Exit"],
             navbar: NavBar::new()
                 .add_screen(OVERVIEW)
                 .add_screen(SEASONS)
@@ -50,6 +64,7 @@ impl FilterScreen {
                 .add_screen(LIST)
                 .add_screen(PROFILE),
             filter_popup: SelectionPopup::new()
+                .with_arrows(Arrows::Static)
                 .add_option("all")
                 .add_option("airing")
                 .add_option("upcoming")
@@ -57,11 +72,14 @@ impl FilterScreen {
                 .add_option("ova")
                 .add_option("movie")
                 .add_option("special")
-                .add_option("bypopularity")
+                .add_option("popularity")
                 .add_option("favorite"),
             image_manager: Arc::new(Mutex::new(ImageManager::new())),
-            filter_type: String::new(),
             focus: Focus::Search,
+            search_input: Input::new(),
+            searching: false,
+            bg_sender: None,
+            bg_loaded: false,
         }
     }
 }
@@ -130,24 +148,24 @@ impl Screen for FilterScreen {
                 }),
             );
 
-        let search_block = Block::new()
-            .borders(Borders::ALL)
-            .border_set(symbols::border::ROUNDED)
-            .title("Search")
+        let search_field = Paragraph::new(self.search_input.value())
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Search")
+                    .border_set(symbols::border::ROUNDED),
+            )
             .style(style::Style::default().fg(if self.focus == Focus::Search {
                 style::Color::Yellow
             } else {
                 style::Color::LightBlue
             }));
 
-        frame.render_widget(search_block, search_area);
-        frame.render_widget(block.clone(), one);
-        frame.render_widget(block.clone(), two);
-        frame.render_widget(block.clone(), three);
-        frame.render_widget(block.clone(), four);
+        frame.render_widget(search_field, search_area);
 
         AnimeBox::render(&Anime::example(), &self.image_manager, frame, one, false);
-
+        self.search_input
+            .render_cursor(frame, search_area.x + 1, search_area.y + 1);
         self.filter_popup
             .render(frame, filter_area, self.focus == Focus::Filter);
         self.navbar.render(frame, top);
@@ -165,6 +183,10 @@ impl Screen for FilterScreen {
                             self.focus = Focus::AnimeList;
                             self.filter_popup.close();
                         }
+                        KeyCode::Char('j') | KeyCode::Up => {
+                            self.focus = Focus::NavBar;
+                            self.filter_popup.close();
+                        }
                         KeyCode::Char('h') | KeyCode::Left => {
                             self.focus = Focus::Search;
                             self.filter_popup.close();
@@ -172,22 +194,47 @@ impl Screen for FilterScreen {
                         _ => {}
                     }
                 } else {
-                    self.filter_popup.handle_input(key_event);
+                    if let Some(filter_type) = self.filter_popup.handle_input(key_event) {
+                        if let Some(sender) = &self.bg_sender {
+                            sender.send(LocalEvent::FilterSwitch(filter_type)).ok();
+                        }
+                    }
                 }
             }
+
             Focus::Search => {
                 if key_event
                     .modifiers
                     .contains(crossterm::event::KeyModifiers::CONTROL)
                 {
                     match key_event.code {
-                        KeyCode::Char('k') | KeyCode::Down => self.focus = Focus::AnimeList,
-                        KeyCode::Char('l') | KeyCode::Right => self.focus = Focus::Filter,
+                        KeyCode::Char('j') | KeyCode::Up => {
+                            self.navbar.select();
+                            self.focus = Focus::NavBar;
+                            return None;
+                        }
+                        KeyCode::Char('k') | KeyCode::Down => {
+                            self.focus = Focus::AnimeList;
+                            return None;
+                        }
+                        KeyCode::Char('l') | KeyCode::Right => {
+                            self.focus = Focus::Filter;
+                            return None;
+                        }
                         _ => {}
                     }
-                } else {
+                }
+
+                if let Some(text) = self.search_input.handle_event(key_event) {
+                    if !text.is_empty() {
+                        self.searching = true;
+                        if let Some(sender) = &self.bg_sender {
+                            sender.send(LocalEvent::Search(text)).ok();
+                        }
+                    }
                 }
             }
+
             Focus::AnimeList => {
                 if key_event
                     .modifiers
@@ -200,6 +247,23 @@ impl Screen for FilterScreen {
                 } else {
                 }
             }
+
+            Focus::NavBar => {
+                if key_event
+                    .modifiers
+                    .contains(crossterm::event::KeyModifiers::CONTROL)
+                {
+                    match key_event.code {
+                        KeyCode::Char('k') | KeyCode::Down => {
+                            self.navbar.deselect();
+                            self.focus = Focus::Search
+                        }
+                        _ => {}
+                    }
+                } else {
+                    return self.navbar.handle_input(key_event);
+                }
+            }
         }
 
         None
@@ -209,17 +273,38 @@ impl Screen for FilterScreen {
         Box::new(self.clone())
     }
 
-    fn background(&mut self, info: super::BackgroundInfo) -> Option<std::thread::JoinHandle<()>> {
-        None
-        // code to start a background thread
-        // ...
-        // ...
-        // ...
-        // example:
-        // let handle = std::thread::spawn(move || {
-        //     // background functionality here
-        //     // use info.app_sx to send events to the app
-        // });
-        // Some(handle)
+    fn background(&mut self, info: super::BackgroundInfo) -> Option<JoinHandle<()>> {
+        if self.bg_loaded {
+            return None;
+        }
+
+        self.bg_loaded = true;
+        let (bg_sender, bg_receiver) = channel::<LocalEvent>();
+        self.bg_sender = Some(bg_sender);
+        let id = self.get_name();
+
+        let handle = std::thread::spawn(move || {
+            while let Ok(event) = bg_receiver.recv() {
+                match event {
+                    LocalEvent::FilterSwitch(filter_type) => {
+                        if let Some(animes) = info.mal_client.get_top_anime(filter_type, 0, 100) {
+                            let update = super::BackgroundUpdate::new(id.clone())
+                                .set("animes", animes);
+                            info.app_sx
+                                .send(super::Event::BackgroundNotice(update))
+                                .ok();
+                        }
+                    }
+                    LocalEvent::Search(query) => {
+                    }
+                }
+            }
+        });
+        Some(handle)
+    }
+
+    fn apply_update(&mut self, update: super::BackgroundUpdate) {
+        if let Some(fetching) = update.get::<String>("test") {
+        }
     }
 }

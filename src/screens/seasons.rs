@@ -464,9 +464,7 @@ impl Screen for SeasonsScreen {
                     self.focus = Focus::SeasonSelection;
                 }
 
-                if let Some(action) = self.navbar.handle_input(key_event) {
-                    return Some(action);
-                }
+                return self.navbar.handle_input(key_event);
             }
             Focus::AnimeList => {
                 if key_event

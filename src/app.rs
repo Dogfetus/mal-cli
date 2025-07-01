@@ -110,18 +110,16 @@ impl App {
                 }
             }
         }
-
-        match key_event.code {
-            KeyCode::Char('c') if key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
-                self.is_running = false
-            },
-            // temporary?
-            KeyCode::Char('f') => self.screen_manager.change_screen(FILTER),
-            KeyCode::Char('o') => self.screen_manager.change_screen(OVERVIEW),
-            KeyCode::Char('s') => self.screen_manager.change_screen(SEASONS),
-            KeyCode::Char('i') => self.screen_manager.change_screen(LIST),
-            KeyCode::Char('p') => self.screen_manager.change_screen(PROFILE),
-            _ => { return }
+        if key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
+            match key_event.code {
+                KeyCode::Char('c')=> self.is_running = false,
+                KeyCode::Char('f') => self.screen_manager.change_screen(FILTER),
+                KeyCode::Char('o') => self.screen_manager.change_screen(OVERVIEW),
+                KeyCode::Char('s') => self.screen_manager.change_screen(SEASONS),
+                KeyCode::Char('i') => self.screen_manager.change_screen(LIST),
+                KeyCode::Char('p') => self.screen_manager.change_screen(PROFILE),
+                _ => { return }
+            }
         }
     }
 
