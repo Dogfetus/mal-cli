@@ -182,18 +182,18 @@ impl Anime {
         }
     }
 
-    pub fn example() -> Self {
+    pub fn example(id: usize) -> Self {
         Self {
-            id: 1,
-            title: "Example Anime".to_string(),
+            id,
+            title: format!("Example Anime {}", id),
             main_picture: Pictures {
                 large: "https://cdn.myanimelist.net/images/anime/1712/148299l.jpg".to_string(),
                 medium: "https://cdn.myanimelist.net/images/anime/1526/148873.jpg".to_string(),
             },
             alternative_titles: AlternativeTitles {
                 synonyms: Some(vec!["Synonym 1".to_string(), "Synonym 2".to_string()]),
-                en: "Example Anime EN".to_string(),
-                ja: "Example Anime JA".to_string(),
+                en: format!("Example Anime EN {}", id),
+                ja: format!("Example Anime JA {}", id),
             },
             start_date: "2023-01-01".to_string(),
             end_date: "2023-12-31".to_string(),

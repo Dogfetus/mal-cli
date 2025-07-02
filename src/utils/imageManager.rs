@@ -106,6 +106,12 @@ impl ImageManager {
         }
     }
 
+    pub fn clear_cache(instance: &Arc<Mutex<Self>>) {
+        let mut self_lock = instance.lock().unwrap();
+        self_lock.protocols.clear();
+    }
+
+
     /// Initializes the ImageManager for per-image threading mode.
     ///
     /// In this mode, each call to `prepare_image()` will create a dedicated thread

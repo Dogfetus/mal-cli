@@ -20,9 +20,11 @@ use ratatui::widgets::Block;
 use ratatui::widgets::Borders;
 use ratatui::widgets::Clear;
 use ratatui::widgets::Paragraph;
+use ratatui_image::Image;
 
-use super::widgets::animebox::AnimeBox;
+use super::widgets::animebox::LongAnimeBox;
 use super::widgets::navbar::NavBar;
+use super::widgets::popup::AnimePopup;
 use super::widgets::popup::{Arrows, SelectionPopup};
 
 #[derive(Debug, Clone)]
@@ -40,9 +42,14 @@ enum Focus {
 }
 
 #[derive(Clone)]
-pub struct FilterScreen {
-    navbar: super::widgets::navbar::NavBar,
+pub struct SearchScreen {
+    animes: Vec<Anime>,
+    scroll_index: usize,
+    selected_index: usize,
     image_manager: Arc<Mutex<ImageManager>>,
+
+    navbar: NavBar,
+    popup: AnimePopup,
     focus: Focus,
 
     filter_popup: SelectionPopup,
@@ -51,18 +58,12 @@ pub struct FilterScreen {
     searching: bool,
     bg_sender: Option<Sender<LocalEvent>>,
     bg_loaded: bool,
-
 }
 
-impl FilterScreen {
+impl SearchScreen {
     pub fn new() -> Self {
         Self {
-            navbar: NavBar::new()
-                .add_screen(OVERVIEW)
-                .add_screen(SEASONS)
-                .add_screen(FILTER)
-                .add_screen(LIST)
-                .add_screen(PROFILE),
+            image_manager: Arc::new(Mutex::new(ImageManager::new())),
             filter_popup: SelectionPopup::new()
                 .with_arrows(Arrows::Static)
                 .add_option("all")
@@ -74,17 +75,40 @@ impl FilterScreen {
                 .add_option("special")
                 .add_option("popularity")
                 .add_option("favorite"),
-            image_manager: Arc::new(Mutex::new(ImageManager::new())),
-            focus: Focus::Search,
             search_input: Input::new(),
+            popup: AnimePopup::new(),
+            navbar: NavBar::new()
+                .add_screen(OVERVIEW)
+                .add_screen(SEASONS)
+                .add_screen(SEARCH)
+                .add_screen(LIST)
+                .add_screen(PROFILE),
+            focus: Focus::Search,
+            animes: vec![
+                Anime::example(1),
+                Anime::example(2),
+                Anime::example(3),
+                Anime::example(4),
+                Anime::example(5),
+            ],
+            selected_index: 0,
             searching: false,
-            bg_sender: None,
             bg_loaded: false,
+            scroll_index: 0,
+            bg_sender: None,
         }
+    }
+
+
+    fn reset(&mut self) {
+        self.animes.clear();
+        self.scroll_index = 0;
+        self.selected_index = 0;
+        self.searching = false;
     }
 }
 
-impl Screen for FilterScreen {
+impl Screen for SearchScreen {
     fn draw(&self, frame: &mut Frame) {
         let area = frame.area();
         frame.render_widget(Clear, area);
@@ -127,26 +151,14 @@ impl Screen for FilterScreen {
             .constraints([Constraint::Percentage(80), Constraint::Percentage(20)])
             .areas(search_area);
 
-        let [one, two, three, four] = Layout::default()
+        let anime_areas = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Percentage(25),
-                Constraint::Percentage(25),
-                Constraint::Percentage(25),
-                Constraint::Percentage(25),
+                Constraint::Percentage(33),
+                Constraint::Percentage(33),
+                Constraint::Percentage(34),
             ])
-            .areas(anime_area);
-
-        let block = Block::new()
-            .borders(Borders::ALL)
-            .border_set(symbols::border::ROUNDED)
-            .style(
-                style::Style::default().fg(if self.focus == Focus::AnimeList {
-                    style::Color::Yellow
-                } else {
-                    style::Color::LightBlue
-                }),
-            );
+            .split(anime_area);
 
         let search_field = Paragraph::new(self.search_input.value())
             .block(
@@ -158,17 +170,31 @@ impl Screen for FilterScreen {
             .style(style::Style::default().fg(if self.focus == Focus::Search {
                 style::Color::Yellow
             } else {
-                style::Color::LightBlue
+                style::Color::DarkGray
             }));
-
         frame.render_widget(search_field, search_area);
 
-        AnimeBox::render(&Anime::example(), &self.image_manager, frame, one, false);
+        for (i, area) in anime_areas.iter().enumerate() {
+            if self.scroll_index + i >= self.animes.len() {
+                break;
+            }
+            let index = self.scroll_index + i;
+            let anime = &self.animes[index];
+            LongAnimeBox::render(
+                anime,
+                &self.image_manager,
+                frame,
+                *area,
+                self.focus == Focus::AnimeList && self.selected_index == index,
+            );
+        }
+
         self.search_input
             .render_cursor(frame, search_area.x + 1, search_area.y + 1);
         self.filter_popup
             .render(frame, filter_area, self.focus == Focus::Filter);
         self.navbar.render(frame, top);
+        self.popup.render(&self.image_manager, frame);
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
@@ -245,6 +271,24 @@ impl Screen for FilterScreen {
                         _ => {}
                     }
                 } else {
+                    match key_event.code {
+                        KeyCode::Char('k') | KeyCode::Down => {
+                            if self.selected_index < self.animes.len() - 1 {
+                                self.selected_index += 1;
+                            }
+                            if self.selected_index >= self.scroll_index + 3 {
+                                self.scroll_index += 1;
+                            }
+                        }
+                        KeyCode::Char('j') | KeyCode::Up => {
+                            self.selected_index = self.selected_index.saturating_sub(1);
+
+                            if self.selected_index < self.scroll_index {
+                                self.scroll_index = self.scroll_index.saturating_sub(1);
+                            }
+                        }
+                        _ => {}
+                    }
                 }
             }
 
@@ -282,20 +326,40 @@ impl Screen for FilterScreen {
         let (bg_sender, bg_receiver) = channel::<LocalEvent>();
         self.bg_sender = Some(bg_sender);
         let id = self.get_name();
+        let image_manager = self.image_manager.clone();
+        ImageManager::init_with_dedicated_thread(&image_manager, info.app_sx.clone(), id.clone());
 
         let handle = std::thread::spawn(move || {
             while let Ok(event) = bg_receiver.recv() {
                 match event {
                     LocalEvent::FilterSwitch(filter_type) => {
                         if let Some(animes) = info.mal_client.get_top_anime(filter_type, 0, 100) {
-                            let update = super::BackgroundUpdate::new(id.clone())
-                                .set("animes", animes);
+                            let update =
+                                super::BackgroundUpdate::new(id.clone()).set("animes", animes);
                             info.app_sx
                                 .send(super::Event::BackgroundNotice(update))
                                 .ok();
                         }
                     }
+
                     LocalEvent::Search(query) => {
+                        if let Some(animes) = info.mal_client.search_anime(query.clone(), 0, 9) {
+                            for anime in animes.iter() {
+                                ImageManager::fetch_image_sequential(&image_manager, anime);
+                            }
+                            let update =
+                                super::BackgroundUpdate::new(id.clone()).set("animes", animes);
+                            info.app_sx
+                                .send(super::Event::BackgroundNotice(update))
+                                .ok();
+                        }
+                        if let Some(animes) = info.mal_client.search_anime(query, 10, 100) {
+                            let update =
+                                super::BackgroundUpdate::new(id.clone()).set("animes", animes);
+                            info.app_sx
+                                .send(super::Event::BackgroundNotice(update))
+                                .ok();
+                        }
                     }
                 }
             }
@@ -303,8 +367,12 @@ impl Screen for FilterScreen {
         Some(handle)
     }
 
-    fn apply_update(&mut self, update: super::BackgroundUpdate) {
-        if let Some(fetching) = update.get::<String>("test") {
+    fn apply_update(&mut self, mut update: super::BackgroundUpdate) {
+        if let Some(animes) = update.take::<Vec<Anime>>("animes") {
+            if self.searching{
+                self.reset();
+            }
+            self.animes.extend(animes);
         }
     }
 }

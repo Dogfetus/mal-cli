@@ -15,7 +15,7 @@ mod overview;
 mod profile;
 mod widgets;
 mod seasons;
-mod filter;
+mod search;
 mod launch;
 mod login;
 mod info;
@@ -94,7 +94,7 @@ define_screens! {
     LOGIN => "Login" => login::LoginScreen,
     PROFILE => "Profile" => profile::ProfileScreen,
     SEASONS => "Seasons" => seasons::SeasonsScreen,
-    FILTER => "Filter" => filter::FilterScreen,
+    SEARCH => "Search" => search::SearchScreen,
     LIST => "List" => list::ListScreen, 
 
     // Add more as needed:

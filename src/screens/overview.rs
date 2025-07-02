@@ -48,7 +48,7 @@ impl OverviewScreen {
             navbar: NavBar::new()
                 .add_screen(OVERVIEW)
                 .add_screen(SEASONS)
-                .add_screen(FILTER)
+                .add_screen(SEARCH)
                 .add_screen(LIST)
                 .add_screen(PROFILE),
 

@@ -1,10 +1,10 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     Frame,
-    layout::{Position, Rect},
+    layout::Position,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Input {
     empty: bool,
 
@@ -47,41 +47,78 @@ impl Input {
     }
 
     pub fn handle_event(&mut self, event: KeyEvent) -> Option<String> {
-        match event.code {
-            KeyCode::Char(c) if self.max_length.map_or(true, |l| self.value.len() < l) => {
-                if self.empty{
-                    self.empty = false;
-                    // in case of placeholder
-                    self.value.clear();
-                    self.cursor = 0;
+        if event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
+            match event.code {
+                KeyCode::Char('h') => {
+                    if self.cursor > 0 {
+                        let cursor_pos = self.cursor as usize;
+                        let chars: Vec<char> = self.value.chars().collect();
+
+                        if cursor_pos <= chars.len() {
+                            let mut start = cursor_pos;
+
+                            while start > 0 && chars[start - 1].is_whitespace() {
+                                start -= 1;
+                            }
+
+                            while start > 0 && !chars[start - 1].is_whitespace() {
+                                start -= 1;
+                            }
+
+                            let start_byte = chars[..start].iter().map(|c| c.len_utf8()).sum::<usize>();
+                            let end_byte = chars[..cursor_pos].iter().map(|c| c.len_utf8()).sum::<usize>();
+
+                            self.value.replace_range(start_byte..end_byte, "");
+                            self.cursor = start as u16;
+                            if self.value.is_empty() {
+                                self.empty = true;
+                                self.value = self.placeholder.clone().unwrap_or_default();
+                            }
+                        }
+                    }
                 }
-                self.value.insert(self.cursor as usize, c);
-                self.cursor += 1;
+                //TODO: consider adding copy paste functionality
+                _ => return None,
             }
-            KeyCode::Backspace if self.cursor > 0 => {
-                self.value.remove((self.cursor - 1) as usize);
-                self.cursor -= 1;
-                if self.value.is_empty() {
-                    self.empty = true;
-                    self.value = self.placeholder.clone().unwrap_or_default();
-                }
-            }
-            KeyCode::Left if self.cursor > 0 => {
-                if !self.empty {
-                    self.cursor -= 1;
-                }
-            }
-            KeyCode::Right if (self.cursor as usize) < self.value.len() => {
-                if !self.empty { 
+        }
+
+        else{
+            match event.code {
+                KeyCode::Char(c) if self.max_length.map_or(true, |l| self.value.len() < l) => {
+                    if self.empty{
+                        self.empty = false;
+                        // in case of placeholder
+                        self.value.clear();
+                        self.cursor = 0;
+                    }
+                    self.value.insert(self.cursor as usize, c);
                     self.cursor += 1;
                 }
-            }
-            KeyCode::Enter | KeyCode::Char('\n') => {
-                if !self.empty {
-                    return Some(self.value.clone());
+                KeyCode::Backspace if self.cursor > 0 => {
+                    self.value.remove((self.cursor - 1) as usize);
+                    self.cursor -= 1;
+                    if self.value.is_empty() {
+                        self.empty = true;
+                        self.value = self.placeholder.clone().unwrap_or_default();
+                    }
                 }
+                KeyCode::Left if self.cursor > 0 => {
+                    if !self.empty {
+                        self.cursor -= 1;
+                    }
+                }
+                KeyCode::Right if (self.cursor as usize) < self.value.len() => {
+                    if !self.empty { 
+                        self.cursor += 1;
+                    }
+                }
+                KeyCode::Enter | KeyCode::Char('\n') => {
+                    if !self.empty {
+                        return Some(self.value.clone());
+                    }
+                }
+                _ => {}
             }
-            _ => {}
         }
         None
     }
