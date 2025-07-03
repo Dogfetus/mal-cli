@@ -40,6 +40,20 @@ impl AnimePopup {
         self
     }
 
+    pub fn is_open(&self) -> bool {
+        self.toggled
+    }
+
+    pub fn open(&mut self) -> &Self {
+        self.toggled = true;
+        self
+    }
+
+    pub fn close(&mut self) -> &Self {
+        self.toggled = false;
+        self
+    }
+
     pub fn toggle(&mut self) -> &Self {
         self.toggled = !self.toggled;
         self

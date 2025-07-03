@@ -38,7 +38,6 @@ enum Focus {
     SeasonSelection,
     AnimeList,
     AnimeDetails,
-    Popup,
 }
 
 #[derive(Clone)]
@@ -481,6 +480,10 @@ impl Screen for SeasonsScreen {
                         _ => {}
                     }
                 } else {
+                    if self.popup.is_open() {
+                        return self.popup.handle_input(key_event);
+                    }
+
                     match key_event.code {
                         KeyCode::Up | KeyCode::Char('j') => {
                             self.y = self.y.saturating_sub(1);
@@ -514,7 +517,6 @@ impl Screen for SeasonsScreen {
                             if self.selected_anime < self.animes.len() {
                                 self.popup.set_anime(self.get_selected_anime());
                                 self.popup.toggle();
-                                self.focus = Focus::Popup;
                                 return None;
                             }
                         }
@@ -536,13 +538,6 @@ impl Screen for SeasonsScreen {
                     _ => {}
                 }
                 self.selected_anime = ((self.y * 3) + self.x) as usize;
-            }
-
-            Focus::Popup => {
-                if key_event.code == KeyCode::Char('q') {
-                    self.focus = Focus::AnimeList;
-                }
-                self.popup.handle_input(key_event);
             }
 
             Focus::AnimeDetails => {

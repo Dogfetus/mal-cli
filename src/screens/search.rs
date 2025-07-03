@@ -11,11 +11,15 @@ use crate::{app::Action, screens::Screen, screens::screens::*};
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use ratatui::Frame;
+use ratatui::layout::Alignment;
 use ratatui::layout::Constraint;
 use ratatui::layout::Direction;
 use ratatui::layout::Layout;
 use ratatui::style;
+use ratatui::style::Color;
+use ratatui::style::Style;
 use ratatui::symbols;
+use ratatui::symbols::border;
 use ratatui::widgets::Block;
 use ratatui::widgets::Borders;
 use ratatui::widgets::Clear;
@@ -55,7 +59,7 @@ pub struct SearchScreen {
     filter_popup: SelectionPopup,
     search_input: Input,
 
-    searching: bool,
+    fetching: bool,
     bg_sender: Option<Sender<LocalEvent>>,
     bg_loaded: bool,
 }
@@ -84,27 +88,40 @@ impl SearchScreen {
                 .add_screen(LIST)
                 .add_screen(PROFILE),
             focus: Focus::Search,
-            animes: vec![
-                Anime::example(1),
-                Anime::example(2),
-                Anime::example(3),
-                Anime::example(4),
-                Anime::example(5),
-            ],
+            animes: Vec::new(),
             selected_index: 0,
-            searching: false,
+            fetching: false,
             bg_loaded: false,
             scroll_index: 0,
             bg_sender: None,
         }
     }
 
-
     fn reset(&mut self) {
         self.animes.clear();
         self.scroll_index = 0;
         self.selected_index = 0;
-        self.searching = false;
+        self.fetching = false;
+    }
+
+    fn int_length(&self, mut n: usize) -> usize {
+        if n == 0 {
+            return 1;
+        }
+        let mut len = 0;
+        while n > 0 {
+            n /= 10;
+            len += 1;
+        }
+        len
+    }
+
+    fn get_selected_anime(&self) -> Option<Anime> {
+        if self.selected_index < self.animes.len() {
+            Some(self.animes[self.selected_index].clone())
+        } else {
+            None
+        }
     }
 }
 
@@ -128,7 +145,7 @@ impl Screen for SearchScreen {
             .constraints([Constraint::Length(3), Constraint::Percentage(100)])
             .areas(area);
 
-        let [_, bottom_middle, _] = Layout::default()
+        let [result_area, bottom_middle, _] = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Percentage(20),
@@ -136,6 +153,34 @@ impl Screen for SearchScreen {
                 Constraint::Percentage(20),
             ])
             .areas(bottom);
+
+        if !self.animes.is_empty() {
+            let width = self.int_length(self.animes.len()) as u16 + 4;
+
+            let [_, result_area, _] = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Fill(1),
+                    Constraint::Length(width + 4),
+                    Constraint::Fill(1),
+                ])
+                .areas(result_area);
+
+            let [result_area, _] = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(3), Constraint::Fill(1)])
+                .areas(result_area);
+
+            let results = Paragraph::new(self.animes.len().to_string())
+                .alignment(Alignment::Center)
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_set(symbols::border::ROUNDED),
+                )
+                .style(Style::default().fg(Color::DarkGray));
+            frame.render_widget(results, result_area);
+        }
 
         let [search_area, _, anime_area] = Layout::default()
             .direction(Direction::Vertical)
@@ -165,12 +210,12 @@ impl Screen for SearchScreen {
                 Block::default()
                     .borders(Borders::ALL)
                     .title("Search")
-                    .border_set(symbols::border::ROUNDED),
+                    .border_set(border::ROUNDED),
             )
             .style(style::Style::default().fg(if self.focus == Focus::Search {
-                style::Color::Yellow
+                Color::Yellow
             } else {
-                style::Color::DarkGray
+                Color::DarkGray
             }));
         frame.render_widget(search_field, search_area);
 
@@ -221,6 +266,7 @@ impl Screen for SearchScreen {
                     }
                 } else {
                     if let Some(filter_type) = self.filter_popup.handle_input(key_event) {
+                        self.fetching = true;
                         if let Some(sender) = &self.bg_sender {
                             sender.send(LocalEvent::FilterSwitch(filter_type)).ok();
                         }
@@ -253,7 +299,7 @@ impl Screen for SearchScreen {
 
                 if let Some(text) = self.search_input.handle_event(key_event) {
                     if !text.is_empty() {
-                        self.searching = true;
+                        self.fetching = true;
                         if let Some(sender) = &self.bg_sender {
                             sender.send(LocalEvent::Search(text)).ok();
                         }
@@ -270,7 +316,14 @@ impl Screen for SearchScreen {
                         KeyCode::Char('j') | KeyCode::Up => self.focus = Focus::Search,
                         _ => {}
                     }
-                } else {
+                    self.popup.close();
+                } 
+
+                else {
+                    if self.popup.is_open() {
+                        return self.popup.handle_input(key_event);
+                    }
+
                     match key_event.code {
                         KeyCode::Char('k') | KeyCode::Down => {
                             if self.selected_index < self.animes.len() - 1 {
@@ -285,6 +338,12 @@ impl Screen for SearchScreen {
 
                             if self.selected_index < self.scroll_index {
                                 self.scroll_index = self.scroll_index.saturating_sub(1);
+                            }
+                        }
+                        KeyCode::Enter => {
+                            if let Some(anime) = self.get_selected_anime() {
+                                self.popup.set_anime(anime);
+                                self.popup.open();
                             }
                         }
                         _ => {}
@@ -369,7 +428,7 @@ impl Screen for SearchScreen {
 
     fn apply_update(&mut self, mut update: super::BackgroundUpdate) {
         if let Some(animes) = update.take::<Vec<Anime>>("animes") {
-            if self.searching{
+            if self.fetching {
                 self.reset();
             }
             self.animes.extend(animes);

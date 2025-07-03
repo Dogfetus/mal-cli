@@ -1,6 +1,5 @@
-use std::{collections::HashMap, fmt::{self, Display}};
+use std::fmt::{self};
 use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::Value;
 
 
 // season limit (first season ever) : year: 1917 season: winter
@@ -248,13 +247,23 @@ pub struct AnimeResponse {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AnimeNode {
     pub node: Anime,
-    pub ranking: Option<u64>
+    #[serde(default)]
+    pub ranking: Ranking
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Ranking {
     rank: u16,
     previous_rank: Option<u16>,
+}
+
+impl Default for Ranking {
+    fn default() -> Self {
+        Ranking {
+            rank: 0,
+            previous_rank: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
