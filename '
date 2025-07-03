@@ -69,7 +69,7 @@ impl SearchScreen {
     pub fn new() -> Self {
         Self {
             image_manager: Arc::new(Mutex::new(ImageManager::new())),
-            navigatable: Navigatable::new((3, 4)),
+            navigatable: Navigatable::new(),
             filter_popup: SelectionPopup::new()
                 .with_arrows(Arrows::Static)
                 .add_option("all")
@@ -193,38 +193,52 @@ impl Screen for SearchScreen {
             ])
             .areas(bottom_middle);
 
-        let [search_area, filter_area] = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(80), Constraint::Percentage(20)])
-            .areas(search_area);
-
-        let anime_areas = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Percentage(33),
-                Constraint::Percentage(33),
-                Constraint::Percentage(34),
-            ])
-            .split(anime_area);
-
-        let search_field = Paragraph::new(self.search_input.value())
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Search")
-                    .border_set(border::ROUNDED),
-            )
-            .style(style::Style::default().fg(if self.focus == Focus::Search {
-                Color::Yellow
-            } else {
-                Color::DarkGray
-            }));
-        frame.render_widget(search_field, search_area);
-
         self.navigatable
-            .construct(&self.animes, anime_area, |anime, area, highlight| {
-                LongAnimeBox::render(anime, &self.image_manager, frame, area, highlight);
-            });
+            .construct((2, 1), anime_area, &self.animes, self.focus == Focus::AnimeList);
+
+        // let [search_area, filter_area] = Layout::default()
+        //     .direction(Direction::Horizontal)
+        //     .constraints([Constraint::Percentage(80), Constraint::Percentage(20)])
+        //     .areas(search_area);
+        //
+        // let anime_areas = Layout::default()
+        //     .direction(Direction::Vertical)
+        //     .constraints([
+        //         Constraint::Percentage(33),
+        //         Constraint::Percentage(33),
+        //         Constraint::Percentage(34),
+        //     ])
+        //     .split(anime_area);
+        //
+        // let search_field = Paragraph::new(self.search_input.value())
+        //     .block(
+        //         Block::default()
+        //             .borders(Borders::ALL)
+        //             .title("Search")
+        //             .border_set(border::ROUNDED),
+        //     )
+        //     .style(style::Style::default().fg(if self.focus == Focus::Search {
+        //         Color::Yellow
+        //     } else {
+        //         Color::DarkGray
+        //     }));
+        // frame.render_widget(search_field, search_area);
+        //
+        // for (i, area) in anime_areas.iter().enumerate() {
+        //     if self.scroll_index + i >= self.animes.len() {
+        //         break;
+        //     }
+        //     let index = self.scroll_index + i;
+        //     let anime = &self.animes[index];
+        //     LongAnimeBox::render(
+        //         anime,
+        //         &self.image_manager,
+        //         frame,
+        //         *area,
+        //         self.focus == Focus::AnimeList && self.selected_index == index,
+        //     );
+        // }
+        //
         self.search_input
             .render_cursor(frame, search_area.x + 1, search_area.y + 1);
         self.filter_popup
@@ -308,23 +322,28 @@ impl Screen for SearchScreen {
                         _ => {}
                     }
                     self.popup.close();
-                } else {
+                } 
+
+                else {
                     if self.popup.is_open() {
                         return self.popup.handle_input(key_event);
                     }
 
                     match key_event.code {
                         KeyCode::Char('k') | KeyCode::Down => {
-                            self.navigatable.move_down(self.animes.len());
+                            if self.selected_index < self.animes.len() - 1 {
+                                self.selected_index += 1;
+                            }
+                            if self.selected_index >= self.scroll_index + 3 {
+                                self.scroll_index += 1;
+                            }
                         }
                         KeyCode::Char('j') | KeyCode::Up => {
-                            self.navigatable.move_up();
-                        }
-                        KeyCode::Char('l') | KeyCode::Right => {
-                            self.navigatable.move_right(self.animes.len());
-                        }
-                        KeyCode::Char('h') | KeyCode::Left => {
-                            self.navigatable.move_left();
+                            self.selected_index = self.selected_index.saturating_sub(1);
+
+                            if self.selected_index < self.scroll_index {
+                                self.scroll_index = self.scroll_index.saturating_sub(1);
+                            }
                         }
                         KeyCode::Enter => {
                             if let Some(anime) = self.get_selected_anime() {
