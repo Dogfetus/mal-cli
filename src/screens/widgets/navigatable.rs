@@ -93,6 +93,14 @@ impl Navigatable{
         grid
     }
 
+    pub fn get_selected_item<'a, T>(&'a self, items: &'a [T]) -> Option<&'a T> {
+        if items.is_empty() {
+            return None;
+        }
+        let index = self.selected.min(items.len() - 1);
+        items.get(index)
+    }
+
     pub fn construct<T, F>(&self, items: &[T], area: Rect, mut callback: F)
     where
         F: FnMut(&T, Rect, bool),

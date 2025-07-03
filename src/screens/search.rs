@@ -327,8 +327,8 @@ impl Screen for SearchScreen {
                             self.navigatable.move_left();
                         }
                         KeyCode::Enter => {
-                            if let Some(anime) = self.get_selected_anime() {
-                                self.popup.set_anime(anime);
+                            if let Some(anime) = self.navigatable.get_selected_item(&self.animes) {
+                                self.popup.set_anime(anime.clone());
                                 self.popup.open();
                             }
                         }
