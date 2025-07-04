@@ -17,6 +17,12 @@ impl Navigatable{
             scroll: 0,
         }
     }
+
+    pub fn back_to_start(&mut self) {
+        self.selected = 0;
+        self.scroll = 0;
+    }
+
     pub fn visable_elements(&self) -> usize {
         (self.rows * self.cols) as usize
     }
@@ -24,11 +30,11 @@ impl Navigatable{
     pub fn update_scroll(&mut self) {
         let visible_count = self.visable_elements();
         if self.selected < self.scroll {
-            self.scroll = self.selected.saturating_sub(self.cols as usize);
+            self.scroll = self.scroll.saturating_sub(self.cols as usize);
         } 
 
         else if self.selected >= (self.scroll + visible_count) {
-            self.scroll = self.selected.saturating_add(self.cols as usize); 
+            self.scroll = self.scroll.saturating_add(self.cols as usize); 
         }
     }
 

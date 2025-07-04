@@ -48,8 +48,6 @@ enum Focus {
 #[derive(Clone)]
 pub struct SearchScreen {
     animes: Vec<Anime>,
-    scroll_index: usize,
-    selected_index: usize,
     image_manager: Arc<Mutex<ImageManager>>,
 
     navbar: NavBar,
@@ -69,7 +67,7 @@ impl SearchScreen {
     pub fn new() -> Self {
         Self {
             image_manager: Arc::new(Mutex::new(ImageManager::new())),
-            navigatable: Navigatable::new((3, 4)),
+            navigatable: Navigatable::new((3, 2)),
             filter_popup: SelectionPopup::new()
                 .with_arrows(Arrows::Static)
                 .add_option("all")
@@ -91,18 +89,15 @@ impl SearchScreen {
                 .add_screen(PROFILE),
             focus: Focus::Search,
             animes: Vec::new(),
-            selected_index: 0,
             fetching: false,
             bg_loaded: false,
-            scroll_index: 0,
             bg_sender: None,
         }
     }
 
     fn reset(&mut self) {
+        self.navigatable.back_to_start();
         self.animes.clear();
-        self.scroll_index = 0;
-        self.selected_index = 0;
         self.fetching = false;
     }
 
@@ -116,14 +111,6 @@ impl SearchScreen {
             len += 1;
         }
         len
-    }
-
-    fn get_selected_anime(&self) -> Option<Anime> {
-        if self.selected_index < self.animes.len() {
-            Some(self.animes[self.selected_index].clone())
-        } else {
-            None
-        }
     }
 }
 
@@ -198,15 +185,6 @@ impl Screen for SearchScreen {
             .constraints([Constraint::Percentage(80), Constraint::Percentage(20)])
             .areas(search_area);
 
-        let anime_areas = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Percentage(33),
-                Constraint::Percentage(33),
-                Constraint::Percentage(34),
-            ])
-            .split(anime_area);
-
         let search_field = Paragraph::new(self.search_input.value())
             .block(
                 Block::default()
@@ -223,7 +201,7 @@ impl Screen for SearchScreen {
 
         self.navigatable
             .construct(&self.animes, anime_area, |anime, area, highlight| {
-                LongAnimeBox::render(anime, &self.image_manager, frame, area, highlight);
+                LongAnimeBox::render(anime, &self.image_manager, frame, area, highlight && self.focus == Focus::AnimeList);
             });
         self.search_input
             .render_cursor(frame, search_area.x + 1, search_area.y + 1);

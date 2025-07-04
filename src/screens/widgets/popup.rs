@@ -148,6 +148,17 @@ impl AnimePopup {
             frame,
             popup_area.inner(Margin::new(1, 1)),
         );
+
+        let area = popup_area.inner(Margin::new(1, 1));
+        let title = Paragraph::new(self.anime.alternative_titles.en.clone())
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_set(border::ROUNDED),
+            )
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(Color::White).add_modifier(style::Modifier::BOLD));
+        frame.render_widget(title, Rect::new(area.x, area.y, area.width, 3));
     }
 }
 

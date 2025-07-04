@@ -1,3 +1,4 @@
+use super::widgets::navigatable::Navigatable;
 use super::widgets::popup::SeasonPopup;
 use super::{
     BackgroundUpdate, Screen, screens::*, widgets::navbar::NavBar, widgets::popup::AnimePopup,
@@ -50,10 +51,6 @@ pub struct SeasonsScreen {
 
     detail_scroll_x: u16,
     detail_scroll_y: u16,
-    selected_anime: usize,
-    scroll_offset: u16,
-    x: u16,
-    y: u16,
 
     fetching: bool,
     bg_loaded: bool,
@@ -63,6 +60,7 @@ pub struct SeasonsScreen {
     season: String,
 
     image_manager: Arc<Mutex<ImageManager>>,
+    navigatable: Navigatable
 }
 
 impl SeasonsScreen {
@@ -84,10 +82,6 @@ impl SeasonsScreen {
 
             detail_scroll_x: 0,
             detail_scroll_y: 0,
-            selected_anime: 0,
-            scroll_offset: 0,
-            x: 0,
-            y: 0,
 
             fetching: false,
             bg_loaded: false,
@@ -97,14 +91,7 @@ impl SeasonsScreen {
             season,
 
             image_manager,
-        }
-    }
-
-    fn get_selected_anime(&self) -> Anime {
-        if let Some(anime) = self.animes.get(self.selected_anime) {
-            anime.clone()
-        } else {
-            Anime::empty()
+            navigatable: Navigatable::new((3, 3)),
         }
     }
 
@@ -134,7 +121,11 @@ impl SeasonsScreen {
 
 impl Screen for SeasonsScreen {
     fn draw(&self, frame: &mut Frame) {
-        let anime = self.get_selected_anime();
+        let mut anime = Anime::empty();
+        if let Some(selected_anime) = self.navigatable.get_selected_item(&self.animes) {
+            anime = selected_anime.clone();
+        }
+
         let area = frame.area();
         frame.render_widget(Clear, area);
 
@@ -265,16 +256,6 @@ impl Screen for SeasonsScreen {
          * │     │
          * ╰─────╯
          */
-        let [blb_top, blb_middle, blb_bottom] = Layout::default()
-            .direction(Direction::Vertical)
-            .horizontal_margin(1)
-            .constraints([
-                Constraint::Percentage(33),
-                Constraint::Percentage(33),
-                Constraint::Percentage(33),
-            ])
-            .areas(bl_bottom);
-
         if self.fetching && self.animes.len() < 9 {
             let [_, middle, _] = Layout::default()
                 .direction(Direction::Vertical)
@@ -283,37 +264,20 @@ impl Screen for SeasonsScreen {
                     Constraint::Length(1),
                     Constraint::Fill(1),
                 ])
-                .areas(blb_middle);
+                .areas(bl_bottom);
 
             let title = Paragraph::new("Loading...")
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(Color::Gray));
             frame.render_widget(title, middle);
-        } else {
-            for (row_nr, &column) in [blb_top, blb_middle, blb_bottom].iter().enumerate() {
-                let [left, middle, right] = Layout::default()
-                    .direction(Direction::Horizontal)
-                    .constraints([
-                        Constraint::Percentage(33),
-                        Constraint::Percentage(33),
-                        Constraint::Percentage(34),
-                    ])
-                    .areas(column);
-                for (column_nr, &area) in [left, middle, right].iter().enumerate() {
-                    let index = (3 * (row_nr + self.scroll_offset as usize)) + column_nr;
-                    let highlight = self.selected_anime == index && self.focus == Focus::AnimeList;
-
-                    // this is each anime box:
-                    let anime = if index < self.animes.len() {
-                        &self.animes[index]
-                    } else {
-                        &Anime::empty()
-                    };
-                    AnimeBox::render(anime, &self.image_manager, frame, area, highlight);
-                    // this is each anime box^
-                }
-            }
         }
+
+        else{
+            self.navigatable.construct(&self.animes, bl_bottom, |anime, area, highlight| {
+                AnimeBox::render(anime, &self.image_manager, frame, area, highlight && self.focus == Focus::AnimeList);
+            });
+        }
+
 
         /* render right side with anime data:
          * this part:
@@ -486,36 +450,20 @@ impl Screen for SeasonsScreen {
 
                     match key_event.code {
                         KeyCode::Up | KeyCode::Char('j') => {
-                            self.y = self.y.saturating_sub(1);
+                            self.navigatable.move_up();
                         }
                         KeyCode::Down | KeyCode::Char('k') => {
-                            if self.y < self.animes.len() as u16 / 3 {
-                                self.y += 1;
-                            }
+                            self.navigatable.move_down(self.animes.len());
                         }
                         KeyCode::Left | KeyCode::Char('h') => {
-                            if self.x == 0 {
-                                if self.y != 0 {
-                                    self.y = self.y.saturating_sub(1);
-                                    self.x = 2;
-                                }
-                            } else {
-                                self.x = self.x.saturating_sub(1);
-                            }
+                            self.navigatable.move_left();
                         }
                         KeyCode::Right | KeyCode::Char('l') => {
-                            if self.x == 2 {
-                                if self.y < self.animes.len() as u16 / 3 {
-                                    self.y += 1;
-                                    self.x = 0;
-                                }
-                            } else {
-                                self.x += 1;
-                            }
+                            self.navigatable.move_right(self.animes.len());
                         }
                         KeyCode::Enter | KeyCode::Char(' ') => {
-                            if self.selected_anime < self.animes.len() {
-                                self.popup.set_anime(self.get_selected_anime());
+                            if let Some(anime) = self.navigatable.get_selected_item(&self.animes) {
+                                self.popup.set_anime(anime.clone());
                                 self.popup.toggle();
                                 return None;
                             }
@@ -526,18 +474,6 @@ impl Screen for SeasonsScreen {
                     self.detail_scroll_y = 0;
                     self.detail_scroll_x = 0;
                 }
-
-                // Handle scrolling
-                match self.y as i16 - self.scroll_offset as i16 {
-                    3 => {
-                        self.scroll_offset += 1;
-                    }
-                    -1 => {
-                        self.scroll_offset = self.scroll_offset.saturating_sub(1);
-                    }
-                    _ => {}
-                }
-                self.selected_anime = ((self.y * 3) + self.x) as usize;
             }
 
             Focus::AnimeDetails => {
