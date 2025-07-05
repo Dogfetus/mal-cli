@@ -1,12 +1,9 @@
 use std::fmt::{self};
+use super::na;
 use serde::{Deserialize, Deserializer, Serialize};
 
 
 // season limit (first season ever) : year: 1917 season: winter
-
-fn na() -> String{
-    "N/A".to_string()
-}
 
 fn status<'de, D>(deserializer: D) -> Result<String, D::Error>
 where

@@ -26,6 +26,7 @@ enum Focus {
 pub struct ProfileScreen {
     navbar: NavBar,
     focus: Focus,
+
 }
 impl ProfileScreen {
     pub fn new() -> Self {
