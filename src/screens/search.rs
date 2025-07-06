@@ -201,7 +201,13 @@ impl Screen for SearchScreen {
 
         self.navigatable
             .construct(&self.animes, anime_area, |anime, area, highlight| {
-                LongAnimeBox::render(anime, &self.image_manager, frame, area, highlight && self.focus == Focus::AnimeList);
+                LongAnimeBox::render(
+                    anime,
+                    &self.image_manager,
+                    frame,
+                    area,
+                    highlight && self.focus == Focus::AnimeList,
+                );
             });
         self.search_input
             .render_cursor(frame, search_area.x + 1, search_area.y + 1);
@@ -234,8 +240,11 @@ impl Screen for SearchScreen {
                         _ => {}
                     }
                 } else {
-                    if let Some(filter_type) = self.filter_popup.handle_input(key_event) {
+                    if let Some(mut filter_type) = self.filter_popup.handle_input(key_event) {
                         self.fetching = true;
+                        if filter_type == "popularity" {
+                            filter_type = "bypopularity".to_string();
+                        }
                         if let Some(sender) = &self.bg_sender {
                             sender.send(LocalEvent::FilterSwitch(filter_type)).ok();
                         }

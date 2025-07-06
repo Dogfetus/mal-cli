@@ -144,7 +144,7 @@ impl AnimePopup {
         }
         ImageManager::render_image(
             image_manager,
-            self.anime.id,
+            &self.anime,
             frame,
             popup_area.inner(Margin::new(1, 1)),
         );

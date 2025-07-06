@@ -3,15 +3,17 @@ pub mod network;
 mod oauth;
 
 use crate::params;
+use crate::mal::network::Fetchable;
 use chrono::{Datelike, Local};
 use models::anime::{Anime, fields};
-use network::fetch_anime;
+use models::user::User;
 use std::sync::{Arc, RwLock};
 use std::{fs, thread::JoinHandle};
 
 const BASE_URL: &str = "https://api.myanimelist.net/v2";
 
 //TODO: encrypt the tokens somehow???
+
 
 #[derive(Debug, Clone)]
 pub struct Identity {
@@ -119,7 +121,7 @@ impl MalClient {
         offset: u16,
         limit: u16,
     ) -> Option<Vec<Anime>> {
-        self.send_request(
+        self.send_request::<Anime>(
             format!(
                 "{}/anime/season/{}/{}",
                 BASE_URL,
@@ -136,7 +138,7 @@ impl MalClient {
     }
 
     pub fn get_top_anime(&self, filter: String, offset: u16, limit: u16) -> Option<Vec<Anime>> {
-        self.send_request(
+        self.send_request::<Anime>(
             format!("{}/anime/ranking", BASE_URL),
             params![
             "ranking_type" => filter,
@@ -148,7 +150,7 @@ impl MalClient {
     }
 
     pub fn search_anime(&self, query: String, offset: u16, limit: u16) -> Option<Vec<Anime>> {
-        self.send_request(
+        self.send_request::<Anime>(
             format!("{}/anime", BASE_URL),
             params![
                 "q" => query,
@@ -159,21 +161,33 @@ impl MalClient {
         )
     }
 
-    fn send_request(&self, url: String, parameters: Vec<(String, String)>) -> Option<Vec<Anime>> {
+    pub fn get_user(&self) -> Option<User> {
+        self.send_request::<User>(
+            format!("{}/users/@me", BASE_URL),
+            params![
+                "fields" => "anime_statistics",
+            ],
+        )
+    }
+
+    fn send_request<T>(&self, url: String, parameters: Vec<(String, String)>) -> Option<T::Output>
+    where
+        T: Fetchable,
+    {
         let token = self.identity.read().unwrap().access_token.clone();
         if token.is_none() {
             eprintln!("User is not logged in. Cannot send request.");
             return None;
         }
 
-        let anime_response = fetch_anime(token.unwrap(), url, parameters);
-        let response = match anime_response {
+        let response = T::fetch(token.unwrap(), url, parameters);
+        let response = match response {
             Ok(response) => response,
             Err(e) => {
                 eprintln!("Error fetching top anime: {}", e);
                 return None;
             }
         };
-        Some(Anime::from_response(response))
+        Some(T::from_response(response))
     }
 }

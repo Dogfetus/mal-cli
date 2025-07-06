@@ -94,7 +94,7 @@ impl AnimeBox {
             .areas(info_area);
 
         let image_area = image_area.inner(Margin::new(1, 1));
-        ImageManager::render_image(&image_manager, anime.id, frame, image_area);
+        ImageManager::render_image(&image_manager, anime, frame, image_area);
 
         let info_text = "Score:\nType:\nEpisodes:\nStatus:\nAired:";
 
@@ -229,7 +229,7 @@ impl LongAnimeBox {
             .areas(info_area);
 
         let image_area = image_area.inner(Margin::new(1, 1));
-        ImageManager::render_image(&image_manager, anime.id, frame, image_area);
+        ImageManager::render_image(&image_manager, anime, frame, image_area);
 
         let info_text = "Score:\nType:\nEpisodes:\nStatus:\nAired:";
 

@@ -1,5 +1,7 @@
-use super::models::anime::AnimeResponse;
+use super::models::anime::{Anime, AnimeResponse};
+use super::models::user::User;
 use cached::proc_macro::cached;
+use std::fmt::Debug;
 use std::io::Read;
 use ureq;
 use ureq::Error;
@@ -35,13 +37,21 @@ pub fn fetch_anime(
     send_request::<AnimeResponse>(token, url, parameters)
 }
 
+pub fn fetch_user(
+    token: String,
+    url: String,
+    parameters: Vec<(String, String)>,
+) -> Result<User, Box<dyn std::error::Error>> {
+    send_request::<User>(token, url, parameters)
+}
+
 pub fn send_request<T>(
     token: String,
     url: String,
     parameters: Vec<(String, String)>,
 ) -> Result<T, Box<dyn std::error::Error>>
 where
-    T: serde::de::DeserializeOwned,
+    T: serde::de::DeserializeOwned + Debug
 {
     if token.is_empty() {
         return Err("Access token is not set".into());
@@ -56,4 +66,17 @@ where
     let response = request.call()?.body_mut().read_json::<T>()?;
 
     Ok(response)
+}
+
+pub trait Fetchable: Sized {
+    type Response;
+    type Output;
+
+    fn fetch(
+        token: String,
+        url: String,
+        parameters: Vec<(String, String)>,
+    ) -> Result<Self::Response, Box<dyn std::error::Error>>;
+
+    fn from_response(response: Self::Response) -> Self::Output;
 }

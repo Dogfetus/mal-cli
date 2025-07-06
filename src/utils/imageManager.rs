@@ -65,6 +65,15 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+pub trait HasDisplayableImage {
+    fn get_displayable_image(&self) -> Option<(usize, String)>;
+}
+
+struct FetchRequest {
+    id: usize,
+    url: String,
+}
+
 /// Manages anime cover image downloading, resizing, and rendering for terminal applications.
 ///
 /// The ImageManager provides two threading models for image processing:
@@ -82,7 +91,7 @@ pub struct ImageManager {
     id: Option<String>,
     /// Optional sender for custom resize requests (single-thread mode)
     image_tx: Option<Sender<CustomResizeRequest>>,
-    fetcher_tx: Option<Sender<Anime>>,
+    fetcher_tx: Option<Sender<FetchRequest>>,
 }
 
 impl ImageManager {
@@ -110,7 +119,6 @@ impl ImageManager {
         let mut self_lock = instance.lock().unwrap();
         self_lock.protocols.clear();
     }
-
 
     /// Initializes the ImageManager for per-image threading mode.
     ///
@@ -186,7 +194,7 @@ impl ImageManager {
             self_lock.app_sx = Some(app_sx.clone());
             self_lock.id = Some(id.clone());
         }
-        let (fetcher_tx, fetcher_rx) = channel::<Anime>();
+        let (fetcher_tx, fetcher_rx) = channel::<FetchRequest>();
         let (image_tx, image_rx) = channel::<CustomResizeRequest>();
 
         {
@@ -200,9 +208,9 @@ impl ImageManager {
         let app_sx = app_sx.clone();
 
         std::thread::spawn(move || {
-            while let Ok(anime) = fetcher_rx.recv() {
-                let anime_id = anime.id;
-                if let Ok(dyn_img) = fetch_image(anime.main_picture.medium) {
+            while let Ok(req) = fetcher_rx.recv() {
+                let anime_id = req.id;
+                if let Ok(dyn_img) = fetch_image(req.url) {
                     let picker = get_picker();
                     let protocol = picker.new_resize_protocol(dyn_img);
                     let thread_protocol =
@@ -391,27 +399,31 @@ impl ImageManager {
         }
     }
 
-    pub fn fetch_image_sequential(
-        instance: &Arc<Mutex<Self>>,
-        anime: &Anime,
-    ) {
+    pub fn fetch_image_sequential<T: HasDisplayableImage>(instance: &Arc<Mutex<Self>>, item: &T) {
         {
             let mut instance = instance.lock().unwrap();
+            let (id, url) = match item.get_displayable_image() {
+                Some((id, url)) => (id, url),
+                None => {
+                    eprintln!("Item does not have a displayable image");
+                    return;
+                }
+            };
+
             if instance.app_sx.is_none()
                 || instance.id.is_none()
-                || instance.protocols.contains_key(&anime.id)
+                || instance.protocols.contains_key(&id)
             {
                 return;
             }
 
             if let Some(sender) = instance.fetcher_tx.clone() {
-                if let Err(e) = sender.send(anime.clone()) {
+                if let Err(e) = sender.send(FetchRequest { id, url }) {
                     eprintln!("Failed to send anime to fetcher thread: {}", e);
                 }
             } else {
                 eprintln!("Fetcher thread is not initialized");
             }
-
         }
     }
 
@@ -492,12 +504,20 @@ impl ImageManager {
     ///     image_manager.render_image(anime_id, frame, image_area);
     /// }
     /// ```
-    pub fn render_image(
+    pub fn render_image<T: HasDisplayableImage>(
         instance: &Arc<Mutex<Self>>,
-        id: usize,
+        item: &T,
         frame: &mut ratatui::Frame,
         area: Rect,
     ) {
+        let (id, _) = match item.get_displayable_image() {
+            Some((id, _)) => (id, ()),
+            None => {
+                eprintln!("Item does not have a displayable image");
+                return;
+            }
+        };
+
         if let Ok(mut self_lock) = instance.try_lock() {
             if let Some(protocol) = self_lock.protocols.get_mut(&id) {
                 frame.render_stateful_widget(StatefulImage::new(), area, protocol);
