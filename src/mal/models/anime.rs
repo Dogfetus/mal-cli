@@ -271,6 +271,12 @@ impl Anime {
     }
 }
 
+impl Default for Anime {
+    fn default() -> Self {
+        Anime::empty()
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Page {
     #[serde(default = "na")]
@@ -287,9 +293,11 @@ pub struct AnimeResponse {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AnimeNode {
+    #[serde(default)]
     pub node: Anime,
     #[serde(default)]
     pub ranking: Ranking,
+    pub list_status: Option<MyListStatus>, 
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -512,9 +520,6 @@ impl Fetchable for Anime {
 
 impl HasDisplayableImage for Anime {
     fn get_displayable_image(&self) -> Option<(usize, String)> {
-        if self.main_picture.large.is_empty() {
-            return None;
-        }
         Some((self.id, self.main_picture.medium.clone()))
     }
 }

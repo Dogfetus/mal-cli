@@ -36,7 +36,7 @@ impl SettingsScreen {
 }
 
 impl Screen for SettingsScreen {
-    fn draw(&self, frame: &mut Frame) {
+    fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
 
         frame.render_widget(Clear, area);

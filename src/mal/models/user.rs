@@ -124,9 +124,6 @@ impl Fetchable for User {
 
 impl HasDisplayableImage for User {
     fn get_displayable_image(&self) -> Option<(usize, String)> {
-        if self.picture.is_empty() {
-            return None;
-        }
         Some((self.id, self.picture.clone()))
     }
 }

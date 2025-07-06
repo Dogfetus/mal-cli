@@ -120,7 +120,7 @@ pub struct BackgroundInfo {
 
 #[allow(dead_code, unused_variables)]
 pub trait Screen: Send{
-    fn draw(&self, frame: &mut Frame);
+    fn draw(&mut self, frame: &mut Frame);
     fn handle_input(&mut self, key_event: crossterm::event::KeyEvent) -> Option<Action> {None}
     fn get_name(&self) -> String {
         let name = std::any::type_name::<Self>();
@@ -168,7 +168,7 @@ impl ScreenManager {
         }
     }
 
-    pub fn render_screen(&self, frame: &mut Frame) {
+    pub fn render_screen(&mut self, frame: &mut Frame) {
         self.current_screen.draw(frame);
     }
 

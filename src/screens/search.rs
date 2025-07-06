@@ -115,7 +115,7 @@ impl SearchScreen {
 }
 
 impl Screen for SearchScreen {
-    fn draw(&self, frame: &mut Frame) {
+    fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
         frame.render_widget(Clear, area);
 
@@ -302,13 +302,13 @@ impl Screen for SearchScreen {
 
                     match key_event.code {
                         KeyCode::Char('k') | KeyCode::Down => {
-                            self.navigatable.move_down(self.animes.len());
+                            self.navigatable.move_down();
                         }
                         KeyCode::Char('j') | KeyCode::Up => {
                             self.navigatable.move_up();
                         }
                         KeyCode::Char('l') | KeyCode::Right => {
-                            self.navigatable.move_right(self.animes.len());
+                            self.navigatable.move_right();
                         }
                         KeyCode::Char('h') | KeyCode::Left => {
                             self.navigatable.move_left();

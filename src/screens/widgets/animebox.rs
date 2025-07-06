@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use color_eyre::owo_colors::colors::css::DarkGray;
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
@@ -42,7 +43,13 @@ impl AnimeBox {
             if anime.my_list_status.status.is_empty() {
                 Color::DarkGray
             } else {
-                Color::Green
+                match anime.my_list_status.status.as_str() {
+                    "watching" | "rewatching" => Color::Blue,
+                    "completed" => Color::Green,
+                    "on hold" => Color::Magenta,
+                    "dropped" => Color::Red,
+                    _ => Color::DarkGray
+                }
             }
         };
 
@@ -177,7 +184,13 @@ impl LongAnimeBox {
             if anime.my_list_status.status.is_empty() {
                 Color::DarkGray
             } else {
-                Color::Green
+                match anime.my_list_status.status.as_str() {
+                    "watching" | "rewatching" => Color::Blue,
+                    "completed" => Color::Green,
+                    "on hold" => Color::Magenta,
+                    "dropped" => Color::Red,
+                    _ => Color::DarkGray
+                }
             }
         };
 

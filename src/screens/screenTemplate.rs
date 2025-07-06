@@ -36,7 +36,7 @@ impl TempScreen {
 impl Screen for TempScreen {
 
     // draws the screen
-    fn draw(&self, frame: &mut Frame) {
+    fn draw(&mut self, frame: &mut Frame) {
         todo!("Draw ListScreen");
         // code here to draw
         // ...

@@ -2,8 +2,8 @@ pub mod models;
 pub mod network;
 mod oauth;
 
-use crate::params;
 use crate::mal::network::Fetchable;
+use crate::params;
 use chrono::{Datelike, Local};
 use models::anime::{Anime, fields};
 use models::user::User;
@@ -13,7 +13,6 @@ use std::{fs, thread::JoinHandle};
 const BASE_URL: &str = "https://api.myanimelist.net/v2";
 
 //TODO: encrypt the tokens somehow???
-
 
 #[derive(Debug, Clone)]
 pub struct Identity {
@@ -130,9 +129,9 @@ impl MalClient {
             ),
             params![
                "fields" => fields::ALL.join(","),
-                "limit" => limit.to_string(),
-                "offset" => offset.to_string(),
-                "sort" => "anime_num_list_users".to_string(),
+                "limit" => limit,
+                "offset" => offset,
+                "sort" => "anime_num_list_users",
             ],
         )
     }
@@ -143,8 +142,8 @@ impl MalClient {
             params![
             "ranking_type" => filter,
             "fields" => fields::ALL.join(","),
-            "limit" => limit.to_string(),
-            "offset" => offset.to_string(),
+            "limit" => limit,
+            "offset" => offset,
             ],
         )
     }
@@ -155,8 +154,8 @@ impl MalClient {
             params![
                 "q" => query,
                 "fields" => fields::ALL.join(","),
-                "limit" => limit.to_string(),
-                "offset" => offset.to_string(),
+                "limit" => limit,
+                "offset" => offset,
             ],
         )
     }
@@ -167,6 +166,39 @@ impl MalClient {
             params![
                 "fields" => "anime_statistics",
             ],
+        )
+    }
+
+    pub fn get_anime_list(
+        &self,
+        status: Option<String>,
+        offset: u16,
+        limit: u16,
+    ) -> Option<Vec<Anime>> {
+        self.get_anime_list_by_user("@me".to_string(), status, offset, limit)
+    }
+
+    pub fn get_anime_list_by_user(
+        &self,
+        username: String,
+        status: Option<String>,
+        offset: u16,
+        limit: u16,
+    ) -> Option<Vec<Anime>> {
+        let mut parameters = params![
+            "fields" => fields::ALL.join(","),
+            "limit" => limit,
+            "offset" => offset,
+            "sort" => "list_updated_at",
+        ];
+
+        if let Some(status) = status {
+            parameters.push(("status".to_string(), status));
+        }
+
+        self.send_request::<Anime>(
+            format!("{}/users/{}/animelist", BASE_URL, username),
+            parameters,
         )
     }
 

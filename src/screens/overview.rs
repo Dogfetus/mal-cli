@@ -61,7 +61,7 @@ impl OverviewScreen {
 }
 
 impl Screen for OverviewScreen {
-    fn draw(&self, frame: &mut Frame) {
+    fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
         frame.render_widget(Clear, area);
 

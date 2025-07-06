@@ -12,7 +12,7 @@ use crate::{
     utils::stringManipulation::DisplayString,
 };
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::layout::{Alignment, Margin};
+use ratatui::layout::{Alignment, Margin, Rect};
 use ratatui::widgets::{Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};
 use ratatui::{
     Frame,
@@ -120,7 +120,7 @@ impl SeasonsScreen {
 }
 
 impl Screen for SeasonsScreen {
-    fn draw(&self, frame: &mut Frame) {
+    fn draw(&mut self, frame: &mut Frame) {
         let mut anime = Anime::empty();
         if let Some(selected_anime) = self.navigatable.get_selected_item(&self.animes) {
             anime = selected_anime.clone();
@@ -269,11 +269,20 @@ impl Screen for SeasonsScreen {
             let title = Paragraph::new("Loading...")
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(Color::Gray));
-            frame.render_widget(title, middle);
+            frame.render_widget(title, middle.inner(Margin {
+                vertical: 1,
+                horizontal: 0,
+            }));
         }
 
         else{
-            self.navigatable.construct(&self.animes, bl_bottom, |anime, area, highlight| {
+            let area = Rect::new(
+                bl_bottom.x + 1,
+                bl_bottom.y,
+                bl_bottom.width,
+                bl_bottom.height,
+            );
+            self.navigatable.construct(&self.animes, area, |anime, area, highlight| {
                 AnimeBox::render(anime, &self.image_manager, frame, area, highlight && self.focus == Focus::AnimeList);
             });
         }
@@ -453,13 +462,13 @@ impl Screen for SeasonsScreen {
                             self.navigatable.move_up();
                         }
                         KeyCode::Down | KeyCode::Char('k') => {
-                            self.navigatable.move_down(self.animes.len());
+                            self.navigatable.move_down();
                         }
                         KeyCode::Left | KeyCode::Char('h') => {
                             self.navigatable.move_left();
                         }
                         KeyCode::Right | KeyCode::Char('l') => {
-                            self.navigatable.move_right(self.animes.len());
+                            self.navigatable.move_right();
                         }
                         KeyCode::Enter | KeyCode::Char(' ') => {
                             if let Some(anime) = self.navigatable.get_selected_item(&self.animes) {

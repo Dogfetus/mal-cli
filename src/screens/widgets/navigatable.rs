@@ -4,6 +4,8 @@ pub struct Navigatable {
     rows: u16,
     cols: u16,
 
+    total_items: usize,
+
     selected: usize,
     scroll: usize,
 }
@@ -11,6 +13,7 @@ pub struct Navigatable {
 impl Navigatable{
     pub fn new(size: (u16, u16)) -> Self {
         Self {
+            total_items: 0,
             rows: size.0,
             cols: size.1,
             selected: 0,
@@ -53,27 +56,27 @@ impl Navigatable{
         self.update_scroll();
     }
 
-    pub fn move_down(&mut self, total_items: usize) {
-        if (self.selected + self.cols as usize) < total_items.saturating_sub(1) {
+    pub fn move_down(&mut self) {
+        if (self.selected + self.cols as usize) < self.total_items.saturating_sub(1) {
             self.selected = self.selected.saturating_add(self.cols as usize);
         }
         else {
-            self.selected = total_items.saturating_sub(1);
+            self.selected = self.total_items.saturating_sub(1);
         }
         self.update_scroll();
     }
 
-    pub fn move_right(&mut self, total_items: usize) {
-        if self.selected < total_items.saturating_sub(1) {
+    pub fn move_right(&mut self) {
+        if self.selected < self.total_items.saturating_sub(1) {
             self.selected = self.selected.saturating_add(1);
         }
         self.update_scroll();
     }
 
-    pub fn visible_indices(&self, total_items: usize) -> impl Iterator<Item = usize> {
+    pub fn visible_indices(&self) -> impl Iterator<Item = usize> {
         let visible_count = self.visable_elements();
         let start = self.scroll;
-        let end = (start + visible_count).min(total_items);
+        let end = (start + visible_count).min(self.total_items);
         start..end
     }
 
@@ -107,7 +110,7 @@ impl Navigatable{
         items.get(index)
     }
 
-    pub fn construct<T, F>(&self, items: &[T], area: Rect, mut callback: F)
+    pub fn construct<T, F>(&mut self, items: &[T], area: Rect, mut callback: F)
     where
         F: FnMut(&T, Rect, bool),
     {
@@ -115,8 +118,10 @@ impl Navigatable{
             return;
         }
 
+        self.total_items = items.len();
+
         let grid = self.create_grid(area);
-        let visible_items = self.visible_indices(items.len()).enumerate();
+        let visible_items = self.visible_indices().enumerate();
         for (visible_idx, absolute_idx) in visible_items {
             let row = visible_idx / self.cols as usize;
             let col = visible_idx % self.cols as usize;

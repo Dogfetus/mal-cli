@@ -55,7 +55,7 @@ impl ProfileScreen {
 }
 
 impl Screen for ProfileScreen {
-    fn draw(&self, frame: &mut Frame) {
+    fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
         frame.render_widget(widgets::Clear, area);
 

@@ -29,7 +29,7 @@ impl InfoScreen {
 
 impl Screen for InfoScreen {
 
-    fn draw(&self, frame: &mut Frame) {
+    fn draw(&mut self, frame: &mut Frame) {
         let size = frame.area();
         let block = widgets::Block::default()
             .title("Info page:")
