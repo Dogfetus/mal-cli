@@ -73,18 +73,33 @@ impl Navigatable{
         self.update_scroll();
     }
 
-    pub fn visible_indices(&self) -> impl Iterator<Item = usize> {
+    pub fn visible_indices(&self) -> std::ops::Range<usize> {
         let visible_count = self.visable_elements();
         let start = self.scroll;
         let end = (start + visible_count).min(self.total_items);
         start..end
     }
 
+
+    fn create_balanced_constraints(&self, count: u16) -> Vec<Constraint> {
+        let base_percentage = 100 / count;
+        let remainder = 100 % count;
+        let mut constraints = Vec::new();
+        for i in 0..count {
+            let percentage = if i == count - 1 {
+                // Give the remainder to the last constraint
+                base_percentage + remainder
+            } else {
+                base_percentage
+            };
+            constraints.push(Constraint::Percentage(percentage));
+        }
+        constraints
+    }
+
     fn create_grid(&self, area: Rect) -> Vec<Vec<Rect>> {
-        let row_constraints: Vec<Constraint> =
-            vec![Constraint::Percentage(100 / self.rows); self.rows as usize];
-        let col_constraints: Vec<Constraint> =
-            vec![Constraint::Percentage(100 / self.cols); self.cols as usize];
+        let row_constraints = self.create_balanced_constraints(self.rows);
+        let col_constraints = self.create_balanced_constraints(self.cols);
 
         let rows = Layout::default()
             .direction(Direction::Vertical)
@@ -110,6 +125,18 @@ impl Navigatable{
         items.get(index)
     }
 
+    pub fn get_selected_item_mut<'a, T>(&'a mut self, items: &'a mut [T]) -> Option<&'a mut T> {
+        if items.is_empty() {
+            return None;
+        }
+        let index = self.selected.min(items.len() - 1);
+        items.get_mut(index)
+    }
+
+    pub fn get_selected_index(&self) -> usize {
+        self.selected
+    }
+
     pub fn construct<T, F>(&mut self, items: &[T], area: Rect, mut callback: F)
     where
         F: FnMut(&T, Rect, bool),
@@ -121,7 +148,7 @@ impl Navigatable{
         self.total_items = items.len();
 
         let grid = self.create_grid(area);
-        let visible_items = self.visible_indices().enumerate();
+        let visible_items = self.visible_indices().enumerate().rev();
         for (visible_idx, absolute_idx) in visible_items {
             let row = visible_idx / self.cols as usize;
             let col = visible_idx % self.cols as usize;

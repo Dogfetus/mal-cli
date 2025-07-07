@@ -13,15 +13,16 @@ use super::screens::*;
 use super::widgets::navbar::NavBar;
 
 use crossterm::event::KeyEvent;
-use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 use ratatui::layout::Constraint;
 use ratatui::layout::Direction;
 use ratatui::layout::Layout;
+use ratatui::layout::Margin;
 use ratatui::style;
 use ratatui::widgets;
 use ratatui::widgets::Block;
 use ratatui::widgets::Borders;
+use ratatui::widgets::Paragraph;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Focus {
@@ -92,7 +93,12 @@ impl Screen for ProfileScreen {
         frame.render_widget(block.clone(), right);
         frame.render_widget(block.clone(), info);
         frame.render_widget(block, buttons);
-        ImageManager::render_image(&self.image_manager, &self.user, frame, pfp);
+        ImageManager::render_image(
+            &self.image_manager,
+            &self.user,
+            frame,
+            pfp.inner(Margin::new(1, 1)),
+        );
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
@@ -125,13 +131,16 @@ impl Screen for ProfileScreen {
 
         let image_manager = self.image_manager.clone();
         let id = self.get_name();
-        ImageManager::init_with_dedicated_thread(&self.image_manager, info.app_sx.clone(), id.clone());
+        ImageManager::init_with_dedicated_thread(
+            &self.image_manager,
+            info.app_sx.clone(),
+            id.clone(),
+        );
 
         Some(std::thread::spawn(move || {
             if let Some(user) = info.mal_client.get_user() {
                 ImageManager::fetch_image_sequential(&image_manager, &user);
-                let update = BackgroundUpdate::new(id)
-                    .set("user", user);
+                let update = BackgroundUpdate::new(id).set("user", user);
                 info.app_sx.send(Event::BackgroundNotice(update)).unwrap();
                 return;
             }

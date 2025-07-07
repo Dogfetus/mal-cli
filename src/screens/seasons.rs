@@ -256,7 +256,7 @@ impl Screen for SeasonsScreen {
          * │     │
          * ╰─────╯
          */
-        if self.fetching && self.animes.len() < 9 {
+        if self.animes.is_empty() && self.fetching {
             let [_, middle, _] = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([
@@ -270,8 +270,8 @@ impl Screen for SeasonsScreen {
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(Color::Gray));
             frame.render_widget(title, middle.inner(Margin {
-                vertical: 1,
-                horizontal: 0,
+                vertical: 0,
+                horizontal: 1,
             }));
         }
 
@@ -279,8 +279,8 @@ impl Screen for SeasonsScreen {
             let area = Rect::new(
                 bl_bottom.x + 1,
                 bl_bottom.y,
-                bl_bottom.width,
-                bl_bottom.height,
+                bl_bottom.width.saturating_sub(2),
+                bl_bottom.height.saturating_sub(1),
             );
             self.navigatable.construct(&self.animes, area, |anime, area, highlight| {
                 AnimeBox::render(anime, &self.image_manager, frame, area, highlight && self.focus == Focus::AnimeList);
@@ -623,12 +623,12 @@ impl Screen for SeasonsScreen {
         }))
     }
 
-    fn apply_update(&mut self, update: BackgroundUpdate) {
-        if let Some(animes) = update.get::<Vec<Anime>>("animes") {
-            self.animes.extend(animes.iter().cloned());
+    fn apply_update(&mut self, mut update: BackgroundUpdate) {
+        if let Some(animes) = update.take::<Vec<Anime>>("animes") {
+            self.animes.extend(animes);
         }
-        if let Some(fetching) = update.get::<bool>("fetching") {
-            self.fetching = *fetching;
+        if let Some(fetching) = update.take::<bool>("fetching") {
+            self.fetching = fetching;
         }
     }
 

@@ -275,7 +275,7 @@ impl Screen for SearchScreen {
                     }
                 }
 
-                if let Some(text) = self.search_input.handle_event(key_event) {
+                if let Some(text) = self.search_input.handle_event(key_event, false) {
                     if !text.is_empty() {
                         self.fetching = true;
                         if let Some(sender) = &self.bg_sender {

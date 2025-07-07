@@ -159,6 +159,33 @@ impl AnimePopup {
             .alignment(Alignment::Center)
             .style(Style::default().fg(Color::White).add_modifier(style::Modifier::BOLD));
         frame.render_widget(title, Rect::new(area.x, area.y, area.width, 3));
+
+        let normal_tritle = Paragraph::new(self.anime.title.clone())
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_set(border::ROUNDED),
+            )
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(Color::White));
+        frame.render_widget(
+            normal_tritle,
+            Rect::new(area.x, area.y + 3, area.width, 3),
+        );
+
+
+        let alternative_titles = Paragraph::new(self.anime.alternative_titles.ja.clone())
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_set(border::ROUNDED),
+            )
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(Color::White));
+        frame.render_widget(
+            alternative_titles,
+            Rect::new(area.x, area.y + 6, area.width, 3),
+        );
     }
 }
 
@@ -519,6 +546,10 @@ impl SelectionPopup {
     pub fn close(&mut self) -> &Self {
         self.is_open = false;
         self
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.is_open
     }
 
     pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<String> {

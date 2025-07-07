@@ -215,7 +215,7 @@ impl Anime {
                 medium: "https://cdn.myanimelist.net/images/anime/1526/148873.jpg".to_string(),
             },
             alternative_titles: AlternativeTitles {
-                synonyms: Some(vec!["Synonym 1".to_string(), "Synonym 2".to_string()]),
+                synonyms: vec!["Synonym 1".to_string(), "Synonym 2".to_string()],
                 en: format!("Example Anime EN {}", id),
                 ja: format!("Example Anime JA {}", id),
             },
@@ -334,7 +334,8 @@ impl Default for Pictures {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AlternativeTitles {
-    pub synonyms: Option<Vec<String>>,
+    #[serde(default)]
+    pub synonyms: Vec<String>,
     #[serde(default = "na")]
     pub en: String,
     #[serde(default = "na")]
@@ -344,7 +345,7 @@ pub struct AlternativeTitles {
 impl Default for AlternativeTitles {
     fn default() -> Self {
         AlternativeTitles {
-            synonyms: None,
+            synonyms: Vec::new(),
             en: String::new(),
             ja: String::new(),
         }

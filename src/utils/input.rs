@@ -46,7 +46,7 @@ impl Input {
         frame.set_cursor_position(Position::new(u16::MAX, u16::MAX));
     }
 
-    pub fn handle_event(&mut self, event: KeyEvent) -> Option<String> {
+    pub fn handle_event(&mut self, event: KeyEvent, return_by_keypress: bool) -> Option<String> {
         if event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
             match event.code {
                 KeyCode::Char('h') => {
@@ -80,46 +80,53 @@ impl Input {
                 //TODO: consider adding copy paste functionality
                 _ => return None,
             }
-        }
 
-        else{
-            match event.code {
-                KeyCode::Char(c) if self.max_length.map_or(true, |l| self.value.len() < l) => {
-                    if self.empty{
-                        self.empty = false;
-                        // in case of placeholder
-                        self.value.clear();
-                        self.cursor = 0;
-                    }
-                    self.value.insert(self.cursor as usize, c);
-                    self.cursor += 1;
-                }
-                KeyCode::Backspace if self.cursor > 0 => {
-                    self.value.remove((self.cursor - 1) as usize);
-                    self.cursor -= 1;
-                    if self.value.is_empty() {
-                        self.empty = true;
-                        self.value = self.placeholder.clone().unwrap_or_default();
-                    }
-                }
-                KeyCode::Left if self.cursor > 0 => {
-                    if !self.empty {
-                        self.cursor -= 1;
-                    }
-                }
-                KeyCode::Right if (self.cursor as usize) < self.value.len() => {
-                    if !self.empty { 
-                        self.cursor += 1;
-                    }
-                }
-                KeyCode::Enter | KeyCode::Char('\n') => {
-                    if !self.empty {
-                        return Some(self.value.clone());
-                    }
-                }
-                _ => {}
+            if return_by_keypress {
+                return Some(self.value.clone());
             }
         }
+
+        match event.code {
+            KeyCode::Char(c) if self.max_length.map_or(true, |l| self.value.len() < l) => {
+                if self.empty{
+                    self.empty = false;
+                    // in case of placeholder
+                    self.value.clear();
+                    self.cursor = 0;
+                }
+                self.value.insert(self.cursor as usize, c);
+                self.cursor += 1;
+            }
+            KeyCode::Backspace if self.cursor > 0 => {
+                self.value.remove((self.cursor - 1) as usize);
+                self.cursor -= 1;
+                if self.value.is_empty() {
+                    self.empty = true;
+                    self.value = self.placeholder.clone().unwrap_or_default();
+                }
+            }
+            KeyCode::Left if self.cursor > 0 => {
+                if !self.empty {
+                    self.cursor -= 1;
+                }
+            }
+            KeyCode::Right if (self.cursor as usize) < self.value.len() => {
+                if !self.empty { 
+                    self.cursor += 1;
+                }
+            }
+            KeyCode::Enter | KeyCode::Char('\n') => {
+                if !self.empty {
+                    return Some(self.value.clone());
+                }
+            }
+            _ => {}
+        }
+
+        if return_by_keypress {
+            return Some(self.value.clone());
+        }
+
         None
     }
 

@@ -4,3 +4,4 @@ pub mod stringManipulation;
 pub mod imageManager;
 pub mod customThreadProtocol;
 pub mod input;
+pub mod colorSelect;

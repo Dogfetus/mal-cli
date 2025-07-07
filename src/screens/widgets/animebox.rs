@@ -9,7 +9,7 @@ use ratatui::{
     widgets::{Block, Borders, Padding, Paragraph, Wrap},
 };
 
-use crate::{mal::models::anime::Anime, utils::imageManager::ImageManager};
+use crate::{mal::models::anime::Anime, utils::{colorSelect::anime_list_colors, imageManager::ImageManager}};
 pub struct AnimeBox {}
 
 impl AnimeBox {
@@ -43,13 +43,7 @@ impl AnimeBox {
             if anime.my_list_status.status.is_empty() {
                 Color::DarkGray
             } else {
-                match anime.my_list_status.status.as_str() {
-                    "watching" | "rewatching" => Color::Blue,
-                    "completed" => Color::Green,
-                    "on hold" => Color::Magenta,
-                    "dropped" => Color::Red,
-                    _ => Color::DarkGray
-                }
+                anime_list_colors(&anime.my_list_status.status)
             }
         };
 
@@ -181,17 +175,7 @@ impl LongAnimeBox {
         let color = if highlight {
             Color::Yellow
         } else {
-            if anime.my_list_status.status.is_empty() {
-                Color::DarkGray
-            } else {
-                match anime.my_list_status.status.as_str() {
-                    "watching" | "rewatching" => Color::Blue,
-                    "completed" => Color::Green,
-                    "on hold" => Color::Magenta,
-                    "dropped" => Color::Red,
-                    _ => Color::DarkGray
-                }
-            }
+            Color::DarkGray
         };
 
         let has_en_title = !anime.alternative_titles.en.is_empty();
@@ -279,10 +263,19 @@ impl LongAnimeBox {
             .constraints([Constraint::Fill(1), Constraint::Length(2)])
             .areas(info_area);
 
+        let user_stats_area = Rect::new(
+            user_stats_area.x,
+            user_stats_area.y,
+            user_stats_area.width.saturating_sub(1),
+            user_stats_area.height.saturating_sub(1),
+        );
+
         let user_stats_value_paragraph = Paragraph::new(user_stats_value_text)
             .alignment(Alignment::Center)
-            .style(Style::default().fg(color))
-            .block(Block::default().padding(Padding::new(0, 2, 0, 1)));
+            .style(Style::default().fg(
+                anime_list_colors(&anime.my_list_status.status)
+            ))
+            .block(Block::default().padding(Padding::new(0, 2, 0, 0)));
 
         frame.render_widget(info_paragraph, info);
         frame.render_widget(value_paragraph, value);
