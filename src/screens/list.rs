@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use crate::app::Event;
 use crate::mal::models::anime::Anime;
+use crate::screens::{self, name_to_screen, screen_to_name};
 use crate::utils::imageManager::ImageManager;
 use crate::utils::input::Input;
 use crate::{app::Action, screens::Screen};
@@ -367,6 +368,7 @@ impl Screen for ListScreen {
 
         self.navbar.render(frame, top);
         self.popup.render(&self.image_manager, frame);
+        self.search_input.render_cursor(frame, search.x+1, search.y+1);
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {

@@ -70,8 +70,6 @@ impl Screen for LaunchScreen {
                 .selected(i == self.selected_button)
                 .render(frame, page_chunk[1]);
         }
-
-        // NavBar::new().render(frame, page_chunk[1]);
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {

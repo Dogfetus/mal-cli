@@ -231,6 +231,7 @@ impl Screen for SearchScreen {
                         }
                         KeyCode::Char('j') | KeyCode::Up => {
                             self.focus = Focus::NavBar;
+                            self.navbar.select();
                             self.filter_popup.close();
                         }
                         KeyCode::Char('h') | KeyCode::Left => {

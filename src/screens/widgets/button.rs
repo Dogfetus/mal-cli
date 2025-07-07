@@ -107,7 +107,7 @@ impl Button {
             self.height);
 
         let color = if self.is_selected {
-            Color::LightBlue
+            Color::Yellow
         } else {
             Color::Cyan
         };

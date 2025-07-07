@@ -56,8 +56,8 @@ use crate::{
     utils::terminalCapabilities::get_picker,
 };
 use ratatui::layout::Rect;
-use ratatui_image::StatefulImage;
 use ratatui_image::errors::Errors;
+use ratatui_image::{Resize, ResizeEncodeRender, StatefulImage};
 
 use std::sync::mpsc::{Sender, channel};
 use std::{
@@ -206,6 +206,7 @@ impl ImageManager {
         let instance_clone_1 = Arc::clone(&instance);
         let instance_clone_2 = Arc::clone(&instance);
         let app_sx = app_sx.clone();
+        let app_sx2 = app_sx.clone();
 
         std::thread::spawn(move || {
             while let Ok(req) = fetcher_rx.recv() {
@@ -216,10 +217,14 @@ impl ImageManager {
                     let thread_protocol =
                         CustomThreadProtocol::new(anime_id, image_tx.clone(), Some(protocol));
 
-                    instance_clone_1
-                        .lock()
-                        .unwrap()
-                        .load_image(anime_id, thread_protocol);
+                    {
+                        instance_clone_1
+                            .lock()
+                            .unwrap()
+                            .load_image(anime_id, thread_protocol);
+                    }
+
+                    let _ = app_sx2.send(Event::Rerender);
                 } else {
                     eprintln!("Failed to fetch image for anime ID {}", anime_id);
                 }
@@ -231,10 +236,13 @@ impl ImageManager {
             while let Ok(request) = image_rx.recv() {
                 let anime_id = request.image_id();
                 let result = request.resize_encode();
-                instance_clone_2
-                    .lock()
-                    .unwrap()
-                    .update_image(anime_id, result);
+
+                {
+                    instance_clone_2
+                        .lock()
+                        .unwrap()
+                        .update_image(anime_id, result);
+                }
 
                 let _ = app_sx.send(Event::Rerender);
             }
@@ -520,7 +528,11 @@ impl ImageManager {
 
         if let Ok(mut self_lock) = instance.try_lock() {
             if let Some(protocol) = self_lock.protocols.get_mut(&id) {
-                frame.render_stateful_widget(StatefulImage::new(), area, protocol);
+                frame.render_stateful_widget(
+                    StatefulImage::new().resize(Resize::Scale(None)),
+                    area,
+                    protocol,
+                );
             }
         }
     }

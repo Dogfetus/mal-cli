@@ -64,7 +64,6 @@ macro_rules! define_screens {
                 _ => Box::new(launch::LaunchScreen::new()),
             }
         }
-
     };
 }
 
@@ -86,6 +85,7 @@ macro_rules! define_screens {
 // then use the rest of the mal api 
 // then start inspecting tachyonfx
 // INFO: here:
+// INFO: Variable => Display name => Screen struct
 define_screens! {
     LAUNCH => "Launch" => launch::LaunchScreen,
     INFO => "Info" => info::InfoScreen,
@@ -97,9 +97,11 @@ define_screens! {
     SEARCH => "Search" => search::SearchScreen,
     LIST => "List" => list::ListScreen, 
 
+
+    //TODO: consider changing this
     // Add more as needed:
-    // SCREEN1 => "Screen1" => <module>::<structName>,
-    // SCREEN2 => "Screen2" => <module>::<structName>,
+    // SCREEN1 => "<structName>" => <module>::<structName>Screen,
+    // SCREEN2 => "<structName>" => <module>::<structName>Screen,
     // etc...
 }
 
