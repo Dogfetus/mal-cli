@@ -1,4 +1,4 @@
 # mal-cli
-browse mal using the cli
+browse mal using the terminal
 
 under development....
