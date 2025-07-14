@@ -1,7 +1,8 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc::Sender};
 
 use crate::{
-    app::Action,
+    app::{Action, Event},
+    config::{HIGHLIGHT_COLOR, PRIMARY_COLOR, SECONDARY_COLOR},
     mal::{MalClient, models::anime::Anime},
     utils::imageManager::ImageManager,
 };
@@ -9,30 +10,44 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
-    style::{self, Color, Style},
+    style::Style,
     symbols::{self, border},
     widgets::{Block, Borders, Clear, Padding, Paragraph},
 };
 use std::cmp::min;
 
+use super::navigatable::Navigatable;
+
 const AVAILABLE_SEASONS: [&str; 4] = ["Winter", "Spring", "Summer", "Fall"];
 const FIRST_YEAR: u16 = 1917;
 const FIRST_SEASON: &str = "Winter";
+const BUTTON_HEIGHT: u16 = 3;
 
 #[derive(Clone)]
 pub struct AnimePopup {
-    pub anime: Anime,
-    pub toggled: bool,
-    pub buttons: Vec<&'static str>,
+    anime: Anime,
+    toggled: bool,
+    buttons: Vec<&'static str>,
+    button_nav: Navigatable,
+    image_manager: Arc<Mutex<ImageManager>>,
 }
 
 impl AnimePopup {
     pub fn new() -> Self {
+        let buttons = vec!["Play", "Add to List", "Add to Favorites", "Rate", "Share"];
+
         Self {
+            image_manager: Arc::new(Mutex::new(ImageManager::new())),
             anime: Anime::empty(),
             toggled: false,
-            buttons: vec!["Play", "Add to List", "Add to Favorites", "Rate", "Share"],
+            button_nav: Navigatable::new((buttons.len() as u16, 1)),
+            buttons,
         }
+    }
+
+    pub fn enable_images(&mut self, sender: Sender<Event>) -> &Self {
+        ImageManager::init_with_threads(&self.image_manager, sender);
+        self
     }
 
     pub fn set_anime(&mut self, anime: Anime) -> &Self {
@@ -69,7 +84,7 @@ impl AnimePopup {
         }
     }
 
-    pub fn render(&self, image_manager: &Arc<Mutex<ImageManager>>, frame: &mut Frame) {
+    pub fn render(&mut self, frame: &mut Frame) {
         if !self.toggled {
             return;
         }
@@ -82,23 +97,32 @@ impl AnimePopup {
             width,
             height,
         );
+
+        // clear the space for the popup
         frame.render_widget(Clear, popup_area);
 
+        // craete the border arond the whole popup
         let block = Block::default()
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
-            .style(Style::default().fg(Color::White));
-        frame.render_widget(block.clone(), popup_area);
+            .style(Style::default().fg(SECONDARY_COLOR));
+        frame.render_widget(block, popup_area);
 
+        // split the popup up so we can get the area for the bottons ont he right side
         let [_, right] = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
+            .constraints([Constraint::Fill(1), Constraint::Percentage(30)])
             .areas(popup_area);
-        let [_, bottom] = Layout::default()
+        //buttons area
+        let [_, bottom_area] = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .constraints([
+                Constraint::Fill(1),
+                Constraint::Length(self.buttons.len() as u16 * BUTTON_HEIGHT + 1),
+            ])
             .areas(right);
 
+        // now create borders that makes the top and left connect to the rest
         let (right_set, right_border) = (
             symbols::border::Set {
                 bottom_left: symbols::line::ROUNDED_BOTTOM_RIGHT,
@@ -107,84 +131,42 @@ impl AnimePopup {
             },
             Borders::ALL,
         );
-
         let right_block = Block::default()
             .borders(right_border)
             .border_set(right_set)
-            .style(Style::default().fg(Color::White));
-
-        let bottom_area = Rect::new(
-            bottom.x + 1,
-            bottom.y + 1,
-            bottom.width - 1,
-            bottom.height - 1, // Leave space for the border
+            .style(Style::default().fg(SECONDARY_COLOR));
+        let buttons_area = Rect::new(
+            bottom_area.x + 1,
+            bottom_area.y + 1,
+            bottom_area.width - 1,
+            bottom_area.height - 1,
         );
+        frame.render_widget(right_block, bottom_area);
 
-        frame.render_widget(Clear, bottom);
-        frame.render_widget(right_block, bottom);
+        self.button_nav
+            .construct(&self.buttons, buttons_area, |button, area, highlighted| {
+                let button_paragraph = Paragraph::new(button.to_string())
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_set(border::ROUNDED),
+                    )
+                    .alignment(Alignment::Center)
+                    .style(Style::default().fg(if highlighted {
+                        HIGHLIGHT_COLOR
+                    } else {
+                        SECONDARY_COLOR
+                    }));
+                frame.render_widget(button_paragraph, area);
+            });
 
-        let button_areas = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(vec![
-                Constraint::Ratio(1, self.buttons.len() as u32);
-                self.buttons.len()
-            ])
-            .split(bottom_area);
-
-        for (button, &area) in self.buttons.iter().zip(button_areas.iter()) {
-            let paragraph = Paragraph::new(button.to_string())
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .border_set(border::ROUNDED),
-                )
-                .alignment(Alignment::Center)
-                .style(Style::default().fg(Color::White));
-            frame.render_widget(paragraph, area);
-        }
+        // the rest here is garbage
         ImageManager::render_image(
-            image_manager,
+            &self.image_manager,
             &self.anime,
             frame,
             popup_area.inner(Margin::new(1, 1)),
-        );
-
-        let area = popup_area.inner(Margin::new(1, 1));
-        let title = Paragraph::new(self.anime.alternative_titles.en.clone())
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_set(border::ROUNDED),
-            )
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(Color::White).add_modifier(style::Modifier::BOLD));
-        frame.render_widget(title, Rect::new(area.x, area.y, area.width, 3));
-
-        let normal_tritle = Paragraph::new(self.anime.title.clone())
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_set(border::ROUNDED),
-            )
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(Color::White));
-        frame.render_widget(
-            normal_tritle,
-            Rect::new(area.x, area.y + 3, area.width, 3),
-        );
-
-
-        let alternative_titles = Paragraph::new(self.anime.alternative_titles.ja.clone())
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_set(border::ROUNDED),
-            )
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(Color::White));
-        frame.render_widget(
-            alternative_titles,
-            Rect::new(area.x, area.y + 6, area.width, 3),
+            true,
         );
     }
 }
@@ -352,7 +334,7 @@ impl SeasonPopup {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
-            .style(Style::default().fg(Color::White));
+            .style(Style::default().fg(PRIMARY_COLOR));
         frame.render_widget(block.clone(), popup_area);
 
         let text = if self.entered_number.is_empty() {
@@ -363,7 +345,7 @@ impl SeasonPopup {
         let paragraph = Paragraph::new(text)
             .block(block)
             .alignment(Alignment::Center)
-            .style(Style::default().fg(Color::White));
+            .style(Style::default().fg(PRIMARY_COLOR));
         frame.render_widget(paragraph, popup_area);
 
         let [year_area, middle_area, season_area] = Layout::default()
@@ -424,21 +406,21 @@ impl SeasonPopup {
             .block(Block::default().padding(Padding::new(0, 0, middle_area_left.height / 2, 0)))
             .alignment(Alignment::Left)
             .style(Style::default().fg(if self.year_selected {
-                Color::Yellow
+                HIGHLIGHT_COLOR
             } else {
-                Color::White
+                PRIMARY_COLOR
             }));
         let middle_paragraph = Paragraph::new(divider)
             .block(Block::default().padding(Padding::new(0, 0, middle_area.height / 2, 0)))
             .alignment(Alignment::Center)
-            .style(Style::default().fg(Color::White));
+            .style(Style::default().fg(PRIMARY_COLOR));
         let right_paragraph = Paragraph::new(right_arrow)
             .block(Block::default().padding(Padding::new(0, 0, middle_area_right.height / 2, 0)))
             .alignment(Alignment::Right)
             .style(Style::default().fg(if !self.year_selected {
-                Color::Yellow
+                HIGHLIGHT_COLOR
             } else {
-                Color::White
+                PRIMARY_COLOR
             }));
 
         frame.render_widget(left_paragraph, middle_area_left);
@@ -460,9 +442,9 @@ impl SeasonPopup {
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(
                     if !self.year_selected && self.season_scroll == i as u16 {
-                        Color::Yellow
+                        HIGHLIGHT_COLOR
                     } else {
-                        Color::White
+                        PRIMARY_COLOR
                     },
                 ));
             frame.render_widget(paragraph, individual_season_area);
@@ -485,9 +467,9 @@ impl SeasonPopup {
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(
                     if self.year_selected && self.year_scroll == i as u16 {
-                        Color::Yellow
+                        HIGHLIGHT_COLOR
                     } else {
-                        Color::White
+                        PRIMARY_COLOR
                     },
                 ));
             frame.render_widget(paragraph, individual_year_area);
@@ -608,9 +590,9 @@ impl SelectionPopup {
         )
         .alignment(Alignment::Center)
         .style(Style::default().fg(if highlighted {
-            Color::Yellow
+            HIGHLIGHT_COLOR
         } else {
-            Color::DarkGray
+            PRIMARY_COLOR
         }));
         frame.render_widget(filter, area);
 
@@ -627,7 +609,7 @@ impl SelectionPopup {
             let options_block = Block::default()
                 .borders(Borders::ALL)
                 .border_set(border::ROUNDED)
-                .style(Style::default().fg(Color::DarkGray));
+                .style(Style::default().fg(PRIMARY_COLOR));
 
             frame.render_widget(options_block, options_area);
 
@@ -660,7 +642,7 @@ impl SelectionPopup {
 
                     let option_paragraph = Paragraph::new(text)
                         .alignment(Alignment::Center)
-                        .style(Style::default().fg(Color::Yellow));
+                        .style(Style::default().fg(HIGHLIGHT_COLOR));
                     frame.render_widget(option_paragraph, option_area);
 
                     if self.arrows != Arrows::Static {
@@ -669,18 +651,18 @@ impl SelectionPopup {
 
                     let left_paragraph = Paragraph::new("▶")
                         .alignment(Alignment::Right)
-                        .style(Style::default().fg(Color::Yellow));
+                        .style(Style::default().fg(HIGHLIGHT_COLOR));
 
                     let right_paragraph = Paragraph::new("◀")
                         .alignment(Alignment::Left)
-                        .style(Style::default().fg(Color::Yellow));
+                        .style(Style::default().fg(HIGHLIGHT_COLOR));
 
                     frame.render_widget(left_paragraph, left_side);
                     frame.render_widget(right_paragraph, right_side);
                 } else {
                     let option_paragraph = Paragraph::new(option.to_string())
                         .alignment(Alignment::Center)
-                        .style(Style::default().fg(Color::DarkGray));
+                        .style(Style::default().fg(PRIMARY_COLOR));
                     frame.render_widget(option_paragraph, option_area);
                 }
             }
@@ -688,8 +670,8 @@ impl SelectionPopup {
     }
 }
 
-#[derive(Clone)]
-pub struct SearchPopup {
-    pub toggled: bool,
-    pub query: String,
-}
+// #[derive(Clone)]
+// pub struct SearchPopup {
+//     pub toggled: bool,
+//     pub query: String,
+// }

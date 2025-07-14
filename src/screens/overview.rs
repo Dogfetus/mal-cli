@@ -5,6 +5,7 @@ use std::thread::{self, JoinHandle};
 
 use super::widgets::navbar::NavBar;
 use super::{screens::*, BackgroundInfo, BackgroundUpdate, Screen};
+use crate::config::PRIMARY_COLOR;
 use crate::mal::models::anime::Anime;
 use crate::app::{Action, Event};
 use crate::utils::terminalCapabilities::get_picker;
@@ -164,7 +165,7 @@ impl Screen for OverviewScreen {
         );
 
 
-        let color = Style::default().fg(Color::DarkGray);
+        let color = Style::default().fg(PRIMARY_COLOR);
 
         frame.render_widget(Block::new().border_set(right_set).borders(right_border).border_style(color), bottom_right);
         frame.render_widget(Block::new().border_set(blt_set).borders(blt_border).border_style(color), bl_top);

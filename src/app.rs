@@ -1,16 +1,15 @@
-use std::thread::{self, JoinHandle};
-use ratatui_image::errors::Errors;
-use std::sync::atomic::AtomicBool;
-use crossterm::event::KeyCode;
-use ratatui::DefaultTerminal;
-use std::{io, sync::mpsc};
-use image::DynamicImage;
-use std::sync::Arc;
 use crate::{
-    handlers::get_handlers, mal::MalClient, screens::{
-        screens::*, BackgroundUpdate, ScreenManager
-    }, utils::customThreadProtocol::CustomResizeResponse
+    handlers::get_handlers,
+    mal::MalClient,
+    screens::{BackgroundUpdate, ScreenManager, screens::*},
 };
+use crossterm::event::KeyCode;
+use image::DynamicImage;
+use ratatui::DefaultTerminal;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::thread::{self, JoinHandle};
+use std::{io, sync::mpsc};
 
 pub enum Action {
     SwitchScreen(&'static str),
@@ -28,20 +27,20 @@ pub enum CurrentInfo {
 pub enum Event {
     KeyPress(crossterm::event::KeyEvent),
     MouseClick(crossterm::event::MouseEvent),
-    Resize(u16, u16), 
+    Resize(u16, u16),
     BackgroundNotice(BackgroundUpdate),
-    ImageRedraw(usize, Result<CustomResizeResponse, Errors>), 
     ImageCached(usize, DynamicImage),
-    Rerender
+    Rerender,
 }
 
 #[allow(dead_code)]
 pub struct App {
-    pub mal_client: Arc<MalClient>,
-    pub screen_manager: ScreenManager,
-    pub current_info: Option<CurrentInfo>,
-    pub is_running: bool,
-    pub sx: mpsc::Sender<Event>,
+    mal_client: Arc<MalClient>,
+    screen_manager: ScreenManager,
+    current_info: Option<CurrentInfo>,
+    is_running: bool,
+
+    sx: mpsc::Sender<Event>,
     rx: mpsc::Receiver<Event>,
     threads: Vec<JoinHandle<()>>,
     stop: Arc<AtomicBool>,
@@ -53,7 +52,7 @@ impl App {
         let mal_client = Arc::new(MalClient::new());
 
         App {
-            mal_client: mal_client.clone(), 
+            mal_client: mal_client.clone(),
             screen_manager: ScreenManager::new(sx.clone(), mal_client),
             current_info: None,
             is_running: true,
@@ -71,7 +70,7 @@ impl App {
 
         // WARNING: don't use just unwrap here
         while self.is_running {
-            terminal.draw( |frame| self.screen_manager.render_screen(frame))?;
+            terminal.draw(|frame| self.screen_manager.render_screen(frame))?;
 
             let first_event = self.rx.recv().unwrap();
             let mut events = vec![first_event];
@@ -83,9 +82,10 @@ impl App {
 
             for event in events {
                 match event {
-                    Event::KeyPress(key_event) => self.handle_input(key_event),           
-                    Event::BackgroundNotice(update) => {self.screen_manager.update_screen(update);},
-                    Event::ImageRedraw(id, response) => {self.screen_manager.redraw_image(id, response);},
+                    Event::KeyPress(key_event) => self.handle_input(key_event),
+                    Event::BackgroundNotice(update) => {
+                        self.screen_manager.update_screen(update);
+                    }
                     _ => {}
                 }
             }
@@ -110,15 +110,18 @@ impl App {
                 }
             }
         }
-        if key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
+        if key_event
+            .modifiers
+            .contains(crossterm::event::KeyModifiers::CONTROL)
+        {
             match key_event.code {
-                KeyCode::Char('c')=> self.is_running = false,
+                KeyCode::Char('c') => self.is_running = false,
                 KeyCode::Char('f') => self.screen_manager.change_screen(SEARCH),
                 KeyCode::Char('o') => self.screen_manager.change_screen(OVERVIEW),
                 KeyCode::Char('s') => self.screen_manager.change_screen(SEASONS),
                 KeyCode::Char('i') => self.screen_manager.change_screen(LIST),
                 KeyCode::Char('p') => self.screen_manager.change_screen(PROFILE),
-                _ => { return }
+                _ => return,
             }
         }
     }
@@ -135,8 +138,6 @@ impl App {
         }
     }
 }
-
-
 
 // TODO: check if this is even necessary? ii mean its rust right
 //

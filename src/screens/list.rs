@@ -4,8 +4,8 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use crate::app::Event;
+use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
 use crate::mal::models::anime::Anime;
-use crate::screens::{self, name_to_screen, screen_to_name};
 use crate::utils::imageManager::ImageManager;
 use crate::utils::input::Input;
 use crate::{app::Action, screens::Screen};
@@ -16,7 +16,6 @@ use ratatui::layout::Direction;
 use ratatui::layout::Layout;
 use ratatui::layout::{Alignment, Constraint, Margin, Rect};
 use ratatui::style;
-use ratatui::style::Color;
 use ratatui::symbols::border;
 use ratatui::widgets::Block;
 use ratatui::widgets::Borders;
@@ -62,7 +61,7 @@ impl Filters {
             list_type: "all".to_string(),
             airing_type: "all".to_string(),
             anime_type: "all".to_string(),
-            sort_by: "by title".to_string(),
+            sort_by: "by last updated".to_string(),
             sort_order: "ascending".to_string(),
         }
     }
@@ -291,9 +290,9 @@ impl Screen for ListScreen {
                     .border_set(border::ROUNDED),
             )
             .style(style::Style::default().fg(if self.focus == Focus::Search {
-                Color::Yellow
+                HIGHLIGHT_COLOR 
             } else {
-                Color::DarkGray
+                PRIMARY_COLOR 
             }));
         frame.render_widget(search_field, search);
 
@@ -319,17 +318,17 @@ impl Screen for ListScreen {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
-            .style(style::Style::default().fg(Color::DarkGray));
+            .style(style::Style::default().fg(PRIMARY_COLOR));
         frame.render_widget(block, info_area);
 
         let info = Paragraph::new(" Animes found:\n Selected list:\n")
             .block(Block::default().borders(Borders::TOP).title("Info"))
             .alignment(Alignment::Left)
-            .style(style::Style::default().fg(Color::DarkGray));
+            .style(style::Style::default().fg(PRIMARY_COLOR));
 
-        let info_value = Paragraph::new(format!("{}\n0\n", self.filtered_animes.len()))
+        let info_value = Paragraph::new(format!("{}/{}\n0\n", self.filtered_animes.len(), self.all_animes.len()))
             .alignment(Alignment::Left)
-            .style(style::Style::default().fg(Color::DarkGray));
+            .style(style::Style::default().fg(PRIMARY_COLOR));
         frame.render_widget(info, info_area_left.inner(Margin::new(1, 0)));
         frame.render_widget(info_value, info_area_right.inner(Margin::new(1, 1)));
 
@@ -344,7 +343,7 @@ impl Screen for ListScreen {
                 .areas(content);
             let loading_text = Paragraph::new("Loading...")
                 .alignment(Alignment::Center)
-                .style(style::Style::default().fg(Color::DarkGray));
+                .style(style::Style::default().fg(PRIMARY_COLOR));
             frame.render_widget(loading_text, content);
         } else {
             self.navigatable
@@ -367,7 +366,7 @@ impl Screen for ListScreen {
         );
 
         self.navbar.render(frame, top);
-        self.popup.render(&self.image_manager, frame);
+        self.popup.render(frame);
         self.search_input.render_cursor(frame, search.x+1, search.y+1);
     }
 
@@ -540,22 +539,32 @@ impl Screen for ListScreen {
         let id = self.get_name();
         let (sx, rx) = channel::<LocalEvent>();
         self.bg_sx = Some(sx);
-        ImageManager::init_with_dedicated_thread(
+        ImageManager::init_with_threads(
             &self.image_manager,
             info.app_sx.clone(),
-            id.clone(),
         );
+        let image_manager = self.image_manager.clone();
 
         Some(std::thread::spawn(move || {
             let mut offset = 0;
             let mut limit = 10;
             let mut cached_filter = Option::<Filters>::None;
             let mut cached_search = String::new();
+            let mut fetch_image = true;
 
             // fetch enitre list of anime for the user
             loop {
                 if let Some(animes) = info.mal_client.get_anime_list(None, offset, limit) {
                     let nr_of_animes = animes.len();
+
+                    if fetch_image {
+                        for anime in &animes {
+                            ImageManager::query_image_for_fetching(
+                                &image_manager,
+                                anime,
+                            );
+                        }
+                    }
 
                     let update = BackgroundUpdate::new(id.clone())
                         .set("animes", animes)
@@ -569,6 +578,7 @@ impl Screen for ListScreen {
 
                     offset += limit;
                     limit = 1000;
+                    fetch_image = false;
                 } else {
                     break;
                 }

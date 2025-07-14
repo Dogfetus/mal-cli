@@ -3,8 +3,9 @@ use super::widgets::popup::SeasonPopup;
 use super::{
     BackgroundUpdate, Screen, screens::*, widgets::navbar::NavBar, widgets::popup::AnimePopup,
 };
+use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
 use crate::screens::widgets::animebox::AnimeBox;
-use crate::utils::customThreadProtocol::{CustomResizeResponse, CustomThreadProtocol};
+use crate::utils::customThreadProtocol::CustomResizeResponse;
 use crate::utils::imageManager::ImageManager;
 use crate::{
     app::{Action, Event},
@@ -17,7 +18,7 @@ use ratatui::widgets::{Padding, Paragraph, Scrollbar, ScrollbarOrientation, Scro
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout},
-    style::{Color, Style},
+    style::Style,
     symbols,
     widgets::{Block, Borders, Clear},
 };
@@ -205,7 +206,7 @@ impl Screen for SeasonsScreen {
             Borders::LEFT | Borders::BOTTOM | Borders::RIGHT,
         );
 
-        let color = Style::default().fg(Color::DarkGray);
+        let color = Style::default().fg(PRIMARY_COLOR);
 
         frame.render_widget(
             Block::new()
@@ -231,9 +232,9 @@ impl Screen for SeasonsScreen {
 
         // the season and year at the top:
         let season_color = if self.focus == Focus::SeasonSelection {
-            Color::Yellow
+            HIGHLIGHT_COLOR 
         } else {
-            Color::DarkGray
+            PRIMARY_COLOR
         };
         let title = Paragraph::new(
             DisplayString::new()
@@ -265,16 +266,14 @@ impl Screen for SeasonsScreen {
                     Constraint::Fill(1),
                 ])
                 .areas(bl_bottom);
-
             let title = Paragraph::new("Loading...")
                 .alignment(Alignment::Center)
-                .style(Style::default().fg(Color::Gray));
+                .style(Style::default().fg(PRIMARY_COLOR));
             frame.render_widget(title, middle.inner(Margin {
                 vertical: 0,
                 horizontal: 1,
             }));
         }
-
         else{
             let area = Rect::new(
                 bl_bottom.x + 1,
@@ -420,7 +419,7 @@ impl Screen for SeasonsScreen {
             &mut scrollbar_state,
         );
 
-        self.popup.render(&self.image_manager, frame);
+        self.popup.render(frame);
         self.season_popup.render(frame, bl_top);
     }
 
@@ -574,7 +573,8 @@ impl Screen for SeasonsScreen {
         }
         let id = self.get_name();
         let manager = self.image_manager.clone();
-        ImageManager::init_with_dedicated_thread(&manager, info.app_sx.clone(), id.clone());
+        ImageManager::init_with_threads(&manager, info.app_sx.clone());
+        self.popup.enable_images(info.app_sx.clone());
         let nr_of_animes = self.animes.len();
         let (sender, receiver) = channel::<LocalEvent>();
         self.bg_loaded = true;
@@ -585,7 +585,7 @@ impl Screen for SeasonsScreen {
             let process_animes = |animes: Vec<Anime>, fetch_images: bool| {
                 if fetch_images {
                     for anime in &animes {
-                        ImageManager::fetch_image_sequential(&manager, anime);
+                        ImageManager::query_image_for_fetching(&manager, anime);
                     }
                 }
                 let update = BackgroundUpdate::new(id.clone()).set("animes", animes);
@@ -630,12 +630,5 @@ impl Screen for SeasonsScreen {
         if let Some(fetching) = update.take::<bool>("fetching") {
             self.fetching = fetching;
         }
-    }
-
-    fn image_redraw(&mut self, id: usize, response: Result<CustomResizeResponse, Errors>) {
-        self.image_manager
-            .lock()
-            .unwrap()
-            .update_image(id, response);
     }
 }

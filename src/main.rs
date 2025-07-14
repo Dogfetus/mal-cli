@@ -3,6 +3,7 @@ mod screens;
 mod mal;
 mod handlers;
 mod utils;
+mod config;
 
 use crate::app::App;
 use anyhow::Result;

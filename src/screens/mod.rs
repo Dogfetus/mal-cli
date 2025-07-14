@@ -1,5 +1,6 @@
 use ratatui::Frame;
 use ratatui_image::errors::Errors;
+use widgets::navbar;
 use crate::app::{Action, Event};
 use crate::mal;
 use crate::utils::customThreadProtocol::CustomResizeResponse;
@@ -141,9 +142,6 @@ pub trait Screen: Send{
     }
     fn apply_update(&mut self, update: BackgroundUpdate) {
     }
-    fn image_redraw(&mut self, id: usize, response: Result<CustomResizeResponse, Errors>) {
-        // Default implementation does nothing
-    }
 }
 
 
@@ -188,10 +186,6 @@ impl ScreenManager {
                 screen.apply_update(update);
             }
         }
-    }
-
-    pub fn redraw_image(&mut self, id: usize, response: Result<CustomResizeResponse, Errors>) {
-        self.current_screen.image_redraw(id, response);
     }
 
     // change screen stores the previous screen if not specified otherwise

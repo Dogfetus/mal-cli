@@ -1,20 +1,20 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect}, 
-    style::{Color, Style}, 
+    style::Style, 
     symbols, 
     text::Line, 
     widgets::{Block, Borders}, 
     Frame
 };
-use crate::{app::Action, screens::{name_to_screen, screen_to_name}};
+use crate::{app::Action, config::{HIGHLIGHT_COLOR, PRIMARY_COLOR}, screens::{name_to_screen, screen_to_name}};
 
 
 #[derive(Clone)]
 pub struct NavBar {
-    pub selected_button: usize,
-    pub options: Vec<&'static str>,  
-    pub is_selected: bool,
+    selected_button: usize,
+    options: Vec<&'static str>,  
+    is_selected: bool,
 }
 
 impl NavBar {
@@ -79,9 +79,9 @@ impl NavBar {
             .split(area);
 
         let overall_color = if self.is_selected {
-            Style::default().fg(Color::White)
+            Style::default().fg(HIGHLIGHT_COLOR)
         } else {
-            Style::default().fg(Color::DarkGray)
+            Style::default().fg(PRIMARY_COLOR)
         };
 
         for (i, opt) in self.options.iter().enumerate() {
@@ -128,9 +128,9 @@ impl NavBar {
             let text_y = inner.y + (inner.height) / 2;
             let centered_area = Rect::new(inner.x, text_y, inner.width, 1);
             let style = if self.is_selected && i == self.selected_button {
-                Style::default().fg(Color::Yellow)
+                Style::default().fg(HIGHLIGHT_COLOR)
             } else {
-                overall_color
+                Style::default().fg(PRIMARY_COLOR)
             };
 
             frame.render_widget(

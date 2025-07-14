@@ -521,6 +521,6 @@ impl Fetchable for Anime {
 
 impl HasDisplayableImage for Anime {
     fn get_displayable_image(&self) -> Option<(usize, String)> {
-        Some((self.id, self.main_picture.medium.clone()))
+        Some((self.id, self.main_picture.large.clone()))
     }
 }

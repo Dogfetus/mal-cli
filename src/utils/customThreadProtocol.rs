@@ -5,7 +5,7 @@
 //! the needs-resize-polling with other terminal events into one event loop.
 #![allow(dead_code)]
 
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{channel, Sender};
 
 use image::Rgba;
 use ratatui::prelude::{Buffer, Rect};
@@ -61,6 +61,15 @@ pub struct CustomThreadProtocol {
 impl CustomThreadProtocol {
     pub fn new(image_id: usize, tx: Sender<CustomResizeRequest>, inner: Option<StatefulProtocol>) -> CustomThreadProtocol {
         Self { image_id, inner, tx, id: 0 }
+    }
+     
+    pub fn empty() -> CustomThreadProtocol {
+        Self {
+            image_id: 0,
+            inner: None,
+            tx: channel().0, // Default sender, will panic if used
+            id: 0,
+        }
     }
 
     pub fn replace_protocol(&mut self, proto: StatefulProtocol) {

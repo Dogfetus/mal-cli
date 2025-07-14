@@ -127,4 +127,3 @@ impl HasDisplayableImage for User {
         Some((self.id, self.picture.clone()))
     }
 }
-

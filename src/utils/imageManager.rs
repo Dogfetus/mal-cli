@@ -87,8 +87,6 @@ pub struct ImageManager {
     protocols: HashMap<usize, CustomThreadProtocol>,
     /// Optional sender for communicating with the main application
     app_sx: Option<Sender<Event>>,
-    /// Optional identifier for this ImageManager instance (typically screen name)
-    id: Option<String>,
     /// Optional sender for custom resize requests (single-thread mode)
     image_tx: Option<Sender<CustomResizeRequest>>,
     fetcher_tx: Option<Sender<FetchRequest>>,
@@ -109,7 +107,6 @@ impl ImageManager {
         Self {
             protocols: HashMap::new(),
             app_sx: None,
-            id: None,
             image_tx: None,
             fetcher_tx: None,
         }
@@ -145,10 +142,9 @@ impl ImageManager {
     /// // Now you can use prepare_image() to process individual images
     /// image_manager.prepare_image(&anime);
     /// ```
-    pub fn init(instance: &Arc<Mutex<Self>>, app_sx: Sender<Event>, id: String) {
+    pub fn init(instance: &Arc<Mutex<Self>>, app_sx: Sender<Event>) {
         let mut self_lock = instance.lock().unwrap();
         self_lock.app_sx = Some(app_sx);
-        self_lock.id = Some(id);
     }
 
     /// Initializes the ImageManager with a shared thread pool for efficient bulk processing.
@@ -184,15 +180,13 @@ impl ImageManager {
     ///     image_manager.fetch_image(&anime);
     /// }
     /// ```
-    pub fn init_with_dedicated_thread(
+    pub fn init_with_threads(
         instance: &Arc<Mutex<Self>>,
         app_sx: Sender<Event>,
-        id: String,
     ) {
         {
             let mut self_lock = instance.lock().unwrap();
             self_lock.app_sx = Some(app_sx.clone());
-            self_lock.id = Some(id.clone());
         }
         let (fetcher_tx, fetcher_rx) = channel::<FetchRequest>();
         let (image_tx, image_rx) = channel::<CustomResizeRequest>();
@@ -291,7 +285,6 @@ impl ImageManager {
             let mut instance = instance.lock().unwrap();
 
             if instance.app_sx.is_none()
-                || instance.id.is_none()
                 || instance.protocols.contains_key(&anime.id)
             {
                 return;
@@ -376,7 +369,6 @@ impl ImageManager {
         {
             let mut instance = instance.lock().unwrap();
             if instance.app_sx.is_none()
-                || instance.id.is_none()
                 || instance.protocols.contains_key(&anime.id)
             {
                 return;
@@ -407,7 +399,7 @@ impl ImageManager {
         }
     }
 
-    pub fn fetch_image_sequential<T: HasDisplayableImage>(instance: &Arc<Mutex<Self>>, item: &T) {
+    pub fn query_image_for_fetching<T: HasDisplayableImage>(instance: &Arc<Mutex<Self>>, item: &T) {
         {
             let mut instance = instance.lock().unwrap();
             let (id, url) = match item.get_displayable_image() {
@@ -419,13 +411,13 @@ impl ImageManager {
             };
 
             if instance.app_sx.is_none()
-                || instance.id.is_none()
                 || instance.protocols.contains_key(&id)
             {
                 return;
             }
 
             if let Some(sender) = instance.fetcher_tx.clone() {
+                instance.load_empy_image(id);
                 if let Err(e) = sender.send(FetchRequest { id, url }) {
                     eprintln!("Failed to send anime to fetcher thread: {}", e);
                 }
@@ -458,6 +450,16 @@ impl ImageManager {
             return;
         }
         self.protocols.insert(id, protocol);
+    }
+
+    pub fn load_empy_image(&mut self, id: usize) {
+        if self.app_sx.is_none() {
+            eprintln!("App sender is not initialized");
+            return;
+        }
+
+        let empty_protocol = CustomThreadProtocol::empty();
+        self.protocols.insert(id, empty_protocol);
     }
 
     /// Removes an image from the ImageManager and cleans up its resources.
@@ -517,9 +519,11 @@ impl ImageManager {
         item: &T,
         frame: &mut ratatui::Frame,
         area: Rect,
+        fetch_if_not_found: bool,
     ) {
-        let (id, _) = match item.get_displayable_image() {
-            Some((id, _)) => (id, ()),
+
+        let (id, url) = match item.get_displayable_image() {
+            Some((id, url)) => (id, url),
             None => {
                 eprintln!("Item does not have a displayable image");
                 return;
@@ -533,6 +537,17 @@ impl ImageManager {
                     area,
                     protocol,
                 );
+            }
+
+            else if fetch_if_not_found {
+                if let Some(sender) = self_lock.fetcher_tx.clone() {
+                    self_lock.load_empy_image(id);
+                    if let Err(e) = sender.send(FetchRequest { id, url }) {
+                        eprintln!("Failed to send anime to fetcher thread: {}", e);
+                    }
+                } else {
+                    eprintln!("Fetcher thread is not initialized");
+                }
             }
         }
     }

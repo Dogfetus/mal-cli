@@ -1,15 +1,18 @@
 use std::sync::{Arc, Mutex};
 
-use color_eyre::owo_colors::colors::css::DarkGray;
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     symbols,
     widgets::{Block, Borders, Padding, Paragraph, Wrap},
 };
 
-use crate::{mal::models::anime::Anime, utils::{colorSelect::anime_list_colors, imageManager::ImageManager}};
+use crate::{
+    config::{HIGHLIGHT_COLOR, PRIMARY_COLOR, anime_list_colors},
+    mal::models::anime::Anime,
+    utils::imageManager::ImageManager,
+};
 pub struct AnimeBox {}
 
 impl AnimeBox {
@@ -24,9 +27,9 @@ impl AnimeBox {
             let title = Paragraph::new("")
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(if highlight {
-                    Color::Yellow
+                    HIGHLIGHT_COLOR
                 } else {
-                    Color::DarkGray
+                    PRIMARY_COLOR
                 }))
                 .block(
                     Block::default()
@@ -38,10 +41,10 @@ impl AnimeBox {
         }
 
         let color = if highlight {
-            Color::Yellow
+            HIGHLIGHT_COLOR
         } else {
             if anime.my_list_status.status.is_empty() {
-                Color::DarkGray
+                PRIMARY_COLOR
             } else {
                 anime_list_colors(&anime.my_list_status.status)
             }
@@ -85,7 +88,10 @@ impl AnimeBox {
 
         let title = Paragraph::new(title_text)
             .alignment(Alignment::Center)
-            .style(Style::default().fg(color).add_modifier(Modifier::BOLD))
+            .style(
+                Style::default()
+                    .fg(color)
+            )
             .block(Block::default().padding(Padding::new(2, 2, 1, 0)));
         frame.render_widget(title, title_area);
 
@@ -95,7 +101,7 @@ impl AnimeBox {
             .areas(info_area);
 
         let image_area = image_area.inner(Margin::new(1, 1));
-        ImageManager::render_image(&image_manager, anime, frame, image_area);
+        ImageManager::render_image(&image_manager, anime, frame, image_area, false);
 
         let info_text = "Score:\nType:\nEpisodes:\nStatus:\nAired:";
 
@@ -144,8 +150,6 @@ impl AnimeBox {
     }
 }
 
-
-
 pub struct LongAnimeBox {}
 impl LongAnimeBox {
     pub fn render(
@@ -159,9 +163,9 @@ impl LongAnimeBox {
             let title = Paragraph::new("")
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(if highlight {
-                    Color::Yellow
+                    HIGHLIGHT_COLOR
                 } else {
-                    Color::DarkGray
+                    PRIMARY_COLOR
                 }))
                 .block(
                     Block::default()
@@ -173,9 +177,9 @@ impl LongAnimeBox {
         }
 
         let color = if highlight {
-            Color::Yellow
+            HIGHLIGHT_COLOR
         } else {
-            Color::DarkGray
+            PRIMARY_COLOR
         };
 
         let has_en_title = !anime.alternative_titles.en.is_empty();
@@ -226,7 +230,7 @@ impl LongAnimeBox {
             .areas(info_area);
 
         let image_area = image_area.inner(Margin::new(1, 1));
-        ImageManager::render_image(&image_manager, anime, frame, image_area);
+        ImageManager::render_image(&image_manager, anime, frame, image_area, false);
 
         let info_text = "Score:\nType:\nEpisodes:\nStatus:\nAired:";
 
@@ -272,9 +276,7 @@ impl LongAnimeBox {
 
         let user_stats_value_paragraph = Paragraph::new(user_stats_value_text)
             .alignment(Alignment::Center)
-            .style(Style::default().fg(
-                anime_list_colors(&anime.my_list_status.status)
-            ))
+            .style(Style::default().fg(anime_list_colors(&anime.my_list_status.status)))
             .block(Block::default().padding(Padding::new(0, 2, 0, 0)));
 
         frame.render_widget(info_paragraph, info);
@@ -283,4 +285,3 @@ impl LongAnimeBox {
         frame.render_widget(user_stats_value_paragraph, user_stats_area);
     }
 }
-

@@ -1,9 +1,11 @@
 use ratatui::{
     layout::{Alignment, Rect}, 
-    style::{Color, Style}, 
+    style::Style, 
     widgets::{Block, Borders, Clear, Paragraph, Widget}, 
     Frame
 };
+
+use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
 
 
 #[derive(Debug, Clone)]
@@ -107,9 +109,9 @@ impl Button {
             self.height);
 
         let color = if self.is_selected {
-            Color::Yellow
+            HIGHLIGHT_COLOR 
         } else {
-            Color::Cyan
+            PRIMARY_COLOR 
         };
 
         let button = Paragraph::new(self.text)
@@ -159,7 +161,7 @@ impl Widget for Button {
 
         Paragraph::new(self.text)
             .block(Block::default().borders(Borders::ALL))
-            .style(Style::default().fg(Color::Cyan))
+            .style(Style::default().fg(PRIMARY_COLOR))
             .alignment(Alignment::Center)
             .render(button_area, buf)
     }

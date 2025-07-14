@@ -74,7 +74,7 @@ impl Screen for ProfileScreen {
 
         let test = Paragraph::new(self.user.name.clone())
             .style(style::Style::default().fg(style::Color::White))
-            .block(Block::default().borders(Borders::ALL).title("User Info"));
+            .block(Block::default().borders(Borders::ALL));
 
         let block = Block::new()
             .borders(Borders::ALL)
@@ -98,6 +98,7 @@ impl Screen for ProfileScreen {
             &self.user,
             frame,
             pfp.inner(Margin::new(1, 1)),
+            false
         );
     }
 
@@ -131,15 +132,14 @@ impl Screen for ProfileScreen {
 
         let image_manager = self.image_manager.clone();
         let id = self.get_name();
-        ImageManager::init_with_dedicated_thread(
+        ImageManager::init_with_threads(
             &self.image_manager,
             info.app_sx.clone(),
-            id.clone(),
         );
 
         Some(std::thread::spawn(move || {
             if let Some(user) = info.mal_client.get_user() {
-                ImageManager::fetch_image_sequential(&image_manager, &user);
+                ImageManager::query_image_for_fetching(&image_manager, &user);
                 let update = BackgroundUpdate::new(id).set("user", user);
                 info.app_sx.send(Event::BackgroundNotice(update)).unwrap();
                 return;

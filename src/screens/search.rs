@@ -4,6 +4,8 @@ use std::sync::mpsc::Sender;
 use std::sync::mpsc::channel;
 use std::thread::JoinHandle;
 
+use crate::config::HIGHLIGHT_COLOR;
+use crate::config::PRIMARY_COLOR;
 use crate::mal::models::anime::Anime;
 use crate::utils::imageManager::ImageManager;
 use crate::utils::input::Input;
@@ -16,7 +18,6 @@ use ratatui::layout::Constraint;
 use ratatui::layout::Direction;
 use ratatui::layout::Layout;
 use ratatui::style;
-use ratatui::style::Color;
 use ratatui::style::Style;
 use ratatui::symbols;
 use ratatui::symbols::border;
@@ -167,7 +168,7 @@ impl Screen for SearchScreen {
                         .borders(Borders::ALL)
                         .border_set(symbols::border::ROUNDED),
                 )
-                .style(Style::default().fg(Color::DarkGray));
+                .style(Style::default().fg(PRIMARY_COLOR));
             frame.render_widget(results, result_area);
         }
 
@@ -193,9 +194,9 @@ impl Screen for SearchScreen {
                     .border_set(border::ROUNDED),
             )
             .style(style::Style::default().fg(if self.focus == Focus::Search {
-                Color::Yellow
+                HIGHLIGHT_COLOR 
             } else {
-                Color::DarkGray
+                PRIMARY_COLOR
             }));
         frame.render_widget(search_field, search_area);
 
@@ -214,7 +215,7 @@ impl Screen for SearchScreen {
         self.filter_popup
             .render(frame, filter_area, self.focus == Focus::Filter);
         self.navbar.render(frame, top);
-        self.popup.render(&self.image_manager, frame);
+        self.popup.render(frame);
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
@@ -360,7 +361,7 @@ impl Screen for SearchScreen {
         self.bg_sender = Some(bg_sender);
         let id = self.get_name();
         let image_manager = self.image_manager.clone();
-        ImageManager::init_with_dedicated_thread(&image_manager, info.app_sx.clone(), id.clone());
+        ImageManager::init_with_threads(&image_manager, info.app_sx.clone());
 
         let handle = std::thread::spawn(move || {
             while let Ok(event) = bg_receiver.recv() {
@@ -378,7 +379,7 @@ impl Screen for SearchScreen {
                     LocalEvent::Search(query) => {
                         if let Some(animes) = info.mal_client.search_anime(query.clone(), 0, 9) {
                             for anime in animes.iter() {
-                                ImageManager::fetch_image_sequential(&image_manager, anime);
+                                ImageManager::query_image_for_fetching(&image_manager, anime);
                             }
                             let update =
                                 super::BackgroundUpdate::new(id.clone()).set("animes", animes);
