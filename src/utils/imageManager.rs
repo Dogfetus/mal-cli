@@ -289,6 +289,7 @@ impl ImageManager {
             {
                 return;
             }
+            instance.load_empy_image(anime.id);
         }
 
         let anime = anime.clone();
@@ -373,6 +374,7 @@ impl ImageManager {
             {
                 return;
             }
+            instance.load_empy_image(anime.id);
         }
 
         let instance_clone = Arc::clone(instance);

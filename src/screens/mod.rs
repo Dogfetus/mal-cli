@@ -1,13 +1,12 @@
-use ratatui::Frame;
-use ratatui_image::errors::Errors;
-use widgets::navbar;
+use crate::mal::models::anime::Anime;
 use crate::app::{Action, Event};
-use crate::mal;
-use crate::utils::customThreadProtocol::CustomResizeResponse;
-use std::sync::{mpsc, Arc};
 use std::collections::HashMap;
 use std::thread::JoinHandle;
+use std::sync::{mpsc, Arc};
+use ratatui::Frame;
+use widgets::popup;
 use std::any::Any;
+use crate::mal;
 
 #[allow(non_snake_case)]
 mod screenTemplate;
@@ -57,12 +56,12 @@ macro_rules! define_screens {
         }
 
         // this function creates a new screen based on its name
-        pub fn create_screen(screen_name: &str) -> Box<dyn Screen> {
+        pub fn create_screen(screen_name: &str, app_info: &ExtraInfo) -> Box<dyn Screen> {
             match screen_name {
                 $(
-                    screens::$name => Box::new($module::$struct::new()),
+                    screens::$name => Box::new($module::$struct::new(app_info.clone())),
                 )*
-                _ => Box::new(launch::LaunchScreen::new()),
+                _ => Box::new(launch::LaunchScreen::new(app_info.clone())),
             }
         }
     };
@@ -115,7 +114,7 @@ define_screens! {
 
 
 #[derive(Debug, Clone)]
-pub struct BackgroundInfo {
+pub struct ExtraInfo {
     // pub stop: Arc<AtomicBool>,
     pub app_sx: mpsc::Sender<Event>,
     pub mal_client: Arc<mal::MalClient>,
@@ -137,42 +136,54 @@ pub trait Screen: Send{
 
     //INFO: just create a backgground function that returns a JoinHandle and the screen will have
     //background functionality. Use apply update to pass updates to the rendering thread
-    fn background(&mut self, info: BackgroundInfo) -> Option<JoinHandle<()>> {
+    fn background(&mut self) -> Option<JoinHandle<()>> {
         None
     }
     fn apply_update(&mut self, update: BackgroundUpdate) {
     }
 }
 
-
 pub struct ScreenManager {
+    overlay: popup::AnimePopup,
     current_screen: Box<dyn Screen>,
     screen_storage: HashMap<String, Box<dyn Screen>>,
     backgrounds: Vec<JoinHandle<()>>,
-    passable_info: BackgroundInfo,
+    passable_info: ExtraInfo,
 }
 
 #[allow(dead_code)]
 impl ScreenManager {
     pub fn new(app_sx: mpsc::Sender<Event>, mal_client: Arc<mal::MalClient>) -> Self {
+        let passable_info = ExtraInfo {
+            app_sx: app_sx.clone(),
+            mal_client,
+        };
+
         Self {
             // default screen is the launch screen
-            current_screen: Box::new(launch::LaunchScreen::new()),
+            overlay: popup::AnimePopup::new(app_sx.clone()),
+            current_screen: Box::new(launch::LaunchScreen::new(passable_info.clone())),
             screen_storage: HashMap::new(),
             backgrounds: Vec::new(),
-            passable_info: BackgroundInfo {
-                // stop: Arc::new(AtomicBool::new(false)),
-                app_sx,
-                mal_client,
-            },
+            passable_info
         }
     }
 
     pub fn render_screen(&mut self, frame: &mut Frame) {
         self.current_screen.draw(frame);
+        self.overlay.render(frame);
+    }
+
+    pub fn toggle_overlay(&mut self, anime: Anime) {
+        self.overlay.set_anime(anime);
+        self.overlay.open();
     }
 
     pub fn handle_input(&mut self, key_event: crossterm::event::KeyEvent) -> Option<Action> {
+        if self.overlay.is_open() {
+            return self.overlay.handle_input(key_event);
+        }
+
         self.current_screen.handle_input(key_event)
     }
 
@@ -202,7 +213,7 @@ impl ScreenManager {
         if let Some(screen) = self.screen_storage.remove(screen_name) {
             self.current_screen = screen;
         } else {
-            self.current_screen = create_screen(screen_name);
+            self.current_screen = create_screen(screen_name, &self.passable_info);
         }
 
         self.cleanup_backgrounds();
@@ -210,7 +221,7 @@ impl ScreenManager {
     }
 
     pub fn spawn_background(&mut self) {
-        if let Some(handle) = self.current_screen.background(self.passable_info.clone()) { 
+        if let Some(handle) = self.current_screen.background() { 
             self.backgrounds.push(handle);
         }
     }

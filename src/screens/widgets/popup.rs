@@ -8,12 +8,9 @@ use crate::{
 };
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
-    Frame,
-    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
-    style::Style,
-    symbols::{self, border},
-    widgets::{Block, Borders, Clear, Padding, Paragraph},
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect}, style::{Modifier, Style, Stylize}, symbols::{self, border}, widgets::{Block, Borders, Clear, Padding, Paragraph, Wrap}, Frame
 };
+use tui_widgets::big_text::{BigText, PixelSize};
 use std::cmp::min;
 
 use super::navigatable::Navigatable;
@@ -33,21 +30,18 @@ pub struct AnimePopup {
 }
 
 impl AnimePopup {
-    pub fn new() -> Self {
-        let buttons = vec!["Play", "Add to List", "Add to Favorites", "Rate", "Share"];
+    pub fn new(sender: Sender<Event>) -> Self {
+        let buttons = vec!["Play", "Add to List", "Favorite",  "Rate", "Share"];
+        let image_manager = Arc::new(Mutex::new(ImageManager::new()));
+        ImageManager::init_with_threads(&image_manager, sender.clone());
 
         Self {
-            image_manager: Arc::new(Mutex::new(ImageManager::new())),
+            image_manager,
             anime: Anime::empty(),
             toggled: false,
             button_nav: Navigatable::new((buttons.len() as u16, 1)),
             buttons,
         }
-    }
-
-    pub fn enable_images(&mut self, sender: Sender<Event>) -> &Self {
-        ImageManager::init_with_threads(&self.image_manager, sender);
-        self
     }
 
     pub fn set_anime(&mut self, anime: Anime) -> &Self {
@@ -69,19 +63,31 @@ impl AnimePopup {
         self
     }
 
-    pub fn toggle(&mut self) -> &Self {
-        self.toggled = !self.toggled;
-        self
-    }
-
     pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
         match key_event.code {
             KeyCode::Char('q') => {
-                self.toggled = false;
+                self.close();
+                None
+            }
+            KeyCode::Char('k') | KeyCode::Down => {
+                self.button_nav.move_down();
+                None
+            }
+            KeyCode::Char('j') | KeyCode::Up => {
+                self.button_nav.move_up();
+                None
+            }
+            KeyCode::Char('l') | KeyCode::Right => {
+                self.button_nav.move_right();
+                None
+            }
+            KeyCode::Char('h') | KeyCode::Left => {
+                self.button_nav.move_left();
                 None
             }
             _ => None,
         }
+
     }
 
     pub fn render(&mut self, frame: &mut Frame) {
@@ -109,7 +115,7 @@ impl AnimePopup {
         frame.render_widget(block, popup_area);
 
         // split the popup up so we can get the area for the bottons ont he right side
-        let [_, right] = Layout::default()
+        let [left, right] = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Fill(1), Constraint::Percentage(30)])
             .areas(popup_area);
@@ -143,6 +149,7 @@ impl AnimePopup {
         );
         frame.render_widget(right_block, bottom_area);
 
+        // add the buttons
         self.button_nav
             .construct(&self.buttons, buttons_area, |button, area, highlighted| {
                 let button_paragraph = Paragraph::new(button.to_string())
@@ -160,14 +167,78 @@ impl AnimePopup {
                 frame.render_widget(button_paragraph, area);
             });
 
-        // the rest here is garbage
+
+
+        // the rest of the popup
+
+        let [title_area, info_area] = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(3), Constraint::Fill(1)])
+            .areas(popup_area.inner(Margin::new(1, 1)));
+        let [_, title_area] = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(35), Constraint::Fill(1)])
+            .areas(title_area);
+        let info_area = Rect {
+            x: title_area.x,
+            y: info_area.y,
+            width: title_area.width,
+            height: info_area.height,
+        };
+
+        let title = if self.anime.title.is_empty() {
+           self.anime.alternative_titles.en.clone()
+        } else {
+            self.anime.title.clone()
+        };
+        let title_text = Paragraph::new(title)
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(SECONDARY_COLOR).bold());
+
+        frame.render_widget(title_text, title_area.inner(Margin::new(0, 1)));
+
+        let image_area = Rect {
+            x: popup_area.x + 4,
+            y: popup_area.y + 2,
+            width: popup_area.width,
+            height: bottom_area.y - popup_area.y - 3 ,
+        };
+
         ImageManager::render_image(
             &self.image_manager,
             &self.anime,
             frame,
-            popup_area.inner(Margin::new(1, 1)),
+            image_area,
             true,
         );
+
+        let synopsis_area = Rect {
+            x: left.x + 1,
+            y: bottom_area.y,
+            width: left.width - 1,
+            height: bottom_area.height - 1,
+        };
+        let synopsis_text = Paragraph::new(self.anime.synopsis.clone())
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_set(border::ROUNDED)
+                    .title("Synopsis")
+                    .style(Style::default().fg(PRIMARY_COLOR)),
+            )
+            .alignment(Alignment::Left)
+            .wrap(Wrap { trim: true })
+            .style(Style::default().fg(PRIMARY_COLOR));
+        frame.render_widget(synopsis_text, synopsis_area);
+
+        let big_text = BigText::builder()
+            .pixel_size(PixelSize::Sextant)
+            .lines(vec![
+                self.anime.mean.to_string().into(),
+            ])
+            .build();
+        frame.render_widget(big_text, info_area);
+
     }
 }
 

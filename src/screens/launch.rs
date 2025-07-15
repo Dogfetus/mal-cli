@@ -1,4 +1,4 @@
-use super::{screens::*, Screen};
+use super::{screens::*, ExtraInfo, Screen};
 use crate::screens::widgets::button::Button; 
 use crate::app::Action;
 use crate::mal::MalClient;
@@ -14,7 +14,7 @@ pub struct LaunchScreen {
 }
 
 impl LaunchScreen {
-    pub fn new() -> Self {
+    pub fn new(_: ExtraInfo) -> Self {
         Self {
             selected_button: 0,
             buttons: vec![

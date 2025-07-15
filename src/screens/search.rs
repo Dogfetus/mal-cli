@@ -4,6 +4,7 @@ use std::sync::mpsc::Sender;
 use std::sync::mpsc::channel;
 use std::thread::JoinHandle;
 
+use crate::app::Event;
 use crate::config::HIGHLIGHT_COLOR;
 use crate::config::PRIMARY_COLOR;
 use crate::mal::models::anime::Anime;
@@ -29,8 +30,8 @@ use ratatui::widgets::Paragraph;
 use super::widgets::animebox::LongAnimeBox;
 use super::widgets::navbar::NavBar;
 use super::widgets::navigatable::Navigatable;
-use super::widgets::popup::AnimePopup;
 use super::widgets::popup::{Arrows, SelectionPopup};
+use super::ExtraInfo;
 
 #[derive(Debug, Clone)]
 enum LocalEvent {
@@ -50,9 +51,9 @@ enum Focus {
 pub struct SearchScreen {
     animes: Vec<Anime>,
     image_manager: Arc<Mutex<ImageManager>>,
+    app_info: ExtraInfo,
 
     navbar: NavBar,
-    popup: AnimePopup,
     navigatable: Navigatable,
     focus: Focus,
 
@@ -65,7 +66,7 @@ pub struct SearchScreen {
 }
 
 impl SearchScreen {
-    pub fn new() -> Self {
+    pub fn new(info: ExtraInfo) -> Self {
         Self {
             image_manager: Arc::new(Mutex::new(ImageManager::new())),
             navigatable: Navigatable::new((3, 2)),
@@ -81,7 +82,6 @@ impl SearchScreen {
                 .add_option("popularity")
                 .add_option("favorite"),
             search_input: Input::new(),
-            popup: AnimePopup::new(),
             navbar: NavBar::new()
                 .add_screen(OVERVIEW)
                 .add_screen(SEASONS)
@@ -90,9 +90,10 @@ impl SearchScreen {
                 .add_screen(PROFILE),
             focus: Focus::Search,
             animes: Vec::new(),
-            fetching: false,
             bg_loaded: false,
             bg_sender: None,
+            fetching: false,
+            app_info: info,
         }
     }
 
@@ -120,16 +121,6 @@ impl Screen for SearchScreen {
         let area = frame.area();
         frame.render_widget(Clear, area);
 
-        /* Splitting the screen:
-         * which looks like this:
-         * ╭────────╮
-         * ╰────────╯
-         * ╭─────╮╭─╮
-         * ╰─────╯│ │
-         * ╭─────╮│ │
-         * │     ││ │
-         * ╰─────╯╰─╯
-         * */
         let [top, bottom] = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(3), Constraint::Percentage(100)])
@@ -215,7 +206,6 @@ impl Screen for SearchScreen {
         self.filter_popup
             .render(frame, filter_area, self.focus == Focus::Filter);
         self.navbar.render(frame, top);
-        self.popup.render(frame);
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
@@ -296,11 +286,7 @@ impl Screen for SearchScreen {
                         KeyCode::Char('j') | KeyCode::Up => self.focus = Focus::Search,
                         _ => {}
                     }
-                    self.popup.close();
                 } else {
-                    if self.popup.is_open() {
-                        return self.popup.handle_input(key_event);
-                    }
 
                     match key_event.code {
                         KeyCode::Char('k') | KeyCode::Down => {
@@ -317,8 +303,7 @@ impl Screen for SearchScreen {
                         }
                         KeyCode::Enter => {
                             if let Some(anime) = self.navigatable.get_selected_item(&self.animes) {
-                                self.popup.set_anime(anime.clone());
-                                self.popup.open();
+                                return Some(Action::ShowOverlay(anime.clone()));
                             }
                         }
                         _ => {}
@@ -351,11 +336,12 @@ impl Screen for SearchScreen {
         Box::new(self.clone())
     }
 
-    fn background(&mut self, info: super::BackgroundInfo) -> Option<JoinHandle<()>> {
+    fn background(&mut self) -> Option<JoinHandle<()>> {
         if self.bg_loaded {
             return None;
         }
 
+        let info = self.app_info.clone();
         self.bg_loaded = true;
         let (bg_sender, bg_receiver) = channel::<LocalEvent>();
         self.bg_sender = Some(bg_sender);

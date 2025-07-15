@@ -1,4 +1,4 @@
-use super::{screens::*, Screen};
+use super::{screens::*, ExtraInfo, Screen};
 use crate::screens::widgets::button::Button;
 use crate::app::Action;
 use ratatui::{
@@ -15,7 +15,7 @@ pub struct SettingsScreen {
 }
 
 impl SettingsScreen {
-    pub fn new() -> Self {
+    pub fn new(_info: ExtraInfo) -> Self {
         Self {
             settings: vec![
                 "settings 1",

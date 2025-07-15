@@ -25,9 +25,8 @@ use ratatui::widgets::Paragraph;
 use super::widgets::animebox::LongAnimeBox;
 use super::widgets::navbar::NavBar;
 use super::widgets::navigatable::Navigatable;
-use super::widgets::popup::SelectionPopup;
-use super::widgets::popup::{AnimePopup, Arrows};
-use super::{BackgroundUpdate, screens::*};
+use super::widgets::popup::{Arrows, SelectionPopup};
+use super::{screens::*, BackgroundUpdate, ExtraInfo};
 
 #[derive(Debug, Clone)]
 struct Statistics {
@@ -106,7 +105,7 @@ pub struct ListScreen {
 
     focus: Focus,
     navbar: NavBar,
-    popup: AnimePopup,
+    app_info: ExtraInfo,
 
     search_input: Input,
     navigatable: Navigatable,
@@ -115,7 +114,7 @@ pub struct ListScreen {
 }
 
 impl ListScreen {
-    pub fn new() -> Self {
+    pub fn new(info: ExtraInfo) -> Self {
         Self {
             image_manager: Arc::new(Mutex::new(ImageManager::new())),
             navigatable: Navigatable::new((3, 3)),
@@ -160,7 +159,6 @@ impl ListScreen {
             ],
             statistics: Statistics::new(),
             search_input: Input::new(),
-            popup: AnimePopup::new(),
             navbar: NavBar::new()
                 .add_screen(OVERVIEW)
                 .add_screen(SEASONS)
@@ -174,6 +172,7 @@ impl ListScreen {
             bg_startup: true,
             bg_loaded: false,
             bg_fetching: true,
+            app_info: info,
             bg_sx: None,
         }
     }
@@ -366,7 +365,6 @@ impl Screen for ListScreen {
         );
 
         self.navbar.render(frame, top);
-        self.popup.render(frame);
         self.search_input.render_cursor(frame, search.x+1, search.y+1);
     }
 
@@ -439,10 +437,6 @@ impl Screen for ListScreen {
                     return None;
                 }
 
-                if self.popup.is_open() {
-                    return self.popup.handle_input(key_event);
-                }
-
                 match key_event.code {
                     KeyCode::Char('j') | KeyCode::Up => {
                         self.navigatable.move_up();
@@ -460,8 +454,7 @@ impl Screen for ListScreen {
                         if let Some(anime) =
                             self.navigatable.get_selected_item(&self.filtered_animes)
                         {
-                            self.popup.set_anime(anime.clone());
-                            self.popup.open();
+                            return Some(Action::ShowOverlay(anime.clone()));
                         }
                     }
                     _ => {}
@@ -530,12 +523,13 @@ impl Screen for ListScreen {
         Box::new(self.clone())
     }
 
-    fn background(&mut self, info: super::BackgroundInfo) -> Option<JoinHandle<()>> {
+    fn background(&mut self) -> Option<JoinHandle<()>> {
         if self.bg_loaded {
             return None;
         }
         self.bg_loaded = true;
 
+        let info = self.app_info.clone();
         let id = self.get_name();
         let (sx, rx) = channel::<LocalEvent>();
         self.bg_sx = Some(sx);

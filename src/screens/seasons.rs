@@ -1,11 +1,11 @@
 use super::widgets::navigatable::Navigatable;
 use super::widgets::popup::SeasonPopup;
+use super::ExtraInfo;
 use super::{
-    BackgroundUpdate, Screen, screens::*, widgets::navbar::NavBar, widgets::popup::AnimePopup,
+    BackgroundUpdate, Screen, screens::*, widgets::navbar::NavBar,
 };
 use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
 use crate::screens::widgets::animebox::AnimeBox;
-use crate::utils::customThreadProtocol::CustomResizeResponse;
 use crate::utils::imageManager::ImageManager;
 use crate::{
     app::{Action, Event},
@@ -22,7 +22,6 @@ use ratatui::{
     symbols,
     widgets::{Block, Borders, Clear},
 };
-use ratatui_image::errors::Errors;
 use std::sync::mpsc::{Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -46,9 +45,9 @@ enum Focus {
 pub struct SeasonsScreen {
     animes: Vec<Anime>,
     navbar: NavBar,
-    popup: AnimePopup,
     season_popup: SeasonPopup,
     focus: Focus,
+    app_info: ExtraInfo,
 
     detail_scroll_x: u16,
     detail_scroll_y: u16,
@@ -65,7 +64,7 @@ pub struct SeasonsScreen {
 }
 
 impl SeasonsScreen {
-    pub fn new() -> Self {
+    pub fn new(info: ExtraInfo) -> Self {
         let (year, season) = MalClient::current_season();
         let image_manager = Arc::new(Mutex::new(ImageManager::new()));
 
@@ -77,9 +76,9 @@ impl SeasonsScreen {
                 .add_screen(SEARCH)
                 .add_screen(LIST)
                 .add_screen(PROFILE),
-            popup: AnimePopup::new(),
             season_popup: SeasonPopup::new(),
             focus: Focus::AnimeList,
+            app_info: info,
 
             detail_scroll_x: 0,
             detail_scroll_y: 0,
@@ -419,7 +418,6 @@ impl Screen for SeasonsScreen {
             &mut scrollbar_state,
         );
 
-        self.popup.render(frame);
         self.season_popup.render(frame, bl_top);
     }
 
@@ -452,9 +450,6 @@ impl Screen for SeasonsScreen {
                         _ => {}
                     }
                 } else {
-                    if self.popup.is_open() {
-                        return self.popup.handle_input(key_event);
-                    }
 
                     match key_event.code {
                         KeyCode::Up | KeyCode::Char('j') => {
@@ -471,9 +466,7 @@ impl Screen for SeasonsScreen {
                         }
                         KeyCode::Enter | KeyCode::Char(' ') => {
                             if let Some(anime) = self.navigatable.get_selected_item(&self.animes) {
-                                self.popup.set_anime(anime.clone());
-                                self.popup.toggle();
-                                return None;
+                                return Some(Action::ShowOverlay(anime.clone()));
                             }
                         }
                         _ => {}
@@ -567,14 +560,14 @@ impl Screen for SeasonsScreen {
         Box::new(self.clone())
     }
 
-    fn background(&mut self, info: super::BackgroundInfo) -> Option<std::thread::JoinHandle<()>> {
+    fn background(&mut self) -> Option<std::thread::JoinHandle<()>> {
         if self.bg_loaded {
             return None;
         }
+        let info = self.app_info.clone();
         let id = self.get_name();
         let manager = self.image_manager.clone();
         ImageManager::init_with_threads(&manager, info.app_sx.clone());
-        self.popup.enable_images(info.app_sx.clone());
         let nr_of_animes = self.animes.len();
         let (sender, receiver) = channel::<LocalEvent>();
         self.bg_loaded = true;

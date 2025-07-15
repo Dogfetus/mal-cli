@@ -1,7 +1,7 @@
 use crate::{
     handlers::get_handlers,
-    mal::MalClient,
-    screens::{BackgroundUpdate, ScreenManager, screens::*},
+    mal::{models::anime::Anime, MalClient},
+    screens::{screens::*, BackgroundUpdate, ScreenManager},
 };
 use crossterm::event::KeyCode;
 use image::DynamicImage;
@@ -13,6 +13,7 @@ use std::{io, sync::mpsc};
 
 pub enum Action {
     SwitchScreen(&'static str),
+    ShowOverlay(Anime),
     Quit,
 }
 
@@ -107,6 +108,9 @@ impl App {
                 }
                 Action::Quit => {
                     self.is_running = false;
+                }
+                Action::ShowOverlay(anime) => {
+                    self.screen_manager.toggle_overlay(anime);
                 }
             }
         }

@@ -4,7 +4,7 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::thread::{self, JoinHandle};
 
 use super::widgets::navbar::NavBar;
-use super::{screens::*, BackgroundInfo, BackgroundUpdate, Screen};
+use super::{screens::*, BackgroundUpdate, ExtraInfo, Screen};
 use crate::config::PRIMARY_COLOR;
 use crate::mal::models::anime::Anime;
 use crate::app::{Action, Event};
@@ -30,10 +30,11 @@ pub struct OverviewScreen {
     navbar: NavBar,
     // async_state: ThreadProtocol,
     rx: Arc<Mutex<mpsc::Receiver<ResizeRequest>>>,
+    app_info: ExtraInfo,
 }
 
 impl OverviewScreen {
-    pub fn new() -> Self {
+    pub fn new(info: ExtraInfo) -> Self {
         let (sx_worker, rec_worker) = mpsc::channel::<ResizeRequest>();
         let picker = get_picker();
         let dyn_img = image::ImageReader::open("./assets/146836.jpg").expect("nah").decode().expect("dont want to");
@@ -54,6 +55,7 @@ impl OverviewScreen {
                 .add_screen(PROFILE),
 
             scroll_offset: 0,
+            app_info: info,
             loading: false,
             // async_state: ThreadProtocol::new(sx_worker, Some(picker.new_resize_protocol(dyn_img))),
             rx: Arc::new(Mutex::new(rec_worker)),
@@ -367,11 +369,12 @@ impl Screen for OverviewScreen {
         Box::new(self.clone())
     }
 
-    fn background(&mut self, info: BackgroundInfo) -> Option<JoinHandle<()>> {
+    fn background(&mut self) -> Option<JoinHandle<()>> {
         if self.loading {
             return None;
         }
         self.loading = true; 
+        let info = self.app_info.clone();
 
         // let rx = Arc::clone(&self.rx);
         let id = self.get_name();

@@ -8,6 +8,7 @@ use crate::mal::models::user::User;
 use crate::utils::imageManager::ImageManager;
 
 use super::BackgroundUpdate;
+use super::ExtraInfo;
 use super::Screen;
 use super::screens::*;
 use super::widgets::navbar::NavBar;
@@ -37,9 +38,10 @@ pub struct ProfileScreen {
     focus: Focus,
     image_manager: Arc<Mutex<ImageManager>>,
     bg_loaded: bool,
+    app_info: ExtraInfo,
 }
 impl ProfileScreen {
-    pub fn new() -> Self {
+    pub fn new(info: ExtraInfo) -> Self {
         Self {
             focus: Focus::Content,
             navbar: NavBar::new()
@@ -51,6 +53,7 @@ impl ProfileScreen {
             image_manager: Arc::new(Mutex::new(ImageManager::new())),
             bg_loaded: false,
             user: User::empty(),
+            app_info: info
         }
     }
 }
@@ -124,12 +127,13 @@ impl Screen for ProfileScreen {
         Box::new(self.clone())
     }
 
-    fn background(&mut self, info: super::BackgroundInfo) -> Option<JoinHandle<()>> {
+    fn background(&mut self) -> Option<JoinHandle<()>> {
         if self.bg_loaded {
             return None;
         }
         self.bg_loaded = true;
 
+        let info = self.app_info.clone();
         let image_manager = self.image_manager.clone();
         let id = self.get_name();
         ImageManager::init_with_threads(

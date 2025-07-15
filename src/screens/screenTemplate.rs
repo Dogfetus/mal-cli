@@ -14,6 +14,8 @@ use ratatui::style;
 use ratatui::widgets::Clear;
 use ratatui::Frame;
 
+use super::ExtraInfo;
+
 
 #[derive(Clone)]
 pub struct TempScreen {
@@ -22,7 +24,7 @@ pub struct TempScreen {
 }
 
 impl TempScreen {
-    pub fn new() -> Self {
+    pub fn new(info: ExtraInfo) -> Self {
         Self {
             selected_button: 0,
             buttons: vec![
@@ -89,7 +91,7 @@ impl Screen for TempScreen {
     // false 
     // }
 
-    fn background(&mut self, info: super::BackgroundInfo) -> Option<std::thread::JoinHandle<()>> {
+    fn background(&mut self) -> Option<std::thread::JoinHandle<()>> {
         todo!("Background functionality for TempScreen");
         // code to start a background thread
         // ...

@@ -2,6 +2,7 @@ use crate::app::Action;
 
 use super::screens::*;
 use super::widgets::button::Button;
+use super::ExtraInfo;
 use super::Screen;
 
 use crossterm::event::KeyCode;
@@ -16,7 +17,7 @@ pub struct InfoScreen {
     buttons: Vec<&'static str>,
 }
 impl InfoScreen {
-    pub fn new() -> Self {
+    pub fn new(_info: ExtraInfo) -> Self {
         Self {
             selected_button: 0,
             buttons: vec![

@@ -1,11 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use ratatui::{
-    Frame,
-    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
-    style::{Modifier, Style},
-    symbols,
-    widgets::{Block, Borders, Padding, Paragraph, Wrap},
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect}, style::{Modifier, Style, Stylize}, symbols, widgets::{Block, Borders, Padding, Paragraph, Wrap}, Frame
 };
 
 use crate::{
@@ -220,7 +216,7 @@ impl LongAnimeBox {
 
         let title = Paragraph::new(title_text)
             .alignment(Alignment::Center)
-            .style(Style::default().fg(color).add_modifier(Modifier::BOLD))
+            .style(Style::default().fg(color).bold())
             .block(Block::default().padding(Padding::new(2, 2, 1, 0)));
         frame.render_widget(title, title_area);
 

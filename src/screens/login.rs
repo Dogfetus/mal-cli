@@ -1,31 +1,28 @@
-use std::{cmp::{max, min}, sync::{mpsc::Sender, RwLock}};
+use std::cmp::{max, min};
 use crate::{app::Event, mal::MalClient, screens::widgets::button::Button};
 use crossterm::event::{KeyCode, KeyEvent};
-use std::sync::atomic::AtomicBool;
-use super::{screens::*, BackgroundInfo, BackgroundUpdate, Screen};
+use super::{screens::*, BackgroundUpdate, ExtraInfo, Screen};
 use std::thread::JoinHandle;
 use crate::app::Action;
-use std::sync::Arc;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect}, 
-    widgets::{ Block, Borders, Clear, Paragraph, Wrap}, 
+    widgets::{ Block, Borders, Clear, Paragraph}, 
     style::{Color, Modifier, Style}, 
     Frame 
 };
 
 
-//TODO: swap the locking mechanism to to use mpsc channels instead of locks.
 //TODO: option to copy the url to clipboard
-//INFO: option to pase code from clipboard (might not want to do this, since it might be a security risk)
 #[derive(Clone)]
 pub struct LoginScreen { 
     selected_button: usize,
     buttons: Vec<&'static str>,
     login_url: String,
+    app_info: ExtraInfo 
 }
 
 impl LoginScreen {
-    pub fn new() -> Self {
+    pub fn new(info: ExtraInfo) -> Self {
         Self {
             selected_button: 0,
             buttons: vec![
@@ -33,6 +30,7 @@ impl LoginScreen {
                 "Back",
             ],
             login_url: String::new(),
+            app_info: info
         }
     }
 }
@@ -143,7 +141,7 @@ impl Screen for LoginScreen {
         Box::new(self.clone())
     }
 
-    fn background(&mut self, info: BackgroundInfo) -> Option<JoinHandle<()>> {
+    fn background(&mut self) -> Option<JoinHandle<()>> {
         //TODO: the thread should receive a new transmitter / sender for each screen. to
         //communicate with events instead of polling ( might not be necessary for this login though )
 
@@ -154,6 +152,7 @@ impl Screen for LoginScreen {
 
         let login_url = self.login_url.clone();
         let id = self.get_name();
+        let info = self.app_info.clone();
 
         Some(std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_millis(100));

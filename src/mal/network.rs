@@ -1,10 +1,11 @@
-use super::models::anime::{Anime, AnimeResponse};
+use super::models::anime::AnimeResponse;
 use super::models::user::User;
 use cached::proc_macro::cached;
 use std::fmt::Debug;
 use std::io::Read;
-use ureq;
 use ureq::Error;
+use url::Url;
+use ureq;
 
 #[macro_export]
 macro_rules! params {
@@ -14,17 +15,29 @@ macro_rules! params {
 }
 
 #[cached(size = 2000, result = true)]
-pub fn fetch_image(url: String) -> Result<image::DynamicImage, String> {
-    match ureq::get(&url).call() {
-        Ok(mut response) => {
-            let mut reader = response.body_mut().as_reader();
-            let mut buffer = Vec::new();
-            reader.read_to_end(&mut buffer).map_err(|e| e.to_string())?;
+pub fn fetch_image(uri: String) -> Result<image::DynamicImage, String> {
+    let url = Url::parse(&uri)
+        .map_err(|e| format!("Invalid URL: {}", e))?;
 
-            image::load_from_memory(&buffer).map_err(|e| e.to_string())
+    match url.scheme() {
+        "http" | "https" => 
+            match ureq::get(&uri).call() {
+                Ok(mut response) => {
+                    let mut reader = response.body_mut().as_reader();
+                    let mut buffer = Vec::new();
+                    reader.read_to_end(&mut buffer).map_err(|e| e.to_string())?;
+
+                    image::load_from_memory(&buffer).map_err(|e| e.to_string())
+                }
+                Err(Error::StatusCode(code)) => Err(format!("HTTP error: {}", code)),
+                Err(e) => Err(format!("Request failed: {}", e)),
+            }
+        "file" => {
+            let path = url.to_file_path()
+                .map_err(|_| "Invalid file URL".to_string())?;
+            image::open(path).map_err(|e| e.to_string())
         }
-        Err(Error::StatusCode(code)) => Err(format!("HTTP error: {}", code)),
-        Err(e) => Err(format!("Request failed: {}", e)),
+        _ => return Err("Unsupported URL scheme".to_string()),
     }
 }
 
