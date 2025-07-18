@@ -26,6 +26,8 @@ use std::sync::mpsc::{Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
+// TODO: remember to fetch all season anime
+
 #[derive(Debug, Clone)]
 enum LocalEvent {
     SeasonSwitch(u16, String),

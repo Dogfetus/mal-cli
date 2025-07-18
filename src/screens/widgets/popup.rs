@@ -4,14 +4,19 @@ use crate::{
     app::{Action, Event},
     config::{HIGHLIGHT_COLOR, PRIMARY_COLOR, SECONDARY_COLOR},
     mal::{MalClient, models::anime::Anime},
+    screens::ExtraInfo,
     utils::imageManager::ImageManager,
 };
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect}, style::{Modifier, Style, Stylize}, symbols::{self, border}, widgets::{Block, Borders, Clear, Padding, Paragraph, Wrap}, Frame
+    Frame,
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
+    style::{Modifier, Style, Stylize},
+    symbols::{self, border},
+    widgets::{Block, Borders, Clear, Padding, Paragraph, Wrap},
 };
-use tui_widgets::big_text::{BigText, PixelSize};
 use std::cmp::min;
+use tui_widgets::big_text::{BigText, PixelSize};
 
 use super::navigatable::Navigatable;
 
@@ -20,32 +25,79 @@ const FIRST_YEAR: u16 = 1917;
 const FIRST_SEASON: &str = "Winter";
 const BUTTON_HEIGHT: u16 = 3;
 
+#[derive(PartialEq, Clone, Debug)]
+enum Focus {
+    PlayButtons,
+    StatusButtons,
+    Synopsis,
+}
+
 #[derive(Clone)]
 pub struct AnimePopup {
     anime: Anime,
     toggled: bool,
     buttons: Vec<&'static str>,
     button_nav: Navigatable,
+    status_buttons: Vec<SelectionPopup>,
+    status_nav: Navigatable,
     image_manager: Arc<Mutex<ImageManager>>,
+    focus: Focus,
 }
 
 impl AnimePopup {
-    pub fn new(sender: Sender<Event>) -> Self {
-        let buttons = vec!["Play", "Add to List", "Favorite",  "Rate", "Share"];
+    pub fn new(info: ExtraInfo) -> Self {
+        let buttons = vec!["Play", "Add to List", "Favorite", "Rate", "Share"];
         let image_manager = Arc::new(Mutex::new(ImageManager::new()));
-        ImageManager::init_with_threads(&image_manager, sender.clone());
+        ImageManager::init_with_threads(&image_manager, info.app_sx.clone());
 
         Self {
             image_manager,
             anime: Anime::empty(),
             toggled: false,
             button_nav: Navigatable::new((buttons.len() as u16, 1)),
+            status_nav: Navigatable::new((1, 3)),
+            status_buttons: Vec::new(),
             buttons,
+            focus: Focus::PlayButtons,
         }
     }
 
     pub fn set_anime(&mut self, anime: Anime) -> &Self {
         self.anime = anime;
+
+        let episode_options: Vec<String> = (0..=self.anime.num_episodes.max(1))
+            .map(|i| i.to_string())
+            .collect();
+
+        self.status_buttons = vec![
+            SelectionPopup::new()
+                .add_option("Add to list")
+                .add_option("Watching")
+                .add_option("Plan to watch")
+                .add_option("Completed")
+                .add_option("On-Hold")
+                .add_option("Dropped")
+                .with_arrows(Arrows::Static)
+                .with_selected_option(self.anime.my_list_status.status.to_string())
+                .clone(),
+            SelectionPopup::new()
+                .add_option("Rate Anime")
+                .add_options(vec!["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"])
+                .with_arrows(Arrows::Static)
+                .with_selected_option(
+                    self.anime
+                        .my_list_status
+                        .score
+                        .map_or("Not Rated".to_string(), |s| s.to_string()),
+                )
+                .clone(),
+            SelectionPopup::new()
+                .add_options(episode_options)
+                .with_arrows(Arrows::Static)
+                .with_selected_option(self.anime.my_list_status.num_episodes_watched.to_string())
+                .with_displaying_format(format!("{{}} / {}", self.anime.num_episodes))
+                .clone(),
+        ];
         self
     }
 
@@ -64,30 +116,127 @@ impl AnimePopup {
     }
 
     pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
-        match key_event.code {
-            KeyCode::Char('q') => {
-                self.close();
-                None
+        match self.focus {
+            Focus::PlayButtons => {
+                if key_event
+                    .modifiers
+                    .contains(crossterm::event::KeyModifiers::CONTROL)
+                {
+                    match key_event.code {
+                        KeyCode::Char('j') | KeyCode::Up => {
+                            self.focus = Focus::StatusButtons;
+                            if let Some(_) =
+                                self.button_nav.get_selected_item_mut(&mut self.buttons)
+                            {
+                            }
+                        }
+                        KeyCode::Char('h') | KeyCode::Left => {
+                            self.focus = Focus::Synopsis;
+                            if let Some(_) =
+                                self.button_nav.get_selected_item_mut(&mut self.buttons)
+                            {
+                            }
+                        }
+                        _ => {}
+                    }
+                    return None;
+                }
+
+                match key_event.code {
+                    KeyCode::Char('k') | KeyCode::Down => {
+                        self.button_nav.move_down();
+                    }
+                    KeyCode::Char('j') | KeyCode::Up => {
+                        self.button_nav.move_up();
+                    }
+                    KeyCode::Char('l') | KeyCode::Right => {
+                        self.button_nav.move_right();
+                    }
+                    KeyCode::Char('h') | KeyCode::Left => {
+                        self.button_nav.move_left();
+                    }
+                    KeyCode::Char('q') => {
+                        self.close();
+                    }
+                    _ => {}
+                }
             }
-            KeyCode::Char('k') | KeyCode::Down => {
-                self.button_nav.move_down();
-                None
+            Focus::StatusButtons => {
+                if key_event
+                    .modifiers
+                    .contains(crossterm::event::KeyModifiers::CONTROL)
+                {
+                    match key_event.code {
+                        KeyCode::Char('l') | KeyCode::Right | KeyCode::Char('k') | KeyCode::Down => {
+                            self.focus = Focus::PlayButtons;
+                            if let Some(button) = self
+                                .status_nav
+                                .get_selected_item_mut(&mut self.status_buttons)
+                            {
+                                button.close();
+                            }
+                        }
+                        KeyCode::Char('h') | KeyCode::Left => {
+                            self.focus = Focus::Synopsis;
+                            if let Some(button) = self
+                                .status_nav
+                                .get_selected_item_mut(&mut self.status_buttons)
+                            {
+                                button.close();
+                            }
+                        }
+                        _ => {}
+                    }
+                    return None;
+                }
+
+                if let Some(dropdown) = self
+                    .status_nav
+                    .get_selected_item_mut(&mut self.status_buttons)
+                {
+                     match (dropdown.is_open(), key_event.code) {
+                        (false, KeyCode::Char('l') | KeyCode::Right) => {
+                            self.status_nav.move_right();
+                            return None;
+                        }
+                        (false, KeyCode::Char('h') | KeyCode::Left) => {
+                            self.status_nav.move_left();
+                            return None;
+                        }
+                        (false, KeyCode::Char('q')) => {
+                            self.close();
+                            return None;
+                        }
+                        _ => {
+                            if let Some(selection) = dropdown.handle_input(key_event) {}
+                        }
+                    }
+                }
             }
-            KeyCode::Char('j') | KeyCode::Up => {
-                self.button_nav.move_up();
-                None
+
+            Focus::Synopsis => {
+                if key_event
+                    .modifiers
+                    .contains(crossterm::event::KeyModifiers::CONTROL)
+                {
+                    match key_event.code {
+                        KeyCode::Char('l') | KeyCode::Right => {
+                            self.focus = Focus::PlayButtons;
+                        }
+                        KeyCode::Char('j') | KeyCode::Up => {
+                            self.focus = Focus::StatusButtons;
+                        }
+                        KeyCode::Char('q') => {
+                            self.close();
+                        }
+                        _ => {}
+                    }
+                    return None;
+                }
             }
-            KeyCode::Char('l') | KeyCode::Right => {
-                self.button_nav.move_right();
-                None
-            }
-            KeyCode::Char('h') | KeyCode::Left => {
-                self.button_nav.move_left();
-                None
-            }
-            _ => None,
         }
 
+        None
     }
 
     pub fn render(&mut self, frame: &mut Frame) {
@@ -159,15 +308,15 @@ impl AnimePopup {
                             .border_set(border::ROUNDED),
                     )
                     .alignment(Alignment::Center)
-                    .style(Style::default().fg(if highlighted {
-                        HIGHLIGHT_COLOR
-                    } else {
-                        SECONDARY_COLOR
-                    }));
+                    .style(Style::default().fg(
+                        if highlighted && self.focus == Focus::PlayButtons {
+                            HIGHLIGHT_COLOR
+                        } else {
+                            SECONDARY_COLOR
+                        },
+                    ));
                 frame.render_widget(button_paragraph, area);
             });
-
-
 
         // the rest of the popup
 
@@ -183,11 +332,11 @@ impl AnimePopup {
             x: title_area.x,
             y: info_area.y,
             width: title_area.width,
-            height: info_area.height,
+            height: info_area.height - buttons_area.height,
         };
 
         let title = if self.anime.title.is_empty() {
-           self.anime.alternative_titles.en.clone()
+            self.anime.alternative_titles.en.clone()
         } else {
             self.anime.title.clone()
         };
@@ -201,16 +350,10 @@ impl AnimePopup {
             x: popup_area.x + 4,
             y: popup_area.y + 2,
             width: popup_area.width,
-            height: bottom_area.y - popup_area.y - 3 ,
+            height: bottom_area.y - popup_area.y - 3,
         };
 
-        ImageManager::render_image(
-            &self.image_manager,
-            &self.anime,
-            frame,
-            image_area,
-            true,
-        );
+        ImageManager::render_image(&self.image_manager, &self.anime, frame, image_area, true);
 
         let synopsis_area = Rect {
             x: left.x + 1,
@@ -224,7 +367,11 @@ impl AnimePopup {
                     .borders(Borders::ALL)
                     .border_set(border::ROUNDED)
                     .title("Synopsis")
-                    .style(Style::default().fg(PRIMARY_COLOR)),
+                    .style(Style::default().fg(if self.focus == Focus::Synopsis {
+                        HIGHLIGHT_COLOR
+                    } else {
+                        PRIMARY_COLOR
+                    })),
             )
             .alignment(Alignment::Left)
             .wrap(Wrap { trim: true })
@@ -233,12 +380,35 @@ impl AnimePopup {
 
         let big_text = BigText::builder()
             .pixel_size(PixelSize::Sextant)
-            .lines(vec![
-                self.anime.mean.to_string().into(),
-            ])
+            .lines(vec![self.anime.mean.to_string().into()])
             .build();
         frame.render_widget(big_text, info_area);
 
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_set(border::ROUNDED)
+            .title("Anime Info")
+            .style(Style::default().fg(PRIMARY_COLOR));
+        frame.render_widget(block, info_area);
+
+        let status_buttons_area = Rect {
+            x: info_area.x + (info_area.width / 10),
+            y: info_area.y + info_area.height - 6,
+            width: info_area.width * 8 / 10,
+            height: 3,
+        };
+
+        self.status_nav.construct(
+            &self.status_buttons,
+            status_buttons_area,
+            |dropdown, area, highlighted| {
+                dropdown.render(
+                    frame,
+                    area,
+                    highlighted && self.focus == Focus::StatusButtons,
+                );
+            },
+        );
     }
 }
 
@@ -563,6 +733,7 @@ pub struct SelectionPopup {
     next_index: usize,
     arrows: Arrows,
     longest_word: usize,
+    displaying_format: String,
 }
 
 impl SelectionPopup {
@@ -574,11 +745,27 @@ impl SelectionPopup {
             next_index: 0,
             arrows: Arrows::None,
             longest_word: 0,
+            displaying_format: String::new(),
         }
     }
 
     pub fn with_arrows(mut self, arrow_type: Arrows) -> Self {
         self.arrows = arrow_type;
+        self
+    }
+
+    pub fn with_selected_option(mut self, option: String) -> Self {
+        if let Some(index) = self
+            .options
+            .iter()
+            .position(|o| o.to_lowercase() == option.to_lowercase())
+        {
+            self.selected_index = index;
+            self.next_index = index;
+        } else {
+            self.selected_index = 0;
+            self.next_index = 0;
+        }
         self
     }
 
@@ -588,6 +775,22 @@ impl SelectionPopup {
             self.longest_word = option.len();
         }
         self.options.push(option);
+        self
+    }
+
+    pub fn add_options<I, S>(mut self, options: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        for option in options {
+            self = self.add_option(option);
+        }
+        self
+    }
+
+    pub fn with_displaying_format<T: Into<String>>(mut self, text: T) -> Self {
+        self.displaying_format = text.into();
         self
     }
 
@@ -648,23 +851,29 @@ impl SelectionPopup {
     }
 
     pub fn render(&self, frame: &mut Frame, area: Rect, highlighted: bool) {
-        let filter = Paragraph::new(
-            self.options
-                .get(self.selected_index)
-                .unwrap_or(&"No options available".to_string())
-                .clone(),
-        )
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_set(border::ROUNDED),
-        )
-        .alignment(Alignment::Center)
-        .style(Style::default().fg(if highlighted {
-            HIGHLIGHT_COLOR
+        let option = self
+            .options
+            .get(self.selected_index)
+            .unwrap_or(&"No options available".to_string())
+            .clone();
+        let option = if self.displaying_format.is_empty() {
+            option
         } else {
-            PRIMARY_COLOR
-        }));
+            self.displaying_format.replace("{}", &option)
+        };
+
+        let filter = Paragraph::new(option)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_set(border::ROUNDED),
+            )
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(if highlighted {
+                HIGHLIGHT_COLOR
+            } else {
+                PRIMARY_COLOR
+            }));
         frame.render_widget(filter, area);
 
         if self.is_open {

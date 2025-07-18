@@ -115,7 +115,6 @@ define_screens! {
 
 #[derive(Debug, Clone)]
 pub struct ExtraInfo {
-    // pub stop: Arc<AtomicBool>,
     pub app_sx: mpsc::Sender<Event>,
     pub mal_client: Arc<mal::MalClient>,
 }
@@ -155,13 +154,13 @@ pub struct ScreenManager {
 impl ScreenManager {
     pub fn new(app_sx: mpsc::Sender<Event>, mal_client: Arc<mal::MalClient>) -> Self {
         let passable_info = ExtraInfo {
-            app_sx: app_sx.clone(),
+            app_sx,
             mal_client,
         };
 
         Self {
             // default screen is the launch screen
-            overlay: popup::AnimePopup::new(app_sx.clone()),
+            overlay: popup::AnimePopup::new(passable_info.clone()),
             current_screen: Box::new(launch::LaunchScreen::new(passable_info.clone())),
             screen_storage: HashMap::new(),
             backgrounds: Vec::new(),

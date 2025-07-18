@@ -99,11 +99,11 @@ impl AnimeBox {
         let image_area = image_area.inner(Margin::new(1, 1));
         ImageManager::render_image(&image_manager, anime, frame, image_area, false);
 
-        let info_text = "Score:\nType:\nEpisodes:\nStatus:\nAired:";
+        let info_text = "Id:\nScore:\nType:\nEpisodes:\nStatus:\nAired:";
 
         let value_text = format!(
-            "{}\n{}\n{}\n{}",
-            anime.mean, anime.media_type, anime.num_episodes, anime.status,
+            "{}\n{}\n{}\n{}\n{}",
+            anime.id, anime.mean, anime.media_type, anime.num_episodes, anime.status,
         );
         let airing_text = format!("{} -> {}", anime.start_date, anime.end_date);
         let user_stats_value_text = format!("{}", anime.my_list_status.status,);
@@ -228,11 +228,11 @@ impl LongAnimeBox {
         let image_area = image_area.inner(Margin::new(1, 1));
         ImageManager::render_image(&image_manager, anime, frame, image_area, false);
 
-        let info_text = "Score:\nType:\nEpisodes:\nStatus:\nAired:";
+        let info_text = "Score:\nType:\nEpisodes:\nStatus:\nTags:\nAired:";
 
         let value_text = format!(
-            "{}\n{}\n{}\n{}",
-            anime.mean, anime.media_type, anime.num_episodes, anime.status,
+            "{}\n{}\n{}\n{}\n{}",
+            anime.mean, anime.media_type, anime.num_episodes, anime.status, anime.my_list_status.priority
         );
         let airing_text = format!("{} -> {}", anime.start_date, anime.end_date);
         let user_stats_value_text = format!("{}", anime.my_list_status.status,);

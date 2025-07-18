@@ -4,6 +4,9 @@ use std::sync::mpsc::Sender;
 use std::sync::mpsc::channel;
 use std::thread::JoinHandle;
 
+//TODO: remember to fetch all search results and also fetch list of animes when going to this
+//screen
+
 use crate::app::Event;
 use crate::config::HIGHLIGHT_COLOR;
 use crate::config::PRIMARY_COLOR;

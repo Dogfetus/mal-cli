@@ -84,6 +84,7 @@ impl Input {
             if return_by_keypress {
                 return Some(self.value.clone());
             }
+            return None;
         }
 
         match event.code {

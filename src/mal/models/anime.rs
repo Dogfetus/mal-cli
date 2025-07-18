@@ -105,66 +105,172 @@ pub mod fields {
     ];
 }
 
+/// Anime model representing the structure of an anime object
+/// 
+/// # Fields
+/// - `id` - Unique identifier
+/// - `title` - Main title
+/// - `main_picture` - Cover image
+/// - `alternative_titles` - Titles in different languages
+/// - `start_date` / `end_date` - Airing period
+/// - `synopsis` - Plot summary
+/// - `mean` - Average rating (0.0-10.0)
+/// - `rank` - Ranking position
+/// - `popularity` - Popularity ranking
+/// - `num_list_users` - Users with this in their list
+/// - `num_scoring_users` - Users who scored this
+/// - `nsfw` - Content rating
+/// - `created_at` / `updated_at` - Timestamps
+/// - `media_type` - Type (tv, movie, ova, etc.)
+/// - `status` - Airing status
+/// - `genres` - Genre categories
+/// - `my_list_status` - User's personal status
+/// - `num_episodes` - Episode count
+/// - `start_season` - Season and year
+/// - `broadcast` - Broadcasting schedule
+/// - `source` - Source material
+/// - `average_episode_duration` - Episode length
+/// - `rating` - Content rating
+/// - `pictures` - Additional images
+/// - `background` - Production info
+/// - `related_anime` / `related_manga` - Related content
+/// - `recommendations` - Similar anime
+/// - `studios` - Animation studios
+/// - `statistics` - User interaction stats
 #[allow(unused)]
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Anime {
+    /// Unique identifier for the anime
     #[serde(default)]
     pub id: usize,
+
+    /// Title of the anime
     #[serde(default = "na")]
     pub title: String,
+
+    /// Main picture of the anime { large, medium }
     #[serde(default)]
     pub main_picture: Pictures,
+
+    /// Alternative titles for the anime { synonyms, en, ja }
     #[serde(default)]
     pub alternative_titles: AlternativeTitles,
+
+    /// Start date of the anime in YYYY-MM-DD format
     #[serde(default = "na")]
     pub start_date: String,
+
+    /// End date of the anime in YYYY-MM-DD format
     #[serde(default = "na")]
     pub end_date: String,
+
+    /// Synopsis of the anime
     #[serde(default = "na")]
     pub synopsis: String,
+
+    /// Mean score of the anime
     #[serde(default)]
     pub mean: f32,
+
+    /// Rank of the anime
     #[serde(default)]
     pub rank: u64,
+
+    /// Popularity score of the anime - lower is more popular
     #[serde(default)]
     pub popularity: u64,
+
+    /// Number of users who have added this anime to their list
     #[serde(default)]
     pub num_list_users: u64,
+
+    /// Number of users who have scored this anime
     #[serde(default)]
     pub num_scoring_users: u64,
+
+    /// NSFW (Not Safe For Work) status of the anime
     #[serde(default = "na")]
     pub nsfw: String,
+
+    /// Creation date of the anime entry in ISO 8601 format
     #[serde(default = "na")]
     pub created_at: String,
+
+    /// Last updated date of the anime entry in ISO 8601 format
     #[serde(default = "na")]
     pub updated_at: String,
+
+    /// Media type of the anime (e.g., TV, Movie, OVA)
     #[serde(default = "na")]
     pub media_type: String,
+
+    /// Status of the anime (e.g., airing, finished, upcoming)
     #[serde(deserialize_with = "status", default = "na")]
     pub status: String,
+
+    /// Genres associated with the anime
     #[serde(default)]
     pub genres: Vec<Genre>,
+
+    /// User's personal MyAnimeList status for this anime
+    /// 
+    /// # Fields
+    /// - `status` - Watch status (watching/completed/on_hold/dropped/plan_to_watch)
+    /// - `score` - User rating (0-10)
+    /// - `num_episodes_watched` - Current progress
+    /// - `is_rewatching` - Rewatch flag
+    /// - `start_date`/`finish_date` - Watch period
+    /// - `priority` - User priority (0-2)
+    /// - `num_times_rewatched`/`rewatch_value` - Rewatch statistics
+    /// - `tags`/`comments` - User notes
+    /// - `updated_at` - Last modified
     #[serde(default)]
     pub my_list_status: MyListStatus,
+
+    /// Number of episodes in the anime
     #[serde(default)]
     pub num_episodes: u64,
+
+    /// Start season of the anime { year, season }
     #[serde(default)]
     pub start_season: StartSeason,
+
+    /// Broadcast information of the anime { day_of_the_week, start_time }
     pub broadcast: Option<Broadcast>,
+
+    /// Source material of the anime (e.g., manga, light novel)
     #[serde(default = "na")]
     pub source: String,
+
+    /// Average duration of an episode in seconds
     #[serde(default)]
     pub average_episode_duration: u64,
+
+    /// Rating of the anime (e.g., PG-13, R)
     #[serde(default = "na")]
     pub rating: String,
+
+    /// Pictures associated with the anime
     pub pictures: Option<Vec<Pictures>>,
+
+    /// Background image or description of the anime
     #[serde(default = "na")]
     pub background: String,
+
+    /// Related anime { node, relation_type, relation_type_formatted }
     pub related_anime: Option<Vec<RelatedAnime>>,
+
+    /// Related manga { node, relation_type, relation_type_formatted }
     pub related_manga: Option<Vec<RelatedManga>>,
+
+    /// Recommendations for the anime { node, num_recommendations }
     pub recommendations: Option<Vec<Recommendation>>,
+
+    /// Studios that produced the anime
     #[serde(default)]
     pub studios: Vec<Studio>,
+
+    /// Statistics about the anime { status, num_list_users }
     pub statistics: Option<Statistics>,
 }
 
@@ -369,16 +475,19 @@ pub struct MyListStatus {
     #[serde(deserialize_with = "my_status", default = "na")]
     pub status: String,
     pub score: Option<u8>,
-    pub num_episodes_watched: Option<u32>,
+    #[serde(default)]
+    pub num_episodes_watched: u32,
     pub is_rewatching: Option<bool>,
     #[serde(default = "na")]
     pub start_date: String,
     #[serde(default = "na")]
     pub finish_date: String,
-    pub priority: Option<u8>,
+    #[serde(default)]
+    pub priority: u8,
     pub num_times_rewatched: Option<u8>,
     pub rewatch_value: Option<u8>,
-    pub tags: Option<Vec<String>>,
+    #[serde(default)]
+    pub tags: Vec<String>,
     #[serde(default = "na")]
     pub comments: String,
     #[serde(default = "na")]
@@ -390,14 +499,14 @@ impl Default for MyListStatus {
         MyListStatus {
             status: String::new(),
             score: None,
-            num_episodes_watched: None,
+            num_episodes_watched: 0,
             is_rewatching: None,
             start_date: String::new(),
             finish_date: String::new(),
-            priority: None,
+            priority: 0,
             num_times_rewatched: None,
             rewatch_value: None,
-            tags: None,
+            tags: Vec::new(),
             comments: String::new(),
             updated_at: String::new(),
         }
@@ -517,6 +626,12 @@ impl Fetchable for Anime {
     }
 }
 
+
+impl fmt::Display for Anime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.title)
+    }
+}
 
 
 impl HasDisplayableImage for Anime {
