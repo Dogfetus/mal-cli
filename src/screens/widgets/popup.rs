@@ -1,9 +1,9 @@
-use std::sync::{Arc, Mutex, mpsc::Sender};
+use std::sync::{Arc, Mutex};
 
 use crate::{
-    app::{Action, Event},
-    config::{HIGHLIGHT_COLOR, PRIMARY_COLOR, SECONDARY_COLOR},
-    mal::{MalClient, models::anime::Anime},
+    app::Action,
+    config::{ERROR_COLOR, HIGHLIGHT_COLOR, PRIMARY_COLOR, SECONDARY_COLOR},
+    mal::{models::anime::Anime, MalClient},
     screens::ExtraInfo,
     utils::imageManager::ImageManager,
 };
@@ -11,7 +11,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
-    style::{Modifier, Style, Stylize},
+    style::{Color, Style, Stylize},
     symbols::{self, border},
     widgets::{Block, Borders, Clear, Padding, Paragraph, Wrap},
 };
@@ -24,6 +24,8 @@ const AVAILABLE_SEASONS: [&str; 4] = ["Winter", "Spring", "Summer", "Fall"];
 const FIRST_YEAR: u16 = 1917;
 const FIRST_SEASON: &str = "Winter";
 const BUTTON_HEIGHT: u16 = 3;
+const RATIO: f32 = 422.0 / 598.0;
+const TERMINAL_RATIO: f32 = 2.20;
 
 #[derive(PartialEq, Clone, Debug)]
 enum Focus {
@@ -46,7 +48,7 @@ pub struct AnimePopup {
 
 impl AnimePopup {
     pub fn new(info: ExtraInfo) -> Self {
-        let buttons = vec!["Play", "Add to List", "Favorite", "Rate", "Share"];
+        let buttons = vec!["Play", "Share"];
         let image_manager = Arc::new(Mutex::new(ImageManager::new()));
         ImageManager::init_with_threads(&image_manager, info.app_sx.clone());
 
@@ -81,7 +83,7 @@ impl AnimePopup {
                 .with_selected_option(self.anime.my_list_status.status.to_string())
                 .clone(),
             SelectionPopup::new()
-                .add_option("Rate Anime")
+                .add_option("Rate:")
                 .add_options(vec!["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"])
                 .with_arrows(Arrows::Static)
                 .with_selected_option(
@@ -125,17 +127,9 @@ impl AnimePopup {
                     match key_event.code {
                         KeyCode::Char('j') | KeyCode::Up => {
                             self.focus = Focus::StatusButtons;
-                            if let Some(_) =
-                                self.button_nav.get_selected_item_mut(&mut self.buttons)
-                            {
-                            }
                         }
                         KeyCode::Char('h') | KeyCode::Left => {
                             self.focus = Focus::Synopsis;
-                            if let Some(_) =
-                                self.button_nav.get_selected_item_mut(&mut self.buttons)
-                            {
-                            }
                         }
                         _ => {}
                     }
@@ -158,6 +152,18 @@ impl AnimePopup {
                     KeyCode::Char('q') => {
                         self.close();
                     }
+                    KeyCode::Enter => {
+                        if let Some(button) = self.button_nav.get_selected_item(&self.buttons) {
+                            match *button {
+                                "Play" => {
+                                    return Some(Action::PlayAnime(self.anime.clone()));
+                                }
+                                "Share" => {
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -167,7 +173,10 @@ impl AnimePopup {
                     .contains(crossterm::event::KeyModifiers::CONTROL)
                 {
                     match key_event.code {
-                        KeyCode::Char('l') | KeyCode::Right | KeyCode::Char('k') | KeyCode::Down => {
+                        KeyCode::Char('l')
+                        | KeyCode::Right
+                        | KeyCode::Char('k')
+                        | KeyCode::Down => {
                             self.focus = Focus::PlayButtons;
                             if let Some(button) = self
                                 .status_nav
@@ -194,7 +203,7 @@ impl AnimePopup {
                     .status_nav
                     .get_selected_item_mut(&mut self.status_buttons)
                 {
-                     match (dropdown.is_open(), key_event.code) {
+                    match (dropdown.is_open(), key_event.code) {
                         (false, KeyCode::Char('l') | KeyCode::Right) => {
                             self.status_nav.move_right();
                             return None;
@@ -207,9 +216,7 @@ impl AnimePopup {
                             self.close();
                             return None;
                         }
-                        _ => {
-                            if let Some(selection) = dropdown.handle_input(key_event) {}
-                        }
+                        _ => if let Some(selection) = dropdown.handle_input(key_event) {},
                     }
                 }
             }
@@ -319,15 +326,30 @@ impl AnimePopup {
             });
 
         // the rest of the popup
+        // the image
+        let image_height = bottom_area.y - popup_area.y - 3;
+        let image_width = (image_height as f32 * RATIO * TERMINAL_RATIO) as u16;
+        let image_area = Rect {
+            x: popup_area.x + 4,
+            y: popup_area.y + 2,
+            width: image_width,
+            height: image_height,
+        };
 
+        ImageManager::render_image(&self.image_manager, &self.anime, frame, image_area, true);
+
+        //title and info area
         let [title_area, info_area] = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(3), Constraint::Fill(1)])
             .areas(popup_area.inner(Margin::new(1, 1)));
-        let [_, title_area] = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(35), Constraint::Fill(1)])
-            .areas(title_area);
+        let title_area_x = image_area.x + image_area.width + 3;
+        let title_area = Rect {
+            x: title_area_x,
+            y: title_area.y,
+            width: popup_area.x + popup_area.width - title_area_x - 2,
+            height: title_area.height,
+        };
         let info_area = Rect {
             x: title_area.x,
             y: info_area.y,
@@ -335,10 +357,10 @@ impl AnimePopup {
             height: info_area.height - buttons_area.height,
         };
 
-        let title = if self.anime.title.is_empty() {
-            self.anime.alternative_titles.en.clone()
-        } else {
+        let title = if self.anime.alternative_titles.en.is_empty() {
             self.anime.title.clone()
+        } else {
+            self.anime.alternative_titles.en.clone()
         };
         let title_text = Paragraph::new(title)
             .alignment(Alignment::Center)
@@ -346,15 +368,7 @@ impl AnimePopup {
 
         frame.render_widget(title_text, title_area.inner(Margin::new(0, 1)));
 
-        let image_area = Rect {
-            x: popup_area.x + 4,
-            y: popup_area.y + 2,
-            width: popup_area.width,
-            height: bottom_area.y - popup_area.y - 3,
-        };
-
-        ImageManager::render_image(&self.image_manager, &self.anime, frame, image_area, true);
-
+        //synopsis
         let synopsis_area = Rect {
             x: left.x + 1,
             y: bottom_area.y,
@@ -378,22 +392,107 @@ impl AnimePopup {
             .style(Style::default().fg(PRIMARY_COLOR));
         frame.render_widget(synopsis_text, synopsis_area);
 
+        // score text
         let big_text = BigText::builder()
             .pixel_size(PixelSize::Sextant)
             .lines(vec![self.anime.mean.to_string().into()])
             .build();
-        frame.render_widget(big_text, info_area);
+        let [_, big_text_area] = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Fill(1), Constraint::Length(20)])
+            .areas(info_area);
+        frame.render_widget(big_text, big_text_area);
 
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_set(border::ROUNDED)
-            .title("Anime Info")
-            .style(Style::default().fg(PRIMARY_COLOR));
-        frame.render_widget(block, info_area);
+        // info area
+        let info_texts = ["Ranked", "Popularity", "Members"];
+        let info_values = [
+            self.anime.rank.to_string(),
+            self.anime.popularity.to_string(),
+            self.anime.num_list_users.to_string(),
+        ];
 
+        let info_texts_2 = vec![
+            self.anime.start_season.to_string(),
+            self.anime.media_type.to_string(),
+            self.anime.studios_as_string(),
+        ];
+
+        let mut total_length = info_area.x + (info_area.width / 6);
+        let y_pos = info_area.y + info_area.height * 1/5; 
+        const SPACE: u16 = 8; 
+        for (i, (text, value)) in info_texts.iter().zip(info_values.iter()).enumerate() {
+            let info_text_area = Rect {
+                x: total_length,
+                y: y_pos,
+                width: text.len() as u16,
+                height: 1,
+            };
+            total_length += text.len() as u16 + 1; // +1 for margin 
+            let text_paragraph = Paragraph::new(*text)
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(Color::White));
+            frame.render_widget(text_paragraph, info_text_area);
+
+            let info_text_area = Rect {
+                x: total_length,
+                y: y_pos,
+                width: value.len() as u16 + 1,
+                height: 1,
+            };
+            total_length += value.len() as u16 + SPACE;
+            let value_text = Paragraph::new(if i == info_texts.len() - 1 {
+                value.clone()
+            } else {
+                format!("#{}", value)
+            })
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(SECONDARY_COLOR));
+            frame.render_widget(value_text, info_text_area);
+        }
+
+        let uppeline_width = total_length;
+
+        total_length = info_area.x + (info_area.width / 6);
+        for (i, text) in info_texts_2.iter().enumerate() {
+            let info_text_area = Rect {
+                x: total_length,
+                y: y_pos + 3,
+                width: text.len() as u16,
+                height: 1,
+            };
+            total_length += text.len() as u16;
+            let text_paragraph = Paragraph::new(text.clone())
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(SECONDARY_COLOR));
+            frame.render_widget(text_paragraph, info_text_area);
+
+            if i == info_texts_2.len() - 1 {
+                continue;
+            }
+            let separator_area = Rect {
+                x: total_length + SPACE/2,
+                y: y_pos + 3,
+                width: 1,
+                height: 1,
+            };
+            total_length += SPACE + 1;
+            let separator_paragraph = Paragraph::new("|")
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(SECONDARY_COLOR));
+            frame.render_widget(separator_paragraph, separator_area);
+        }
+
+        // let block = Block::default()
+        //     .borders(Borders::ALL)
+        //     .border_set(border::ROUNDED)
+        //     .title("Anime Info")
+        //     .style(Style::default().fg(PRIMARY_COLOR));
+        // frame.render_widget(block, info_area);
+
+        // buttons within info area
         let status_buttons_area = Rect {
             x: info_area.x + (info_area.width / 10),
-            y: info_area.y + info_area.height - 6,
+            y: info_area.y + info_area.height - 4,
             width: info_area.width * 8 / 10,
             height: 3,
         };
@@ -947,6 +1046,88 @@ impl SelectionPopup {
                 }
             }
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct ErrorPopup {
+    toggled: bool,
+    error_message: String,
+    height: u16,
+    width: u16,
+}
+impl ErrorPopup {
+    pub fn new() -> Self {
+        Self {
+            toggled: false,
+            error_message: String::new(),
+            height: 10,
+            width: 40,
+        }
+    }
+
+    pub fn toggle(mut self, message: String) -> Self {
+        self.toggled = !self.toggled;
+        self.error_message = message;
+        self
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.toggled
+    }
+
+    pub fn set_error(&mut self, message: String) -> &Self {
+        self.height = (message.len() as u16).div_ceil(self.width-2) + 2; // borders
+        self.error_message = message;
+        self
+    }
+
+    pub fn open(&mut self) -> &Self {
+        self.toggled = true;
+        self
+    }
+
+    pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
+        if !self.toggled {
+            return None;
+        }
+        match key_event.code {
+            KeyCode::Char('q') | KeyCode::Esc => {
+                self.toggled = false;
+                self.error_message.clear();
+                None
+            }
+            _ => None,
+        }
+    }
+
+    pub fn render(&self, frame: &mut Frame) {
+        if !self.toggled {
+            return;
+        }
+
+        let area = frame.area();
+        let popup_area = Rect::new(
+            area.x + (area.width - self.width) / 2,
+            area.y + (area.height - self.height) / 2,
+            self.width,
+            self.height,
+        );
+        frame.render_widget(Clear, popup_area);
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_set(border::ROUNDED)
+            .title("Error")
+            .style(Style::default().fg(ERROR_COLOR));
+        frame.render_widget(block.clone(), popup_area);
+
+        let paragraph = Paragraph::new(self.error_message.clone())
+            .block(block)
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true })
+            .style(Style::default().fg(ERROR_COLOR));
+        frame.render_widget(paragraph, popup_area);
     }
 }
 

@@ -11,12 +11,11 @@ use anyhow::Result;
 #[tokio::main]
 async fn main() -> Result<()> {
 
-    // start the terminal view
-    let mut terminal = ratatui::init();
+    // start the app
     let mut app = App::new();
-    app.run(&mut terminal)?;
+    app.run()?;
 
-    // restore
+    // restore terminal view
     ratatui::restore();
 
     Ok(())

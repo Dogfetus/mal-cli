@@ -271,7 +271,8 @@ pub struct Anime {
     pub studios: Vec<Studio>,
 
     /// Statistics about the anime { status, num_list_users }
-    pub statistics: Option<Statistics>,
+    #[serde(default)]
+    pub statistics: Statistics,
 }
 
 impl Anime {
@@ -308,7 +309,7 @@ impl Anime {
             related_manga: None,
             recommendations: None,
             studios: Vec::new(),
-            statistics: None,
+            statistics: Statistics::default(),
         }
     }
 
@@ -364,7 +365,7 @@ impl Anime {
                 id: 1,
                 name: "Studio Example".to_string(),
             }],
-            statistics: None,
+            statistics: Statistics::default(),
         }
     }
 
@@ -380,6 +381,12 @@ impl Anime {
 impl Default for Anime {
     fn default() -> Self {
         Anime::empty()
+    }
+}
+
+impl Anime{
+    pub fn studios_as_string(&self) -> String {
+        self.studios.iter().map(|s| s.name.clone()).collect::<Vec<String>>().join(", ")
     }
 }
 
@@ -592,6 +599,20 @@ pub struct Status {
 pub struct Statistics {
     pub status: Status,
     pub num_list_users: u64,
+}
+impl Default for Statistics {
+    fn default() -> Self {
+        Statistics {
+            status: Status {
+                watching: 0,
+                completed: 0,
+                on_hold: 0,
+                dropped: 0,
+                plan_to_watch: 0,
+            },
+            num_list_users: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

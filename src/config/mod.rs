@@ -4,6 +4,7 @@ use ratatui::style::Color;
 pub const PRIMARY_COLOR: Color = Color::DarkGray; 
 pub const SECONDARY_COLOR: Color = Color::White;
 pub const HIGHLIGHT_COLOR: Color = Color::Cyan;
+pub const ERROR_COLOR: Color = Color::Red;
 
 // Anime List Colors
 pub const WATCHING_COLOR: Color = Color::Rgb(64, 201, 255);

@@ -144,6 +144,7 @@ pub trait Screen: Send{
 
 pub struct ScreenManager {
     overlay: popup::AnimePopup,
+    error_overlay: popup::ErrorPopup,
     current_screen: Box<dyn Screen>,
     screen_storage: HashMap<String, Box<dyn Screen>>,
     backgrounds: Vec<JoinHandle<()>>,
@@ -161,6 +162,7 @@ impl ScreenManager {
         Self {
             // default screen is the launch screen
             overlay: popup::AnimePopup::new(passable_info.clone()),
+            error_overlay: popup::ErrorPopup::new(),
             current_screen: Box::new(launch::LaunchScreen::new(passable_info.clone())),
             screen_storage: HashMap::new(),
             backgrounds: Vec::new(),
@@ -171,6 +173,7 @@ impl ScreenManager {
     pub fn render_screen(&mut self, frame: &mut Frame) {
         self.current_screen.draw(frame);
         self.overlay.render(frame);
+        self.error_overlay.render(frame);
     }
 
     pub fn toggle_overlay(&mut self, anime: Anime) {
@@ -178,7 +181,16 @@ impl ScreenManager {
         self.overlay.open();
     }
 
+    pub fn show_error(&mut self, error: String) {
+        self.error_overlay.set_error(error);
+        self.error_overlay.open();
+    }
+
     pub fn handle_input(&mut self, key_event: crossterm::event::KeyEvent) -> Option<Action> {
+        if self.error_overlay.is_open() {
+            return self.error_overlay.handle_input(key_event);
+        }
+
         if self.overlay.is_open() {
             return self.overlay.handle_input(key_event);
         }

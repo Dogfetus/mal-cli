@@ -3,15 +3,18 @@ use crate::{
     mal::{models::anime::Anime, MalClient},
     screens::{screens::*, BackgroundUpdate, ScreenManager},
 };
+use std::process::{Command, Stdio};
 use crossterm::event::KeyCode;
 use image::DynamicImage;
 use ratatui::DefaultTerminal;
 use std::sync::Arc;
+use regex::Regex;
 use std::sync::atomic::AtomicBool;
 use std::thread::{self, JoinHandle};
 use std::{io, sync::mpsc};
 
 pub enum Action {
+    PlayAnime(Anime),
     SwitchScreen(&'static str),
     ShowOverlay(Anime),
     Quit,
@@ -40,38 +43,43 @@ pub struct App {
     screen_manager: ScreenManager,
     current_info: Option<CurrentInfo>,
     is_running: bool,
+    terminal: DefaultTerminal,
 
     sx: mpsc::Sender<Event>,
     rx: mpsc::Receiver<Event>,
     threads: Vec<JoinHandle<()>>,
     stop: Arc<AtomicBool>,
+    ansi_regex: Regex,
 }
 
 impl App {
     pub fn new() -> App {
         let (sx, rx) = mpsc::channel::<Event>();
         let mal_client = Arc::new(MalClient::new());
+        let terminal = ratatui::init();
 
         App {
             mal_client: mal_client.clone(),
             screen_manager: ScreenManager::new(sx.clone(), mal_client),
             current_info: None,
             is_running: true,
+            terminal,
 
             rx,
             sx,
             threads: Vec::new(),
             stop: Arc::new(AtomicBool::new(false)),
+            ansi_regex: Regex::new(r"\x1b\[[0-9;]*[a-zA-Z]").unwrap()
         }
     }
 
-    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+    pub fn run(&mut self) -> io::Result<()> {
         // run any background threads
         self.spawn_background();
 
         // WARNING: don't use just unwrap here
         while self.is_running {
-            terminal.draw(|frame| self.screen_manager.render_screen(frame))?;
+            self.terminal.draw(|frame| self.screen_manager.render_screen(frame))?;
 
             let first_event = self.rx.recv().unwrap();
             let mut events = vec![first_event];
@@ -111,6 +119,49 @@ impl App {
                 }
                 Action::ShowOverlay(anime) => {
                     self.screen_manager.toggle_overlay(anime);
+                }
+                Action::PlayAnime(anime) => {
+                    if anime.status == "upcoming" {
+                        self.screen_manager.show_error(format!(
+                            "\"{}\"\nis not yet released.",
+                            anime.alternative_titles.en
+                        ));
+                        return;
+                    }
+
+                    ratatui::restore();
+
+                    let output = Command::new("ani-cli")
+                        .arg(anime.title)
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::piped())
+                        .output();
+
+                    match output {
+                        Ok(output) => {
+                            let messy_stdout = String::from_utf8_lossy(&output.stdout);
+                            let messy_stderr = String::from_utf8_lossy(&output.stderr);
+                            let stdout = self.ansi_regex.replace_all(&messy_stdout, "");
+                            let stderr = self.ansi_regex.replace_all(&messy_stderr, "");
+
+                            println!("Exit code: {:?}", output.status.code());
+                            println!("Output: {:?}", stdout);
+
+                            if !stderr.is_empty() {
+                                println!("Errors: {:?}", stderr);
+                                self.screen_manager.show_error(stderr.to_string());
+                            }
+                        }
+                        Err(e) => {
+                            self.screen_manager.show_error(format!(
+                                "Failed to run ani-cli: \n{}",
+                                e
+                            ));
+                            return;
+                        }
+                    }
+
+                    self.terminal = ratatui::init();
                 }
             }
         }
