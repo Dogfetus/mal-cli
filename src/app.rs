@@ -69,7 +69,7 @@ impl App {
             sx,
             threads: Vec::new(),
             stop: Arc::new(AtomicBool::new(false)),
-            ansi_regex: Regex::new(r"\x1b\[[0-9;]*[a-zA-Z]").unwrap()
+            ansi_regex: Regex::new(r"\x1b\[[0-9;]*[a-zA-Z]|\x1b\([AB]|\r|\x1b[78]").unwrap()
         }
     }
 
@@ -141,15 +141,23 @@ impl App {
                         Ok(output) => {
                             let messy_stdout = String::from_utf8_lossy(&output.stdout);
                             let messy_stderr = String::from_utf8_lossy(&output.stderr);
-                            let stdout = self.ansi_regex.replace_all(&messy_stdout, "");
-                            let stderr = self.ansi_regex.replace_all(&messy_stderr, "");
-
-                            println!("Exit code: {:?}", output.status.code());
-                            println!("Output: {:?}", stdout);
-
+                            let stdout = self.ansi_regex.replace_all(&messy_stdout, "").to_string();
+                            let stderr = self.ansi_regex.replace_all(&messy_stderr, "").to_string();
                             if !stderr.is_empty() {
-                                println!("Errors: {:?}", stderr);
-                                self.screen_manager.show_error(stderr.to_string());
+                                if stderr.contains("No results found!") {
+                                    self.screen_manager.show_error(format!(
+                                        "ani-cli replied:\nError: {}\nthe anime might not be available yet",
+                                        stderr
+                                    ));
+                                }
+                                else{
+                                    self.screen_manager.show_error(format!(
+                                        "ani-cli replied:\nError: {}Exit code: {}\nOutput: {}",
+                                        stderr,
+                                        output.status.code().unwrap_or(-1),
+                                        stdout
+                                    ));
+                                }
                             }
                         }
                         Err(e) => {

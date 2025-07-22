@@ -1077,7 +1077,19 @@ impl ErrorPopup {
     }
 
     pub fn set_error(&mut self, message: String) -> &Self {
-        self.height = (message.len() as u16).div_ceil(self.width-2) + 2; // borders
+        let content_width = self.width - 2;
+        let total_lines: u16 = message
+            .lines()
+            .map(|line| {
+                if line.is_empty() {
+                    1
+                } else {
+                    (line.len() as u16).div_ceil(content_width)
+                }
+            })
+            .sum();
+
+        self.height = total_lines + 2;
         self.error_message = message;
         self
     }
