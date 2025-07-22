@@ -229,7 +229,7 @@ pub struct Anime {
 
     /// Number of episodes in the anime
     #[serde(default)]
-    pub num_episodes: u64,
+    pub num_episodes: u32,
 
     /// Start season of the anime { year, season }
     #[serde(default)]

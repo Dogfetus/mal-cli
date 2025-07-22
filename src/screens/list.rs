@@ -6,6 +6,7 @@ use std::time::Duration;
 use crate::app::Event;
 use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
 use crate::mal::models::anime::Anime;
+use crate::utils::functionStreaming::StreamableRunner;
 use crate::utils::imageManager::ImageManager;
 use crate::utils::input::Input;
 use crate::{app::Action, screens::Screen};
@@ -540,42 +541,31 @@ impl Screen for ListScreen {
         let image_manager = self.image_manager.clone();
 
         Some(std::thread::spawn(move || {
-            let mut offset = 0;
-            let mut limit = 10;
             let mut cached_filter = Option::<Filters>::None;
             let mut cached_search = String::new();
             let mut fetch_image = true;
 
-            // fetch enitre list of anime for the user
-            loop {
-                if let Some(animes) = info.mal_client.get_anime_list(None, offset, limit) {
-                    let nr_of_animes = animes.len();
+            let anime_generator = StreamableRunner::new()
+                .change_batch_size_at(1000, 1);
 
-                    if fetch_image {
-                        for anime in &animes {
-                            ImageManager::query_image_for_fetching(
-                                &image_manager,
-                                anime,
-                            );
-                        }
+            for animes in anime_generator.run(|offset, limit| {
+                info.mal_client.get_anime_list(None, offset as u16, limit as u16)
+            }) {
+                if fetch_image {
+                    for anime in &animes {
+                        ImageManager::query_image_for_fetching(
+                            &image_manager,
+                            anime,
+                        );
                     }
-
-                    let update = BackgroundUpdate::new(id.clone())
-                        .set("animes", animes)
-                        .set("fetching", false)
-                        .set("extend", true);
-                    info.app_sx.send(Event::BackgroundNotice(update)).ok();
-
-                    if nr_of_animes < limit as usize {
-                        break;
-                    }
-
-                    offset += limit;
-                    limit = 1000;
-                    fetch_image = false;
-                } else {
-                    break;
                 }
+                fetch_image = false;
+
+                let update = BackgroundUpdate::new(id.clone())
+                    .set("animes", animes)
+                    .set("fetching", false)
+                    .set("extend", true);
+                info.app_sx.send(Event::BackgroundNotice(update)).ok();
             }
 
             let update = BackgroundUpdate::new(id.clone()).set("startup", false);
@@ -589,8 +579,7 @@ impl Screen for ListScreen {
                         Self::filter_animes(&mut filtered_animes, &filters);
 
                         if !cached_search.is_empty() {
-                            Self::search_animes(&mut filtered_animes, cached_search.clone());
-                        }
+                            Self::search_animes(&mut filtered_animes, cached_search.clone()); }
 
                         let update = BackgroundUpdate::new(id.clone())
                             .set("filtered_animes", filtered_animes);

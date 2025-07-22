@@ -1,16 +1,16 @@
+use super::ExtraInfo;
 use super::widgets::navigatable::Navigatable;
 use super::widgets::popup::SeasonPopup;
-use super::ExtraInfo;
-use super::{
-    BackgroundUpdate, Screen, screens::*, widgets::navbar::NavBar,
-};
-use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
-use crate::screens::widgets::animebox::AnimeBox;
-use crate::utils::imageManager::ImageManager;
+use super::{BackgroundUpdate, Screen, screens::*, widgets::navbar::NavBar};
 use crate::{
+    config::{HIGHLIGHT_COLOR, PRIMARY_COLOR},
+    screens::widgets::animebox::AnimeBox,
     app::{Action, Event},
     mal::{MalClient, models::anime::Anime},
-    utils::stringManipulation::DisplayString,
+    utils::{
+        functionStreaming::StreamableRunner, imageManager::ImageManager,
+        stringManipulation::DisplayString,
+    },
 };
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Alignment, Margin, Rect};
@@ -62,7 +62,7 @@ pub struct SeasonsScreen {
     season: String,
 
     image_manager: Arc<Mutex<ImageManager>>,
-    navigatable: Navigatable
+    navigatable: Navigatable,
 }
 
 impl SeasonsScreen {
@@ -101,6 +101,7 @@ impl SeasonsScreen {
         if let Some(sender) = &self.bg_notifier {
             self.animes.clear();
             self.fetching = true;
+            self.navigatable.back_to_start();
             let event = LocalEvent::SeasonSwitch(self.year, self.season.clone());
             sender.send(event).unwrap_or_else(|e| {
                 eprintln!("Failed to send season switch event: {}", e);
@@ -108,8 +109,8 @@ impl SeasonsScreen {
         }
     }
 
-    // used by the backend when fetching seasons
-    fn filter_animes(animes: &[Anime], target_year: u16, target_season: &str) -> Vec<Anime> {
+    // apperently the animes gotten include previous seasons that has not yet finished 
+    fn filter_animes(animes: Vec<Anime>, target_year: u16, target_season: &String) -> Vec<Anime> {
         animes
             .iter()
             .filter(|anime| {
@@ -118,6 +119,23 @@ impl SeasonsScreen {
             })
             .cloned()
             .collect()
+    }
+
+    fn fetch_anime_season(year: u16, season: String, data: ExtraInfo, id: String) {
+        let anime_batches = StreamableRunner::new()
+            .change_batch_size_at(500, 1)
+            .stop_early();
+
+        for batch in anime_batches.run(|offset, limit| {
+            data.mal_client.get_seasonal_anime(year, season.clone(), offset, limit)
+        }){
+            let animes = Self::filter_animes(batch, year, &season);
+            let update = BackgroundUpdate::new(id.clone())
+                .set("animes", animes)
+                .set("fetching", false)
+                .set("extend", true);
+            data.app_sx.send(Event::BackgroundNotice(update)).ok();
+        }
     }
 }
 
@@ -233,7 +251,7 @@ impl Screen for SeasonsScreen {
 
         // the season and year at the top:
         let season_color = if self.focus == Focus::SeasonSelection {
-            HIGHLIGHT_COLOR 
+            HIGHLIGHT_COLOR
         } else {
             PRIMARY_COLOR
         };
@@ -248,6 +266,9 @@ impl Screen for SeasonsScreen {
         .style(Style::default().fg(season_color))
         .block(Block::default().padding(Padding::vertical(1)));
         frame.render_widget(title, bl_top);
+        let number_of_animes = Paragraph::new(self.animes.len().to_string());
+        frame.render_widget(number_of_animes, bl_top.inner(Margin::new(1, 1)));
+
 
         /* then create grid for animes:
          *  margin to keep grid from ruining area:
@@ -270,23 +291,31 @@ impl Screen for SeasonsScreen {
             let title = Paragraph::new("Loading...")
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(PRIMARY_COLOR));
-            frame.render_widget(title, middle.inner(Margin {
-                vertical: 0,
-                horizontal: 1,
-            }));
-        }
-        else{
+            frame.render_widget(
+                title,
+                middle.inner(Margin {
+                    vertical: 0,
+                    horizontal: 1,
+                }),
+            );
+        } else {
             let area = Rect::new(
                 bl_bottom.x + 1,
                 bl_bottom.y,
                 bl_bottom.width.saturating_sub(2),
                 bl_bottom.height.saturating_sub(1),
             );
-            self.navigatable.construct(&self.animes, area, |anime, area, highlight| {
-                AnimeBox::render(anime, &self.image_manager, frame, area, highlight && self.focus == Focus::AnimeList);
-            });
+            self.navigatable
+                .construct(&self.animes, area, |anime, area, highlight| {
+                    AnimeBox::render(
+                        anime,
+                        &self.image_manager,
+                        frame,
+                        area,
+                        highlight && self.focus == Focus::AnimeList,
+                    );
+                });
         }
-
 
         /* render right side with anime data:
          * this part:
@@ -452,7 +481,6 @@ impl Screen for SeasonsScreen {
                         _ => {}
                     }
                 } else {
-
                     match key_event.code {
                         KeyCode::Up | KeyCode::Char('j') => {
                             self.navigatable.move_up();
@@ -566,52 +594,31 @@ impl Screen for SeasonsScreen {
         if self.bg_loaded {
             return None;
         }
-        let info = self.app_info.clone();
-        let id = self.get_name();
-        let manager = self.image_manager.clone();
-        ImageManager::init_with_threads(&manager, info.app_sx.clone());
-        let nr_of_animes = self.animes.len();
+
         let (sender, receiver) = channel::<LocalEvent>();
         self.bg_loaded = true;
         self.fetching = true;
         self.bg_notifier = Some(sender);
 
+        let id = self.get_name();
+        let info = self.app_info.clone();
+        let nr_of_animes = self.animes.len();
+        let manager = self.image_manager.clone();
+
+        ImageManager::init_with_threads(&manager, info.app_sx.clone());
+
         Some(thread::spawn(move || {
-            let process_animes = |animes: Vec<Anime>, fetch_images: bool| {
-                if fetch_images {
-                    for anime in &animes {
-                        ImageManager::query_image_for_fetching(&manager, anime);
-                    }
-                }
-                let update = BackgroundUpdate::new(id.clone()).set("animes", animes);
-                let _ = info.app_sx.send(Event::BackgroundNotice(update));
-            };
-
             if nr_of_animes <= 0 {
-                let (current_year, current_season) = MalClient::current_season();
-                if let Some(animes) = info.mal_client.get_current_season(0, 20) {
-                    let filtered = Self::filter_animes(&animes, current_year, &current_season);
-                    process_animes(filtered, true);
-                }
+                let (year, season) = MalClient::current_season();
+                Self::fetch_anime_season(year, season, info.clone(), id.clone());
             }
-
-            let update = BackgroundUpdate::new(id.clone()).set("fetching", false);
-            let _ = info.app_sx.send(Event::BackgroundNotice(update));
 
             while let Ok(event) = receiver.recv() {
                 match event {
                     LocalEvent::AnimeSelected => break,
                     LocalEvent::Stop => return,
                     LocalEvent::SeasonSwitch(year, season) => {
-                        if let Some(animes) =
-                            info.mal_client
-                                .get_seasonal_anime(year, season.clone(), 0, 20)
-                        {
-                            let filtered = Self::filter_animes(&animes, year, &season);
-                            process_animes(filtered, true);
-                            let update = BackgroundUpdate::new(id.clone()).set("fetching", false);
-                            let _ = info.app_sx.send(Event::BackgroundNotice(update));
-                        }
+                        Self::fetch_anime_season(year, season, info.clone(), id.clone());
                     }
                 }
             }

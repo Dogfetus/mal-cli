@@ -3,7 +3,7 @@ use crate::{
     mal::{models::anime::Anime, MalClient},
     screens::{screens::*, BackgroundUpdate, ScreenManager},
 };
-use std::process::{Command, Stdio};
+use std::{io::ErrorKind, process::{Command, Stdio}};
 use crossterm::event::KeyCode;
 use image::DynamicImage;
 use ratatui::DefaultTerminal;
@@ -103,6 +103,77 @@ impl App {
         Ok(())
     }
 
+    pub fn play_anime(&mut self, anime: Anime) {
+        if anime.status == "upcoming" {
+            self.screen_manager.show_error(format!(
+                "\"{}\"\nis not yet released.",
+                anime.alternative_titles.en
+            ));
+            return;
+        }
+
+        ratatui::restore();
+
+        let next_episode = std::cmp::min(
+            anime.my_list_status.num_episodes_watched + 1, 
+            anime.num_episodes
+        );
+
+        let output = Command::new("ani-cli")
+            .arg("--no-detach")
+            .arg("--exit-after-play")
+            .arg("-e")
+            .arg(&next_episode.to_string())
+            .arg(&anime.title)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output();
+
+        match output {
+            Ok(output) => {
+                let messy_stdout = String::from_utf8_lossy(&output.stdout);
+                let messy_stderr = String::from_utf8_lossy(&output.stderr);
+                let stdout = self.ansi_regex.replace_all(&messy_stdout, "").to_string();
+                let stderr = self.ansi_regex.replace_all(&messy_stderr, "").to_string();
+                println!("ani-cli output:\n{}", stdout);
+                println!("ani-cli error:\n{}", stderr);
+                println!("ani-cli t {:?}", output);
+                if !stderr.is_empty() {
+                    if stderr.contains("No results found!") {
+                        self.screen_manager.show_error(format!(
+                            "ani-cli replied:\nError: {}\nthe anime might not be available yet",
+                            stderr
+                        ));
+                    }
+                    else{
+                        self.screen_manager.show_error(format!(
+                            "ani-cli replied:\nError: {}Exit code: {}\nOutput: {}",
+                            stderr,
+                            output.status.code().unwrap_or(-1),
+                            stdout
+                        ));
+                    }
+                }
+            }
+            Err(e) => {
+                if e.kind() == ErrorKind::NotFound{
+                    self.screen_manager.show_error(format!(
+                        "Can't seem to find ani-cli: \n{}",
+                        e
+                    ));
+                }
+                else {
+                    self.screen_manager.show_error(format!(
+                        "Error running ani-cli: \n{}",
+                        e
+                    ));
+                }
+            }
+        }
+
+        self.terminal = ratatui::init();
+    }
+
     fn handle_input(&mut self, key_event: crossterm::event::KeyEvent) {
         if key_event.kind != crossterm::event::KeyEventKind::Press {
             return;
@@ -121,55 +192,7 @@ impl App {
                     self.screen_manager.toggle_overlay(anime);
                 }
                 Action::PlayAnime(anime) => {
-                    if anime.status == "upcoming" {
-                        self.screen_manager.show_error(format!(
-                            "\"{}\"\nis not yet released.",
-                            anime.alternative_titles.en
-                        ));
-                        return;
-                    }
-
-                    ratatui::restore();
-
-                    let output = Command::new("ani-cli")
-                        .arg(anime.title)
-                        .stdout(Stdio::piped())
-                        .stderr(Stdio::piped())
-                        .output();
-
-                    match output {
-                        Ok(output) => {
-                            let messy_stdout = String::from_utf8_lossy(&output.stdout);
-                            let messy_stderr = String::from_utf8_lossy(&output.stderr);
-                            let stdout = self.ansi_regex.replace_all(&messy_stdout, "").to_string();
-                            let stderr = self.ansi_regex.replace_all(&messy_stderr, "").to_string();
-                            if !stderr.is_empty() {
-                                if stderr.contains("No results found!") {
-                                    self.screen_manager.show_error(format!(
-                                        "ani-cli replied:\nError: {}\nthe anime might not be available yet",
-                                        stderr
-                                    ));
-                                }
-                                else{
-                                    self.screen_manager.show_error(format!(
-                                        "ani-cli replied:\nError: {}Exit code: {}\nOutput: {}",
-                                        stderr,
-                                        output.status.code().unwrap_or(-1),
-                                        stdout
-                                    ));
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            self.screen_manager.show_error(format!(
-                                "Failed to run ani-cli: \n{}",
-                                e
-                            ));
-                            return;
-                        }
-                    }
-
-                    self.terminal = ratatui::init();
+                    self.play_anime(anime);
                 }
             }
         }

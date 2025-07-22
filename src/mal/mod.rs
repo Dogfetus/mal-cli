@@ -93,7 +93,7 @@ impl MalClient {
         false
     }
 
-    pub fn get_current_season(&self, offset: u16, limit: u16) -> Option<Vec<Anime>> {
+    pub fn get_current_season(&self, offset: usize, limit: usize) -> Option<Vec<Anime>> {
         let (year, season) = Self::current_season();
         self.get_seasonal_anime(year, season, offset, limit)
     }
@@ -117,8 +117,8 @@ impl MalClient {
         &self,
         year: u16,
         season: String,
-        offset: u16,
-        limit: u16,
+        offset: usize,
+        limit: usize,
     ) -> Option<Vec<Anime>> {
         self.send_request::<Anime>(
             format!(
@@ -136,7 +136,7 @@ impl MalClient {
         )
     }
 
-    pub fn get_top_anime(&self, filter: String, offset: u16, limit: u16) -> Option<Vec<Anime>> {
+    pub fn get_top_anime(&self, filter: String, offset: usize, limit: usize) -> Option<Vec<Anime>> {
         self.send_request::<Anime>(
             format!("{}/anime/ranking", BASE_URL),
             params![
@@ -148,7 +148,7 @@ impl MalClient {
         )
     }
 
-    pub fn search_anime(&self, query: String, offset: u16, limit: u16) -> Option<Vec<Anime>> {
+    pub fn search_anime(&self, query: String, offset: usize, limit: usize) -> Option<Vec<Anime>> {
         self.send_request::<Anime>(
             format!("{}/anime", BASE_URL),
             params![
@@ -216,7 +216,7 @@ impl MalClient {
         let response = match response {
             Ok(response) => response,
             Err(e) => {
-                eprintln!("Error fetching top anime: {}", e);
+                eprintln!("Error fetching anime: {:?}", e);
                 return None;
             }
         };

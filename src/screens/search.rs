@@ -11,6 +11,7 @@ use crate::app::Event;
 use crate::config::HIGHLIGHT_COLOR;
 use crate::config::PRIMARY_COLOR;
 use crate::mal::models::anime::Anime;
+use crate::utils::functionStreaming::StreamableRunner;
 use crate::utils::imageManager::ImageManager;
 use crate::utils::input::Input;
 use crate::{app::Action, screens::Screen, screens::screens::*};
@@ -30,11 +31,11 @@ use ratatui::widgets::Borders;
 use ratatui::widgets::Clear;
 use ratatui::widgets::Paragraph;
 
+use super::ExtraInfo;
 use super::widgets::animebox::LongAnimeBox;
 use super::widgets::navbar::NavBar;
 use super::widgets::navigatable::Navigatable;
 use super::widgets::popup::{Arrows, SelectionPopup};
-use super::ExtraInfo;
 
 #[derive(Debug, Clone)]
 enum LocalEvent {
@@ -117,6 +118,23 @@ impl SearchScreen {
         }
         len
     }
+
+    fn fetch_and_send_animes<F>(context: &ExtraInfo, id: String, fetch_fn: F)
+    where
+        F: FnMut(usize, usize) -> Option<Vec<Anime>>,
+    {
+        let anime_generator = StreamableRunner::new()
+            .change_batch_size_at(100, 1)
+            .stop_at(2);
+
+        for animes in anime_generator.run(fetch_fn) {
+            let update = super::BackgroundUpdate::new(id.clone()).set("animes", animes);
+            context
+                .app_sx
+                .send(super::Event::BackgroundNotice(update))
+                .ok();
+        }
+    }
 }
 
 impl Screen for SearchScreen {
@@ -188,7 +206,7 @@ impl Screen for SearchScreen {
                     .border_set(border::ROUNDED),
             )
             .style(style::Style::default().fg(if self.focus == Focus::Search {
-                HIGHLIGHT_COLOR 
+                HIGHLIGHT_COLOR
             } else {
                 PRIMARY_COLOR
             }));
@@ -290,7 +308,6 @@ impl Screen for SearchScreen {
                         _ => {}
                     }
                 } else {
-
                     match key_event.code {
                         KeyCode::Char('k') | KeyCode::Down => {
                             self.navigatable.move_down();
@@ -345,6 +362,7 @@ impl Screen for SearchScreen {
         }
 
         let info = self.app_info.clone();
+        let nr_of_animes = self.animes.len();
         self.bg_loaded = true;
         let (bg_sender, bg_receiver) = channel::<LocalEvent>();
         self.bg_sender = Some(bg_sender);
@@ -353,36 +371,26 @@ impl Screen for SearchScreen {
         ImageManager::init_with_threads(&image_manager, info.app_sx.clone());
 
         let handle = std::thread::spawn(move || {
+            if nr_of_animes <= 0 {
+                Self::fetch_and_send_animes(&info, id.clone(), |offset, limit| {
+                    info.mal_client
+                        .get_top_anime("all".to_string(), offset, limit)
+                });
+            }
+
             while let Ok(event) = bg_receiver.recv() {
                 match event {
                     LocalEvent::FilterSwitch(filter_type) => {
-                        if let Some(animes) = info.mal_client.get_top_anime(filter_type, 0, 100) {
-                            let update =
-                                super::BackgroundUpdate::new(id.clone()).set("animes", animes);
-                            info.app_sx
-                                .send(super::Event::BackgroundNotice(update))
-                                .ok();
-                        }
+                        Self::fetch_and_send_animes(&info, id.clone(), |offset, limit| {
+                            info.mal_client
+                                .get_top_anime(filter_type.clone(), offset, limit)
+                        });
                     }
 
                     LocalEvent::Search(query) => {
-                        if let Some(animes) = info.mal_client.search_anime(query.clone(), 0, 9) {
-                            for anime in animes.iter() {
-                                ImageManager::query_image_for_fetching(&image_manager, anime);
-                            }
-                            let update =
-                                super::BackgroundUpdate::new(id.clone()).set("animes", animes);
-                            info.app_sx
-                                .send(super::Event::BackgroundNotice(update))
-                                .ok();
-                        }
-                        if let Some(animes) = info.mal_client.search_anime(query, 10, 100) {
-                            let update =
-                                super::BackgroundUpdate::new(id.clone()).set("animes", animes);
-                            info.app_sx
-                                .send(super::Event::BackgroundNotice(update))
-                                .ok();
-                        }
+                        Self::fetch_and_send_animes(&info, id.clone(), |offset, limit| {
+                            info.mal_client.search_anime(query.clone(), offset, limit)
+                        });
                     }
                 }
             }
