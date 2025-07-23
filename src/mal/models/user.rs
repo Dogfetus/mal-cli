@@ -2,6 +2,7 @@ use crate::{mal::{network::fetch_user, Fetchable}, utils::imageManager::HasDispl
 
 use serde::{Deserialize, Serialize};
 
+use super::anime::FavoriteAnime;
 
 fn default_picture() -> String {
     "https://dogfetus.no/image/pfp".to_string()
@@ -29,6 +30,8 @@ pub struct User {
     pub time_zone: String,
     #[serde(default)]
     pub is_supporter: bool,
+    #[serde(default)]
+    pub favorited_animes: Vec<FavoriteAnime>,
 }
 
 impl User {
@@ -44,7 +47,12 @@ impl User {
             anime_statistics: AnimeStatistics::default(),
             time_zone: String::new(),
             is_supporter: false,
+            favorited_animes: Vec::new(),
         }
+    }
+
+    pub fn add_favorite_animes(&mut self, animes: Vec<FavoriteAnime>) {
+        self.favorited_animes.extend(animes);
     }
 }
 
@@ -119,8 +127,8 @@ impl Fetchable for User {
     fn from_response(response: Self::Response) -> Self::Output {
         response
     }
-}
 
+}
 
 impl HasDisplayableImage for User {
     fn get_displayable_image(&self) -> Option<(usize, String)> {

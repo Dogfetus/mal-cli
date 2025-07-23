@@ -2,6 +2,7 @@ use std::sync::OnceLock;
 use ratatui_image::picker::Picker;
 
 static GLOBAL_PICKER: OnceLock<Picker> = OnceLock::new();
+pub const TERMINAL_RATIO: f32 = 2.20; // terminal "pixel" ratio (length to width of a single pixel)
 
 pub struct TerminalCapabilities {
     picker: &'static Picker,

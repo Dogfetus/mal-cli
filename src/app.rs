@@ -107,7 +107,11 @@ impl App {
         if anime.status == "upcoming" {
             self.screen_manager.show_error(format!(
                 "\"{}\"\nis not yet released.",
-                anime.alternative_titles.en
+                if anime.alternative_titles.en.is_empty() {
+                    anime.title
+                } else {
+                    anime.alternative_titles.en
+                }
             ));
             return;
         }
@@ -137,7 +141,7 @@ impl App {
                 let stderr = self.ansi_regex.replace_all(&messy_stderr, "").to_string();
                 println!("ani-cli output:\n{}", stdout);
                 println!("ani-cli error:\n{}", stderr);
-                println!("ani-cli t {:?}", output);
+                println!("ani-cli t {:?}, {}", output, anime.title);
                 if !stderr.is_empty() {
                     if stderr.contains("No results found!") {
                         self.screen_manager.show_error(format!(

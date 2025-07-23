@@ -1,5 +1,11 @@
 use super::na;
-use crate::{mal::{network::fetch_anime, Fetchable}, utils::imageManager::HasDisplayableImage};
+use crate::{
+    mal::{
+        Fetchable,
+        network::{fetch_anime, fetch_favorited_anime},
+    },
+    utils::imageManager::HasDisplayableImage,
+};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt::{self};
 
@@ -106,7 +112,7 @@ pub mod fields {
 }
 
 /// Anime model representing the structure of an anime object
-/// 
+///
 /// # Fields
 /// - `id` - Unique identifier
 /// - `title` - Main title
@@ -213,7 +219,7 @@ pub struct Anime {
     pub genres: Vec<Genre>,
 
     /// User's personal MyAnimeList status for this anime
-    /// 
+    ///
     /// # Fields
     /// - `status` - Watch status (watching/completed/on_hold/dropped/plan_to_watch)
     /// - `score` - User rating (0-10)
@@ -384,9 +390,13 @@ impl Default for Anime {
     }
 }
 
-impl Anime{
+impl Anime {
     pub fn studios_as_string(&self) -> String {
-        self.studios.iter().map(|s| s.name.clone()).collect::<Vec<String>>().join(", ")
+        self.studios
+            .iter()
+            .map(|s| s.name.clone())
+            .collect::<Vec<String>>()
+            .join(", ")
     }
 }
 
@@ -410,7 +420,7 @@ pub struct AnimeNode {
     pub node: Anime,
     #[serde(default)]
     pub ranking: Ranking,
-    pub list_status: Option<MyListStatus>, 
+    pub list_status: Option<MyListStatus>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -647,16 +657,79 @@ impl Fetchable for Anime {
     }
 }
 
-
 impl fmt::Display for Anime {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.title)
     }
 }
 
-
 impl HasDisplayableImage for Anime {
     fn get_displayable_image(&self) -> Option<(usize, String)> {
         Some((self.id, self.main_picture.large.clone()))
+    }
+}
+
+fn extract_image_url<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    struct Images {
+        jpg: ImageUrls,
+    }
+
+    #[derive(Deserialize)]
+    struct ImageUrls {
+        image_url: String,
+    }
+
+    let images = Images::deserialize(deserializer)?;
+    Ok(images.jpg.image_url)
+}
+
+/// mini version of anime model for favorties
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct FavoriteResponse {
+    pub data: AnimeData,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AnimeData {
+    pub anime: Vec<FavoriteAnime>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct FavoriteAnime {
+    #[serde(alias = "mal_id")]
+    #[serde(default)]
+    pub id: usize,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    #[serde(deserialize_with = "extract_image_url")]
+    #[serde(alias = "images")]
+    pub image: String,
+}
+
+impl Fetchable for FavoriteAnime {
+    type Response = FavoriteResponse;
+    type Output = Vec<FavoriteAnime>;
+
+    fn fetch(
+        token: String,
+        url: String,
+        parameters: Vec<(String, String)>,
+    ) -> Result<Self::Response, Box<dyn std::error::Error>> {
+        fetch_favorited_anime(token, url, parameters)
+    }
+
+    fn from_response(response: Self::Response) -> Self::Output {
+        response.data.anime
+    }
+}
+
+impl HasDisplayableImage for FavoriteAnime {
+    fn get_displayable_image(&self) -> Option<(usize, String)> {
+        Some((self.id, self.image.clone()))
     }
 }

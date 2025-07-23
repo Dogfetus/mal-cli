@@ -5,7 +5,7 @@ use crate::{
     config::{ERROR_COLOR, HIGHLIGHT_COLOR, PRIMARY_COLOR, SECONDARY_COLOR},
     mal::{models::anime::Anime, MalClient},
     screens::ExtraInfo,
-    utils::imageManager::ImageManager,
+    utils::{imageManager::ImageManager, terminalCapabilities::TERMINAL_RATIO},
 };
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
@@ -25,7 +25,6 @@ const FIRST_YEAR: u16 = 1917;
 const FIRST_SEASON: &str = "Winter";
 const BUTTON_HEIGHT: u16 = 3;
 const RATIO: f32 = 422.0 / 598.0;
-const TERMINAL_RATIO: f32 = 2.20;
 
 #[derive(PartialEq, Clone, Debug)]
 enum Focus {

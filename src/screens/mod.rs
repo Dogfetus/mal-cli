@@ -132,6 +132,7 @@ pub trait Screen: Send{
                self.get_name());
     }
     fn should_store(&self) -> bool { true }
+    fn uses_navbar(&self) -> bool { true } //TODO: add navbar to screenmanager instead of each screen
 
     //INFO: just create a backgground function that returns a JoinHandle and the screen will have
     //background functionality. Use apply update to pass updates to the rendering thread

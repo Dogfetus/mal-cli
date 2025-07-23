@@ -1,4 +1,4 @@
-use super::models::anime::AnimeResponse;
+use super::models::anime::{AnimeResponse, FavoriteResponse};
 use super::models::user::User;
 use cached::proc_macro::cached;
 use std::fmt::Debug;
@@ -58,6 +58,15 @@ pub fn fetch_user(
     send_request::<User>(token, url, parameters)
 }
 
+#[cached(result = true)]
+pub fn fetch_favorited_anime(
+    token: String,
+    url: String,
+    parameters: Vec<(String, String)>,
+) -> Result<FavoriteResponse, Box<dyn std::error::Error>> {
+    send_request::<FavoriteResponse>(token, url, parameters)
+}
+
 pub fn send_request<T>(
     token: String,
     url: String,
@@ -92,4 +101,5 @@ pub trait Fetchable: Sized {
     ) -> Result<Self::Response, Box<dyn std::error::Error>>;
 
     fn from_response(response: Self::Response) -> Self::Output;
+
 }

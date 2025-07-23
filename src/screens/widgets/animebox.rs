@@ -9,6 +9,11 @@ use crate::{
     mal::models::anime::Anime,
     utils::imageManager::ImageManager,
 };
+
+
+const FETCH_IMAGE_ON_DEMAND: bool = true;
+
+
 pub struct AnimeBox {}
 
 impl AnimeBox {
@@ -97,7 +102,7 @@ impl AnimeBox {
             .areas(info_area);
 
         let image_area = image_area.inner(Margin::new(1, 1));
-        ImageManager::render_image(&image_manager, anime, frame, image_area, false);
+        ImageManager::render_image(&image_manager, anime, frame, image_area, FETCH_IMAGE_ON_DEMAND);
 
         let info_text = "Id:\nScore:\nType:\nEpisodes:\nStatus:\nAired:";
 
@@ -226,7 +231,7 @@ impl LongAnimeBox {
             .areas(info_area);
 
         let image_area = image_area.inner(Margin::new(1, 1));
-        ImageManager::render_image(&image_manager, anime, frame, image_area, false);
+        ImageManager::render_image(&image_manager, anime, frame, image_area, FETCH_IMAGE_ON_DEMAND);
 
         let info_text = "Score:\nType:\nEpisodes:\nStatus:\nTags:\nAired:";
 

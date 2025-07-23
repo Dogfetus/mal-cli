@@ -5,12 +5,13 @@ mod oauth;
 use crate::mal::network::Fetchable;
 use crate::params;
 use chrono::{Datelike, Local};
-use models::anime::{Anime, fields};
+use models::anime::{fields, Anime, FavoriteAnime, FavoriteResponse};
 use models::user::User;
 use std::sync::{Arc, RwLock};
 use std::{fs, thread::JoinHandle};
 
 const BASE_URL: &str = "https://api.myanimelist.net/v2";
+const EXTRA_URL: &str = "https://api.jikan.moe/v4";
 
 //TODO: encrypt the tokens somehow???
 
@@ -199,6 +200,13 @@ impl MalClient {
         self.send_request::<Anime>(
             format!("{}/users/{}/animelist", BASE_URL, username),
             parameters,
+        )
+    }
+
+    pub fn get_favorited_anime(&self, username: String) -> Option<Vec<FavoriteAnime>> {
+        self.send_request::<FavoriteAnime>(
+            format!("{}/users/{}/favorites", EXTRA_URL, username),
+            params![],
         )
     }
 
