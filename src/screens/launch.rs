@@ -108,5 +108,5 @@ impl Screen for LaunchScreen {
         None
     }
 
-    fn should_store(&self) -> bool { false }
+    fn uses_navbar(&self) -> bool { false }
 }

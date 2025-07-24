@@ -7,6 +7,7 @@ use std::thread::JoinHandle;
 //TODO: remember to fetch all search results and also fetch list of animes when going to this
 //screen
 
+use crate::add_screen_caching;
 use crate::app::Event;
 use crate::config::HIGHLIGHT_COLOR;
 use crate::config::PRIMARY_COLOR;
@@ -57,7 +58,6 @@ pub struct SearchScreen {
     image_manager: Arc<Mutex<ImageManager>>,
     app_info: ExtraInfo,
 
-    navbar: NavBar,
     navigatable: Navigatable,
     focus: Focus,
 
@@ -70,6 +70,8 @@ pub struct SearchScreen {
 }
 
 impl SearchScreen {
+    add_screen_caching!();
+
     pub fn new(info: ExtraInfo) -> Self {
         Self {
             image_manager: Arc::new(Mutex::new(ImageManager::new())),
@@ -86,12 +88,6 @@ impl SearchScreen {
                 .add_option("popularity")
                 .add_option("favorite"),
             search_input: Input::new(),
-            navbar: NavBar::new()
-                .add_screen(OVERVIEW)
-                .add_screen(SEASONS)
-                .add_screen(SEARCH)
-                .add_screen(LIST)
-                .add_screen(PROFILE),
             focus: Focus::Search,
             animes: Vec::new(),
             bg_loaded: false,
@@ -138,6 +134,8 @@ impl SearchScreen {
 }
 
 impl Screen for SearchScreen {
+    add_screen_caching!();
+
     fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
         frame.render_widget(Clear, area);
@@ -226,7 +224,6 @@ impl Screen for SearchScreen {
             .render_cursor(frame, search_area.x + 1, search_area.y + 1);
         self.filter_popup
             .render(frame, filter_area, self.focus == Focus::Filter);
-        self.navbar.render(frame, top);
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
@@ -243,8 +240,8 @@ impl Screen for SearchScreen {
                         }
                         KeyCode::Char('j') | KeyCode::Up => {
                             self.focus = Focus::NavBar;
-                            self.navbar.select();
                             self.filter_popup.close();
+                            return Some(Action::NavbarSelect(true))
                         }
                         KeyCode::Char('h') | KeyCode::Left => {
                             self.focus = Focus::Search;
@@ -272,9 +269,8 @@ impl Screen for SearchScreen {
                 {
                     match key_event.code {
                         KeyCode::Char('j') | KeyCode::Up => {
-                            self.navbar.select();
                             self.focus = Focus::NavBar;
-                            return None;
+                            return Some(Action::NavbarSelect(true))
                         }
                         KeyCode::Char('k') | KeyCode::Down => {
                             self.focus = Focus::AnimeList;
@@ -332,28 +328,11 @@ impl Screen for SearchScreen {
             }
 
             Focus::NavBar => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('k') | KeyCode::Down => {
-                            self.navbar.deselect();
-                            self.focus = Focus::Search
-                        }
-                        _ => {}
-                    }
-                } else {
-                    return self.navbar.handle_input(key_event);
-                }
+                self.focus = Focus::Search;
             }
         }
 
         None
-    }
-
-    fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
-        Box::new(self.clone())
     }
 
     fn background(&mut self) -> Option<JoinHandle<()>> {

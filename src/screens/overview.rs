@@ -27,7 +27,6 @@ pub struct OverviewScreen {
     loading: bool,
     animes: Vec<Anime>,
     scroll_offset: u16,
-    navbar: NavBar,
     // async_state: ThreadProtocol,
     rx: Arc<Mutex<mpsc::Receiver<ResizeRequest>>>,
     app_info: ExtraInfo,
@@ -47,13 +46,6 @@ impl OverviewScreen {
                 Anime::empty(),
             ],
 
-            navbar: NavBar::new()
-                .add_screen(OVERVIEW)
-                .add_screen(SEASONS)
-                .add_screen(SEARCH)
-                .add_screen(LIST)
-                .add_screen(PROFILE),
-
             scroll_offset: 0,
             app_info: info,
             loading: false,
@@ -70,9 +62,9 @@ impl Screen for OverviewScreen {
 
 
         /* Splitting the screen:
-        * which looks like this:
-        * ╭────────╮
-        * ╰────────╯
+        * which after looks like this:
+        * ╭──┬──┬──╮
+        * ╰──┴──┴──╯
         * ╭─────╮╭─╮
         * ╰─────╯│ │
         * ╭─────╮│ │
@@ -110,18 +102,6 @@ impl Screen for OverviewScreen {
             )
             .areas(bottom_left);
 
-
-        /* Displayes the navbar:
-        * which after looks like this:
-        * ╭──┬──┬──╮
-        * ╰──┴──┴──╯
-        * ╭─────╮╭─╮
-        * ╰─────╯│ │
-        * ╭─────╮│ │
-        * │     ││ │
-        * ╰─────╯╰─╯
-        * */
-        self.navbar.render(frame, top);
 
 
         /* Displayes the bottom sections:
@@ -343,9 +323,6 @@ impl Screen for OverviewScreen {
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
-        if self.navbar.is_selected() {
-            return self.navbar.handle_input(key_event);
-        }
         match key_event.code {
             KeyCode::Up | KeyCode::Char('j') => {
                 self.scroll_offset = self.scroll_offset.saturating_sub(1);
@@ -354,19 +331,11 @@ impl Screen for OverviewScreen {
                 self.scroll_offset += 1;
             }
             KeyCode::Enter => {
-                self.navbar.select();
+                return Some(Action::NavbarSelect(true));
             }
             _ => {} 
         };
         None
-    }
-
-    // fn should_store(&self) -> bool {
-    //     false 
-    // }
-
-    fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
-        Box::new(self.clone())
     }
 
     fn background(&mut self) -> Option<JoinHandle<()>> {

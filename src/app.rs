@@ -17,6 +17,7 @@ pub enum Action {
     PlayAnime(Anime),
     SwitchScreen(&'static str),
     ShowOverlay(Anime),
+    NavbarSelect(bool),
     Quit,
 }
 
@@ -197,6 +198,9 @@ impl App {
                 }
                 Action::PlayAnime(anime) => {
                     self.play_anime(anime);
+                }
+                Action::NavbarSelect(selected) => {
+                    self.screen_manager.toggle_navbar(selected);
                 }
             }
         }

@@ -2,7 +2,7 @@ use crate::{mal::{network::fetch_user, Fetchable}, utils::imageManager::HasDispl
 
 use serde::{Deserialize, Serialize};
 
-use super::anime::FavoriteAnime;
+use super::anime::{Anime, FavoriteAnime};
 
 fn default_picture() -> String {
     "https://dogfetus.no/image/pfp".to_string()
@@ -32,6 +32,10 @@ pub struct User {
     pub is_supporter: bool,
     #[serde(default)]
     pub favorited_animes: Vec<FavoriteAnime>,
+    #[serde(default)]
+    pub listed_animes: Vec<Anime>,
+    #[serde(default)]
+    pub user_stats: UserStatistics,
 }
 
 impl User {
@@ -48,11 +52,16 @@ impl User {
             time_zone: String::new(),
             is_supporter: false,
             favorited_animes: Vec::new(),
+            listed_animes: Vec::new(),
+            user_stats: UserStatistics::default(),
         }
     }
 
     pub fn add_favorite_animes(&mut self, animes: Vec<FavoriteAnime>) {
         self.favorited_animes.extend(animes);
+    }
+    pub fn add_listed_animes(&mut self, animes: Vec<Anime>) {
+        self.listed_animes.extend(animes);
     }
 }
 
@@ -108,6 +117,17 @@ impl Default for AnimeStatistics {
             num_episodes: 0,
             num_times_rewatched: 0,
             mean_score: 0.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct UserStatistics {
+}
+
+impl Default for UserStatistics {
+    fn default() -> Self {
+        Self {
         }
     }
 }

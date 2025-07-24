@@ -1,5 +1,5 @@
 use std::cmp::{max, min};
-use crate::{app::Event, mal::MalClient, screens::widgets::button::Button};
+use crate::{add_screen_caching, app::Event, mal::MalClient, screens::widgets::button::Button};
 use crossterm::event::{KeyCode, KeyEvent};
 use super::{screens::*, BackgroundUpdate, ExtraInfo, Screen};
 use std::thread::JoinHandle;
@@ -36,6 +36,8 @@ impl LoginScreen {
 }
 
 impl Screen for LoginScreen {
+    add_screen_caching!();
+
     fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
 
@@ -137,10 +139,6 @@ impl Screen for LoginScreen {
         None
     }
 
-    fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
-        Box::new(self.clone())
-    }
-
     fn background(&mut self) -> Option<JoinHandle<()>> {
         //TODO: the thread should receive a new transmitter / sender for each screen. to
         //communicate with events instead of polling ( might not be necessary for this login though )
@@ -185,5 +183,9 @@ impl Screen for LoginScreen {
         if let Some(url) = update.get::<String>("login_url") {
             self.login_url = url.clone();
         }
+    }
+
+    fn uses_navbar(&self) -> bool {
+        false
     }
 }

@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
+use crate::add_screen_caching;
 use crate::app::Event;
 use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
 use crate::mal::models::anime::Anime;
@@ -105,7 +106,6 @@ pub struct ListScreen {
     image_manager: Arc<Mutex<ImageManager>>,
 
     focus: Focus,
-    navbar: NavBar,
     app_info: ExtraInfo,
 
     search_input: Input,
@@ -160,12 +160,6 @@ impl ListScreen {
             ],
             statistics: Statistics::new(),
             search_input: Input::new(),
-            navbar: NavBar::new()
-                .add_screen(OVERVIEW)
-                .add_screen(SEASONS)
-                .add_screen(SEARCH)
-                .add_screen(LIST)
-                .add_screen(PROFILE),
             filters: Filters::new(),
             focus: Focus::Content,
             all_animes: Vec::new(),
@@ -254,6 +248,8 @@ impl ListScreen {
 }
 
 impl Screen for ListScreen {
+    add_screen_caching!();
+
     // draws the screen
     fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
@@ -365,7 +361,6 @@ impl Screen for ListScreen {
             },
         );
 
-        self.navbar.render(frame, top);
         self.search_input.render_cursor(frame, search.x+1, search.y+1);
     }
 
@@ -378,9 +373,8 @@ impl Screen for ListScreen {
                 {
                     match key_event.code {
                         KeyCode::Char('j') | KeyCode::Up => {
-                            self.navbar.select();
                             self.focus = Focus::NavBar;
-                            return None;
+                            return Some(Action::NavbarSelect(true));
                         }
                         KeyCode::Char('k') | KeyCode::Down => {
                             self.focus = Focus::Content;
@@ -403,20 +397,7 @@ impl Screen for ListScreen {
             }
 
             Focus::NavBar => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('k') | KeyCode::Down => {
-                            self.navbar.deselect();
-                            self.focus = Focus::Search;
-                        }
-                        _ => {}
-                    }
-                } else {
-                    return self.navbar.handle_input(key_event);
-                }
+                self.focus = Focus::Search;
             }
 
             Focus::Content => {
@@ -518,10 +499,6 @@ impl Screen for ListScreen {
             }
         }
         None
-    }
-
-    fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
-        Box::new(self.clone())
     }
 
     fn background(&mut self) -> Option<JoinHandle<()>> {

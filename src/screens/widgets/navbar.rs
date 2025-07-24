@@ -7,11 +7,12 @@ use ratatui::{
     widgets::{Block, Borders}, 
     Frame
 };
-use crate::{app::Action, config::{HIGHLIGHT_COLOR, PRIMARY_COLOR}, screens::{name_to_screen, screen_to_name}};
+use crate::{app::Action, config::{HIGHLIGHT_COLOR, PRIMARY_COLOR, SECOND_HIGHLIGHT_COLOR}, screens::{name_to_screen, screen_to_name}};
 
 
 #[derive(Clone)]
 pub struct NavBar {
+    old_button: usize,
     selected_button: usize,
     options: Vec<&'static str>,  
     is_selected: bool,
@@ -21,6 +22,7 @@ impl NavBar {
     pub fn new() -> Self {
         Self {
             selected_button: 0,
+            old_button: 0,
             options: Vec::new(),
             is_selected: false,
         }
@@ -36,6 +38,7 @@ impl NavBar {
     }
 
     pub fn deselect(&mut self) -> &Self {
+        self.selected_button = self.old_button;
         self.is_selected = false;
         self
     }
@@ -46,6 +49,15 @@ impl NavBar {
     }
 
     pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
+        if (key_event.code == KeyCode::Char('k') || key_event.code == KeyCode::Down)
+            && key_event
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL)
+        {
+            self.deselect();
+            return Some(Action::NavbarSelect(false));
+        }
+
         match key_event.code {
             KeyCode::Left | KeyCode::Char('h') => {
                 if self.selected_button > 0 {
@@ -59,6 +71,7 @@ impl NavBar {
             },
             KeyCode::Enter => {
                 if self.is_selected {
+                    self.old_button = self.selected_button;
                     let screen_name = self.options[self.selected_button];
                     return Some(Action::SwitchScreen(name_to_screen(screen_name)));
                 }
@@ -128,8 +141,10 @@ impl NavBar {
             let text_y = inner.y + (inner.height) / 2;
             let centered_area = Rect::new(inner.x, text_y, inner.width, 1);
             let style = if self.is_selected && i == self.selected_button {
+                Style::default().fg(SECOND_HIGHLIGHT_COLOR)
+            } else if i == self.old_button {
                 Style::default().fg(HIGHLIGHT_COLOR)
-            } else {
+            } else{
                 Style::default().fg(PRIMARY_COLOR)
             };
 

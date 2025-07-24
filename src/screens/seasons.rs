@@ -1,7 +1,8 @@
 use super::ExtraInfo;
 use super::widgets::navigatable::Navigatable;
 use super::widgets::popup::SeasonPopup;
-use super::{BackgroundUpdate, Screen, screens::*, widgets::navbar::NavBar};
+use super::{BackgroundUpdate, Screen};
+use crate::add_screen_caching;
 use crate::{
     config::{HIGHLIGHT_COLOR, PRIMARY_COLOR},
     screens::widgets::animebox::AnimeBox,
@@ -46,7 +47,6 @@ enum Focus {
 #[derive(Clone)]
 pub struct SeasonsScreen {
     animes: Vec<Anime>,
-    navbar: NavBar,
     season_popup: SeasonPopup,
     focus: Focus,
     app_info: ExtraInfo,
@@ -72,12 +72,6 @@ impl SeasonsScreen {
 
         Self {
             animes: Vec::new(),
-            navbar: NavBar::new()
-                .add_screen(OVERVIEW)
-                .add_screen(SEASONS)
-                .add_screen(SEARCH)
-                .add_screen(LIST)
-                .add_screen(PROFILE),
             season_popup: SeasonPopup::new(),
             focus: Focus::AnimeList,
             app_info: info,
@@ -140,6 +134,8 @@ impl SeasonsScreen {
 }
 
 impl Screen for SeasonsScreen {
+    add_screen_caching!();
+
     fn draw(&mut self, frame: &mut Frame) {
         let mut anime = Anime::empty();
         if let Some(selected_anime) = self.navigatable.get_selected_item(&self.animes) {
@@ -150,16 +146,16 @@ impl Screen for SeasonsScreen {
         frame.render_widget(Clear, area);
 
         /* Splitting the screen:
-         * which looks like this:
-         * ╭────────╮
-         * ╰────────╯
+         * which after looks like this:
+         * ╭──┬──┬──╮
+         * ╰──┴──┴──╯
          * ╭─────╮╭─╮
          * ╰─────╯│ │
          * ╭─────╮│ │
          * │     ││ │
          * ╰─────╯╰─╯
          * */
-        let [top, bottom] = Layout::default()
+        let [_, bottom] = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(3), Constraint::Percentage(100)])
             .areas(area);
@@ -173,18 +169,6 @@ impl Screen for SeasonsScreen {
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(3), Constraint::Percentage(100)])
             .areas(bottom_left);
-
-        /* Displayes the navbar:
-         * which after looks like this:
-         * ╭──┬──┬──╮
-         * ╰──┴──┴──╯
-         * ╭─────╮╭─╮
-         * ╰─────╯│ │
-         * ╭─────╮│ │
-         * │     ││ │
-         * ╰─────╯╰─╯
-         * */
-        self.navbar.render(frame, top);
 
         /* Displayes the bottom sections:
          * which after looks like this (ish):
@@ -454,18 +438,14 @@ impl Screen for SeasonsScreen {
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
         match self.focus {
-            Focus::Navbar => {
-                if (key_event.code == KeyCode::Char('k') || key_event.code == KeyCode::Down)
-                    && key_event
-                        .modifiers
-                        .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    self.navbar.deselect();
-                    self.focus = Focus::SeasonSelection;
-                }
 
-                return self.navbar.handle_input(key_event);
+            // this focus is used just to not highligh anything in the screen
+            // and when the navbar gets deselcted this handle_input will run once right after 
+            // whcih will set its focus back to the seasonselection
+            Focus::Navbar => {
+                self.focus = Focus::SeasonSelection;
             }
+
             Focus::AnimeList => {
                 if key_event
                     .modifiers
@@ -514,8 +494,8 @@ impl Screen for SeasonsScreen {
                 {
                     match key_event.code {
                         KeyCode::Char('j') | KeyCode::Up => {
-                            self.navbar.select();
                             self.focus = Focus::Navbar;
+                            return Some(Action::NavbarSelect(true));
                         }
                         KeyCode::Char('h') | KeyCode::Down => {
                             self.focus = Focus::AnimeList;
@@ -549,8 +529,8 @@ impl Screen for SeasonsScreen {
                 {
                     match key_event.code {
                         KeyCode::Char('j') | KeyCode::Up => {
-                            self.navbar.select();
                             self.focus = Focus::Navbar;
+                            return Some(Action::NavbarSelect(true));
                         }
                         KeyCode::Char('l') | KeyCode::Right => {
                             self.focus = Focus::AnimeDetails;
@@ -584,10 +564,6 @@ impl Screen for SeasonsScreen {
         }
 
         None
-    }
-
-    fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
-        Box::new(self.clone())
     }
 
     fn background(&mut self) -> Option<std::thread::JoinHandle<()>> {

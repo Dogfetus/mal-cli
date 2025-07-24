@@ -2,6 +2,7 @@
 #![allow(unused_imports, unused)]
 // <<< remove this <<<
 
+use crate::add_screen_caching;
 use crate::{app::Action, screens::Screen};
 use ratatui::layout::Constraint;
 use ratatui::layout::Direction;
@@ -36,6 +37,8 @@ impl TempScreen {
 }
 
 impl Screen for TempScreen {
+    // this makes sure the screen is saved between screen switches
+    add_screen_caching!();
 
     // draws the screen
     fn draw(&mut self, frame: &mut Frame) {
@@ -78,18 +81,6 @@ impl Screen for TempScreen {
         //     _ => {} 
         // };
     }
-
-
-    fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
-        Box::new(self.clone())
-    }
-
-
-    // -> the should store is only needed if the state of the screen should not be preserved when
-    // swithcing screens if this is set to false the clone_box implementation is not needed
-    // fn should_store(&self) -> bool {
-    // false 
-    // }
 
     fn background(&mut self) -> Option<std::thread::JoinHandle<()>> {
         todo!("Background functionality for TempScreen");
