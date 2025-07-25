@@ -11,6 +11,7 @@ use crate::utils::functionStreaming::StreamableRunner;
 use crate::utils::imageManager::ImageManager;
 use crate::utils::input::Input;
 use crate::{app::Action, screens::Screen};
+use color_eyre::owo_colors::OwoColorize;
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use ratatui::Frame;
@@ -343,6 +344,7 @@ impl Screen for ListScreen {
             frame.render_widget(loading_text, content);
         } else {
             self.navigatable
+                .in_reverse()
                 .construct(&self.filtered_animes, content, |anime, area, highlight| {
                     LongAnimeBox::render(
                         anime,
@@ -515,29 +517,19 @@ impl Screen for ListScreen {
             &self.image_manager,
             info.app_sx.clone(),
         );
-        let image_manager = self.image_manager.clone();
-
         Some(std::thread::spawn(move || {
             let mut cached_filter = Option::<Filters>::None;
             let mut cached_search = String::new();
-            let mut fetch_image = true;
 
             let anime_generator = StreamableRunner::new()
-                .change_batch_size_at(1000, 1);
+                // .with_batch_size(1000)
+                .change_batch_size_at(1000, 1)
+                .stop_early()
+                .stop_at(20);
 
             for animes in anime_generator.run(|offset, limit| {
                 info.mal_client.get_anime_list(None, offset as u16, limit as u16)
             }) {
-                if fetch_image {
-                    for anime in &animes {
-                        ImageManager::query_image_for_fetching(
-                            &image_manager,
-                            anime,
-                        );
-                    }
-                }
-                fetch_image = false;
-
                 let update = BackgroundUpdate::new(id.clone())
                     .set("animes", animes)
                     .set("fetching", false)

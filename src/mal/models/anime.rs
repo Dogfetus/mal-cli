@@ -491,7 +491,7 @@ impl fmt::Display for Genre {
 pub struct MyListStatus {
     #[serde(deserialize_with = "my_status", default = "na")]
     pub status: String,
-    pub score: Option<u8>,
+    pub score: u8,
     #[serde(default)]
     pub num_episodes_watched: u32,
     pub is_rewatching: Option<bool>,
@@ -515,7 +515,7 @@ impl Default for MyListStatus {
     fn default() -> Self {
         MyListStatus {
             status: String::new(),
-            score: None,
+            score: 0,
             num_episodes_watched: 0,
             is_rewatching: None,
             start_date: String::new(),

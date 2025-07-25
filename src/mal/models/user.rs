@@ -61,6 +61,11 @@ impl User {
         self.favorited_animes.extend(animes);
     }
     pub fn add_listed_animes(&mut self, animes: Vec<Anime>) {
+        animes.iter().for_each(|anime| {
+            if anime.my_list_status.score > 0 {
+                self.user_stats.num_items_rated += 1;
+            }
+        });
         self.listed_animes.extend(animes);
     }
 }
@@ -123,11 +128,14 @@ impl Default for AnimeStatistics {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct UserStatistics {
+    #[serde(default)]
+    pub num_items_rated: usize,
 }
 
 impl Default for UserStatistics {
     fn default() -> Self {
         Self {
+            num_items_rated: 0,
         }
     }
 }

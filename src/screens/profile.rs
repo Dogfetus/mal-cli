@@ -5,6 +5,7 @@ use std::thread::JoinHandle;
 use crate::add_screen_caching;
 use crate::app::Action;
 use crate::app::Event;
+use crate::config::anime_list_colors;
 use crate::config::HIGHLIGHT_COLOR;
 use crate::config::PRIMARY_COLOR;
 use crate::mal::models::anime::Anime;
@@ -38,10 +39,11 @@ use ratatui::widgets;
 use ratatui::widgets::Block;
 use ratatui::widgets::Borders;
 use ratatui::widgets::Paragraph;
-
-// picture size 225 x 320 ish
+use ureq::http::header::TE;
 
 const PICTURE_RATIO: f32 = 225.0 / 320.0;
+const PFP_RATIO: f32 = 225.0 / 280.0;
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Focus {
@@ -87,13 +89,15 @@ impl Screen for ProfileScreen {
         // the actual screen
         let [left, right] = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(32), Constraint::Percentage(68)])
+            .constraints([Constraint::Percentage(26), Constraint::Fill(1)])
             .areas(bottom);
+
+        let pfp_height = ((left.width as f32 * PFP_RATIO) / TERMINAL_RATIO) as u16;
 
         //pfp
         let [pfp, info] = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(35), Constraint::Fill(1)])
+            .constraints([Constraint::Length(pfp_height), Constraint::Fill(1)])
             .areas(left);
 
         ImageManager::render_image(
@@ -178,13 +182,10 @@ impl Screen for ProfileScreen {
         let user_info_text = vec![
             format!("Username: {}", self.user.name),
             format!("Joined: {}", self.user.joined_at),
-            format!("Anime Count: {}", self.user.anime_statistics.num_items),
-            format!(
-                "Episodes Count: {}",
-                self.user.anime_statistics.num_episodes
-            ),
-            format!("Days: {}", self.user.anime_statistics.num_days),
-            format!("Score: {}", self.user.anime_statistics.mean_score),
+            format!("Gender: {}", self.user.gender),
+            format!("Birthday: {}", self.user.birthday),
+            format!("Location: {}", self.user.location),
+            format!("Time Zone: {}", self.user.time_zone)
         ];
         for (i, line) in user_info_text.iter().enumerate() {
             let paragraph = Paragraph::new(line.clone())
@@ -219,6 +220,25 @@ impl Screen for ProfileScreen {
             self.user.anime_statistics.num_items_plan_to_watch,
         ];
 
+        let [percentage_area, right_middle_side, right_right_side] = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(33),
+                Constraint::Percentage(33),
+                Constraint::Fill(1),
+            ])
+            .areas(right_top.inner(Margin::new(4, 2)));
+
+        let [subtitle, percentage_area] = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(2), Constraint::Fill(1)])
+            .areas(percentage_area);
+
+        let subtitle_text = Paragraph::new("Overall Anime Statistics")
+            .alignment(Alignment::Center)
+            .block(Block::default().borders(Borders::NONE));
+        frame.render_widget(subtitle_text, subtitle);
+
         for (i, &count) in percentages.iter().enumerate() {
             let percentage = (count as f32 / self.user.anime_statistics.num_items as f32 * 100.0) as u16;
             let label = match i {
@@ -230,22 +250,65 @@ impl Screen for ProfileScreen {
                 _ => "",
             };
 
+            let area = Rect::new(
+                    percentage_area.x + 1,
+                    percentage_area.y + i as u16 * 3,
+                    percentage_area.width - 2,
+                    3
+            );
+
             let gauge = Gauge::default()
-                .gauge_style(Style::new().white().on_black())
-                .label(label)
+                .gauge_style(Style::new().fg(anime_list_colors(label)).bg(style::Color::Black))
                 .percent(percentage);
 
-            frame.render_widget(
-                gauge,
-                Rect::new(
-                    right_top.x + 1,
-                    right_top.y + 1 + i as u16 * 2,
-                    right_top.width - 2,
-                    1,
-                ),
-            );
+            let label_text = Paragraph::new(label)
+                .alignment(Alignment::Left)
+                .block(Block::default().borders(Borders::NONE));
+            let label_value = Paragraph::new(format!("{}", percentages[i]))
+                .alignment(Alignment::Right)
+                .block(Block::default().borders(Borders::NONE));
+
+            frame.render_widget( gauge, area.inner(Margin::new(0, 1)));
+            frame.render_widget( label_text, area);
+            frame.render_widget( label_value,area);
         }
+
+
+        let total_animes_text = Paragraph::new(concat!(
+            "Total Animes:\n", 
+            "Total Episodes:\n", 
+            "Total Days Watched:\n", 
+            "Mean Score:\n", 
+            "Total Scores Given:"
+        )).alignment(Alignment::Left);
+
+        let total_animes_value = Paragraph::new( format!(
+            "{}\n{}\n{}\n{}\n{}",
+            self.user.anime_statistics.num_items,
+            self.user.anime_statistics.num_episodes,
+            self.user.anime_statistics.num_days,
+            self.user.anime_statistics.mean_score,
+            self.user.user_stats.num_items_rated
+        )).alignment(Alignment::Right);
+
+        let total_area = Rect::new(
+            percentage_area.x + 1,
+            percentage_area.y + percentages.len() as u16 * 3 + 1,
+            percentage_area.width - 2,
+            5,
+        );
+
+        frame.render_widget(total_animes_text, total_area);
+        frame.render_widget(total_animes_value, total_area);
+
+        let imageurl = self.user.picture.clone(); 
+        let image_url = Paragraph::new(imageurl)
+            .alignment(Alignment::Center)
+            .block(Block::default().borders(Borders::NONE));  
+        frame.render_widget(image_url, area); 
     }
+
+
 
     // handle inut function
     // for this spcific screen bro
@@ -297,7 +360,9 @@ impl Screen for ProfileScreen {
 
                 // get the users anime list
                 let anime_generator = StreamableRunner::new()
-                    .with_batch_size(1000);
+                    .with_batch_size(1000)
+                    .stop_early()
+                    .stop_at(20); // just a limit incase (20 x batch size)
 
                 for animes in anime_generator.run(|offset, limit| {
                     info.mal_client

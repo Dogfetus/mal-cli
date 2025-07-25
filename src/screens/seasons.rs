@@ -242,16 +242,14 @@ impl Screen for SeasonsScreen {
         let title = Paragraph::new(
             DisplayString::new()
                 .add(&self.season)
-                .add(&self.year)
+                .add(self.year)
+                .add(self.animes.len())
                 .capitalize(0)
-                .build("{0} {1}"),
+                .build("{0} {1} ({2})"),
         )
         .centered()
-        .style(Style::default().fg(season_color))
-        .block(Block::default().padding(Padding::vertical(1)));
-        frame.render_widget(title, bl_top);
-        let number_of_animes = Paragraph::new(self.animes.len().to_string());
-        frame.render_widget(number_of_animes, bl_top.inner(Margin::new(1, 1)));
+        .style(Style::default().fg(season_color));
+        frame.render_widget(title, bl_top.inner(Margin::new(5, 1)));
 
 
         /* then create grid for animes:

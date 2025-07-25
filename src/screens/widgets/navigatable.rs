@@ -5,6 +5,7 @@ pub struct Navigatable {
     cols: u16,
 
     total_items: usize,
+    reverse: bool,
 
     selected: usize,
     scroll: usize,
@@ -13,6 +14,7 @@ pub struct Navigatable {
 impl Navigatable{
     pub fn new(size: (u16, u16)) -> Self {
         Self {
+            reverse: false,
             total_items: 0,
             rows: size.0,
             cols: size.1,
@@ -24,6 +26,11 @@ impl Navigatable{
     pub fn back_to_start(&mut self) {
         self.selected = 0;
         self.scroll = 0;
+    }
+
+    pub fn in_reverse(&mut self) -> &mut Self {
+        self.reverse = true;
+        self
     }
 
     pub fn visable_elements(&self) -> usize {
@@ -148,15 +155,30 @@ impl Navigatable{
         self.total_items = items.len();
 
         let grid = self.create_grid(area);
-        let visible_items = self.visible_indices().enumerate().rev();
-        for (visible_idx, absolute_idx) in visible_items {
-            let row = visible_idx / self.cols as usize;
-            let col = visible_idx % self.cols as usize;
 
-            if row < grid.len() && col < grid[row].len() {
-                let item = &items[absolute_idx];
-                let is_selected = absolute_idx == self.selected;
-                callback(item, grid[row][col], is_selected);
+        if self.reverse {
+            for (visible_idx, absolute_idx) in self.visible_indices().rev().enumerate() {
+                let row = visible_idx / self.cols as usize;
+                let col = visible_idx % self.cols as usize;
+
+                if row < grid.len() && col < grid[row].len() {
+                    let item = &items[absolute_idx];
+                    let is_selected = absolute_idx == self.selected;
+                    callback(item, grid[row][col], is_selected);
+                }
+            }
+        }
+
+        else {
+            for (visible_idx, absolute_idx) in self.visible_indices().enumerate() {
+                let row = visible_idx / self.cols as usize;
+                let col = visible_idx % self.cols as usize;
+
+                if row < grid.len() && col < grid[row].len() {
+                    let item = &items[absolute_idx];
+                    let is_selected = absolute_idx == self.selected;
+                    callback(item, grid[row][col], is_selected);
+                }
             }
         }
     }

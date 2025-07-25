@@ -82,14 +82,14 @@ impl AnimePopup {
                 .with_selected_option(self.anime.my_list_status.status.to_string())
                 .clone(),
             SelectionPopup::new()
-                .add_option("Rate:")
+                .add_option("Not rated")
                 .add_options(vec!["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"])
                 .with_arrows(Arrows::Static)
                 .with_selected_option(
                     self.anime
                         .my_list_status
                         .score
-                        .map_or("Not Rated".to_string(), |s| s.to_string()),
+                        .to_string()
                 )
                 .clone(),
             SelectionPopup::new()

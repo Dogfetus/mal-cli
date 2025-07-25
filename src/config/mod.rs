@@ -16,8 +16,8 @@ pub const PLAN_TO_WATCH_COLOR: Color = Color::Rgb(176, 86, 255);
 
 
 
-pub fn anime_list_colors(status: &String) -> Color {
-    match status.as_str() {
+pub fn anime_list_colors(status: impl AsRef<str>) -> Color {
+    match status.as_ref().to_lowercase().as_str() {
         "watching" | "rewatching" => WATCHING_COLOR,
         "completed" => COMPLETED_COLOR,
         "on hold" => ON_HOLD_COLOR,

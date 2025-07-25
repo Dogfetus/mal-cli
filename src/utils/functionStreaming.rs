@@ -66,11 +66,12 @@ impl StreamableRunner
     pub fn run<T, F>(&self, mut fetch_fn: F) -> impl Iterator<Item = Vec<T>>
     where
         F: FnMut(usize, usize) -> Option<Vec<T>>,
+        T: std::fmt::Debug + Clone,
     {
         let mut offset: usize = 0;
         let mut early_stop = false;
         let mut iteration = 0;
-        let mut batch_size= self.max_batch_size;
+        let mut max_batch_size= self.max_batch_size;
 
         std::iter::from_fn(move || {
             if early_stop {
@@ -86,26 +87,24 @@ impl StreamableRunner
 
             if let Some(new_size) = self.new_batch_size {
                 if iteration == self.new_batch_index {
-                    batch_size = new_size;
+                    max_batch_size = new_size;
                 }
             }
 
-            if let Some(batch) = fetch_fn(offset, batch_size) {
-
-                let batch_len = batch.len();
-                offset += batch_size;
-
-                if self.early_stop && batch_len < self.max_batch_size {
-                    early_stop = true;
-                }
-
-                iteration += 1;
-                Some(batch)
+            let batch = fetch_fn(offset, max_batch_size)?;
+            if batch.is_empty() {
+                return None;
             }
 
-            else {
-                None
+            let batch_len = batch.len();
+            offset += max_batch_size;
+
+            if self.early_stop && batch_len < max_batch_size {
+                early_stop = true;
             }
+
+            iteration += 1;
+            Some(batch)
         })
     }
 }

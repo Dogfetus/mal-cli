@@ -7,6 +7,7 @@ use crate::params;
 use chrono::{Datelike, Local};
 use models::anime::{fields, Anime, FavoriteAnime, FavoriteResponse};
 use models::user::User;
+use std::any::type_name;
 use std::sync::{Arc, RwLock};
 use std::{fs, thread::JoinHandle};
 
@@ -224,7 +225,7 @@ impl MalClient {
         let response = match response {
             Ok(response) => response,
             Err(e) => {
-                eprintln!("Error fetching anime: {:?}", e);
+                eprintln!("Error fetching {}: {:?}", type_name::<T>(), e);
                 return None;
             }
         };
