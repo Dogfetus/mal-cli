@@ -2,7 +2,7 @@ use super::na;
 use crate::{
     mal::{
         Fetchable,
-        network::{fetch_anime, fetch_favorited_anime},
+        network::{Update, fetch_anime, fetch_favorited_anime},
     },
     utils::imageManager::HasDisplayableImage,
 };
@@ -23,6 +23,24 @@ where
         _ => s,
     };
     Ok(status)
+}
+
+pub fn correct_status(s: String) -> String {
+    match s.as_str() {
+        "watching" => "watching".to_string(),
+        "completed" => "completed".to_string(),
+        "on hold" | "on-hold"=> "on_hold".to_string(),
+        "dropped" => "dropped".to_string(), 
+        "plan to watch" => "plan_to_watch".to_string(),
+        _ => s.to_string(),
+    }
+}
+
+pub fn status_is_known(s: String) -> bool {
+    matches!(
+        s.as_str(),
+        "watching" | "completed" | "on hold" | "on-hold" | "dropped" | "plan to watch" | "on_hold" | "plan_to_watch"
+    )
 }
 
 fn my_status<'de, D>(deserializer: D) -> Result<String, D::Error>
@@ -725,6 +743,70 @@ impl Fetchable for FavoriteAnime {
 
     fn from_response(response: Self::Response) -> Self::Output {
         response.data.anime
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum DeleteOrUpdate {
+    Updated(MyListStatus),      // For PUT - returns object
+    Deleted(()),                // For DELETE - returns []
+}
+
+impl Update for Anime {
+    type Response = DeleteOrUpdate;
+
+    fn get_method(&self) -> &'static str {
+        if !status_is_known(self.my_list_status.status.clone()) {
+            "DELETE"
+        } else {
+            "PUT"
+        }
+    }
+
+    fn get_parameters(&self) -> Vec<(String, String)> {
+        vec![]
+    }
+    fn get_belonging_list(&self) -> String {
+        "anime".to_string()
+    }
+
+    fn get_id(&self) -> usize {
+        self.id
+    }
+
+    fn get_headers(&self, token: String) -> Vec<(String, String)> {
+        if !status_is_known(self.my_list_status.status.clone()) {
+            vec![("Authorization".to_string(), format!("Bearer {}", token))]
+        } else {
+            vec![
+                ("Authorization".to_string(), format!("Bearer {}", token)),
+                ("Content-Type".to_string(), "application/x-www-form-urlencoded".to_string()),
+            ]
+        }
+    }
+
+    //TODO: somethings wrong with the body it gets (seems to allways return empty results)
+    fn get_body(&self) -> Option<String> {
+        if !status_is_known(self.my_list_status.status.clone()) {
+            return None;
+        }
+        else if correct_status(self.my_list_status.status.clone()) == "plan_to_watch" &&
+            self.my_list_status.num_episodes_watched > 0{
+            return Some(format!(
+                "status={}&score={}&num_watched_episodes={}",
+                "watching",
+                self.my_list_status.score,
+                self.my_list_status.num_episodes_watched,
+            ));
+        }
+
+        Some(format!(
+            "status={}&score={}&num_watched_episodes={}",
+            correct_status(self.my_list_status.status.clone()),
+            self.my_list_status.score,
+            self.my_list_status.num_episodes_watched,
+        ))
     }
 }
 

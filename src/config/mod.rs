@@ -20,9 +20,9 @@ pub fn anime_list_colors(status: impl AsRef<str>) -> Color {
     match status.as_ref().to_lowercase().as_str() {
         "watching" | "rewatching" => WATCHING_COLOR,
         "completed" => COMPLETED_COLOR,
-        "on hold" => ON_HOLD_COLOR,
+        "on hold" | "on-hold" => ON_HOLD_COLOR,
         "dropped" => DROPPED_COLOR,
         "plan to watch" => PLAN_TO_WATCH_COLOR,
-        _ => Color::Gray,
+        _ => Color::DarkGray,
     }
 }

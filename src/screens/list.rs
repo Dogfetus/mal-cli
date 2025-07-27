@@ -344,7 +344,6 @@ impl Screen for ListScreen {
             frame.render_widget(loading_text, content);
         } else {
             self.navigatable
-                .in_reverse()
                 .construct(&self.filtered_animes, content, |anime, area, highlight| {
                     LongAnimeBox::render(
                         anime,
@@ -355,7 +354,9 @@ impl Screen for ListScreen {
                     );
                 });
         }
-        self.dropdown_nav.construct(
+        self.dropdown_nav
+            .as_reverse()
+            .construct(
             &self.dropdowns,
             dropdown_area,
             |dropdown, area, highlight| {
@@ -556,15 +557,16 @@ impl Screen for ListScreen {
                     }
 
                     LocalEvent::Search(animes, search) => {
-                        let mut latest_search = search;
+                        let latest_search = search;
                         let mut latest_animes = animes;
 
-                        while let Ok(_event) = rx.recv_timeout(Duration::from_millis(250)) {
-                            if let LocalEvent::Search(animes, search) = _event {
-                                latest_search = search;
-                                latest_animes = animes;
-                            }
-                        }
+                        // for delayed search (if wanted)
+                        // while let Ok(_event) = rx.recv_timeout(Duration::from_millis(250)) {
+                        //     if let LocalEvent::Search(animes, search) = _event {
+                        //         latest_search = search;
+                        //         latest_animes = animes;
+                        //     }
+                        // }
 
                         if let Some(filters) = cached_filter.clone() {
                             Self::filter_animes(&mut latest_animes, &filters);

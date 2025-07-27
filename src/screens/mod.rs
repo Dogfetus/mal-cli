@@ -240,11 +240,15 @@ impl ScreenManager {
     }
 
     pub fn update_screen(&mut self, update: BackgroundUpdate) {
-        if self.current_screen.get_name() == update.screen_id {
+        if update.id == "popup" {
+            self.overlay.apply_update(update);
+            return;
+        }
+
+        if self.current_screen.get_name() == update.id {
             self.current_screen.apply_update(update);
         } else {
-            // TODO: check if this actually works when not rendered?
-            if let Some(screen) = self.screen_storage.get_mut(&update.screen_id) {
+            if let Some(screen) = self.screen_storage.get_mut(&update.id) {
                 screen.apply_update(update);
             }
         }
@@ -293,21 +297,21 @@ impl ScreenManager {
 
 #[derive(Debug)]
 pub struct BackgroundUpdate {
-    pub screen_id: String,
+    pub id: String,
     pub updates: HashMap<String, Box<dyn Any + Send + Sync>>,
 }
 
 #[allow(dead_code)]
 impl BackgroundUpdate {
-    pub fn new(screen_id: String) -> Self {
+    pub fn new<S: Into<String>>(screen_id: S) -> Self {
         Self {
-            screen_id,
+            id: screen_id.into(),
             updates: HashMap::new(),
         }
     }
 
-    pub fn set<T: Any + Send + Sync>(mut self, field: &str, value: T) -> Self {
-        self.updates.insert(field.to_string(), Box::new(value));
+    pub fn set<T: Any + Send + Sync, S: Into<String>>(mut self, field: S, value: T) -> Self {
+        self.updates.insert(field.into(), Box::new(value));
         self
     }
 

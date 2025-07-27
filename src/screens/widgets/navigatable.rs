@@ -28,9 +28,12 @@ impl Navigatable{
         self.scroll = 0;
     }
 
-    pub fn in_reverse(&mut self) -> &mut Self {
+    pub fn as_reverse(&mut self) -> &mut Self {
         self.reverse = true;
         self
+    }
+    pub fn in_reverse(&self) -> bool {
+        self.reverse
     }
 
     pub fn visable_elements(&self) -> usize {
@@ -132,12 +135,34 @@ impl Navigatable{
         items.get(index)
     }
 
+    pub fn get_item_at_index<'a, T>(&'a self, items: &'a [T], index: usize) -> Option<&'a T> {
+        if items.is_empty() || index >= items.len() {
+            return None;
+        }
+        items.get(index)
+    }
+
+    pub fn get_item_at_index_mut<'a, T>(&'a mut self, items: &'a mut [T], index: usize) -> Option<&'a mut T> {
+        if items.is_empty() || index >= items.len() {
+            return None;
+        }
+        items.get_mut(index)
+    }
+
     pub fn get_selected_item_mut<'a, T>(&'a mut self, items: &'a mut [T]) -> Option<&'a mut T> {
         if items.is_empty() {
             return None;
         }
         let index = self.selected.min(items.len() - 1);
         items.get_mut(index)
+    }
+
+    pub fn get_selected_item_mut_and_index<'a, T>(&'a mut self, items: &'a mut [T]) -> Option<(&'a mut T, usize)> {
+        if items.is_empty() {
+            return None;
+        }
+        let index = self.selected.min(items.len() - 1);
+        items.get_mut(index).map(|item| (item, index))
     }
 
     pub fn get_selected_index(&self) -> usize {
@@ -157,7 +182,7 @@ impl Navigatable{
         let grid = self.create_grid(area);
 
         if self.reverse {
-            for (visible_idx, absolute_idx) in self.visible_indices().rev().enumerate() {
+            for (visible_idx, absolute_idx) in self.visible_indices().enumerate().rev() {
                 let row = visible_idx / self.cols as usize;
                 let col = visible_idx % self.cols as usize;
 

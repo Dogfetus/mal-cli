@@ -7,6 +7,7 @@ use crate::params;
 use chrono::{Datelike, Local};
 use models::anime::{fields, Anime, FavoriteAnime, FavoriteResponse};
 use models::user::User;
+use network::Update;
 use std::any::type_name;
 use std::sync::{Arc, RwLock};
 use std::{fs, thread::JoinHandle};
@@ -209,6 +210,24 @@ impl MalClient {
             format!("{}/users/{}/favorites", EXTRA_URL, username),
             params![],
         )
+    }
+
+    pub fn update_user_list<T: Update>(
+        &self,
+        element: T,
+    ) -> Result<(usize, T::Response), Box<(dyn std::error::Error + 'static)>> {
+        let token = self.identity.read().unwrap().access_token.clone();
+        if token.is_none() {
+            eprintln!("User is not logged in. Cannot send request.");
+            return Err("not logged in".into());
+        }
+
+        element.update(token.unwrap(), 
+            format!("{}/{}/{}/my_list_status", 
+                BASE_URL,
+                element.get_belonging_list(),
+                element.get_id())
+            )
     }
 
     fn send_request<T>(&self, url: String, parameters: Vec<(String, String)>) -> Option<T::Output>

@@ -1,10 +1,19 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{
+        Arc, Mutex,
+        mpsc::{Receiver, Sender},
+    },
+    thread::JoinHandle,
+};
 
 use crate::{
-    app::Action,
-    config::{ERROR_COLOR, HIGHLIGHT_COLOR, PRIMARY_COLOR, SECONDARY_COLOR},
-    mal::{models::anime::Anime, MalClient},
-    screens::ExtraInfo,
+    app::{Action, Event},
+    config::{ERROR_COLOR, HIGHLIGHT_COLOR, PRIMARY_COLOR, SECONDARY_COLOR, anime_list_colors},
+    mal::{
+        MalClient,
+        models::anime::{Anime, DeleteOrUpdate, MyListStatus},
+    },
+    screens::{BackgroundUpdate, ExtraInfo},
     utils::{imageManager::ImageManager, terminalCapabilities::TERMINAL_RATIO},
 };
 use crossterm::event::{KeyCode, KeyEvent};
@@ -33,6 +42,9 @@ enum Focus {
     Synopsis,
 }
 
+// #[derive(PartialEq, Clone, Debug)]
+type UserChoice = (usize, Anime);
+
 #[derive(Clone)]
 pub struct AnimePopup {
     anime: Anime,
@@ -43,15 +55,19 @@ pub struct AnimePopup {
     status_nav: Navigatable,
     image_manager: Arc<Mutex<ImageManager>>,
     focus: Focus,
+    background_transmitter: Sender<UserChoice>,
+    currently_working: Vec<usize>,
 }
 
 impl AnimePopup {
     pub fn new(info: ExtraInfo) -> Self {
         let buttons = vec!["Play", "Share"];
         let image_manager = Arc::new(Mutex::new(ImageManager::new()));
+        let (tx, rx) = std::sync::mpsc::channel::<UserChoice>();
+
         ImageManager::init_with_threads(&image_manager, info.app_sx.clone());
 
-        Self {
+        let popup = Self {
             image_manager,
             anime: Anime::empty(),
             toggled: false,
@@ -60,6 +76,70 @@ impl AnimePopup {
             status_buttons: Vec::new(),
             buttons,
             focus: Focus::PlayButtons,
+            background_transmitter: tx,
+            currently_working: Vec::new(),
+        };
+        popup.spawn_background(info, rx);
+        popup
+    }
+
+    fn spawn_background(
+        &self,
+        info: ExtraInfo,
+        reveicer: Receiver<UserChoice>,
+    ) -> Option<JoinHandle<()>> {
+        Some(std::thread::spawn(move || {
+            while let Ok((index, anime)) = reveicer.recv() {
+                match info.mal_client.update_user_list(anime) {
+                    Ok(result) => {
+                        let update = BackgroundUpdate::new("popup")
+                            .set("success", (index, result.0, result.1));
+                        info.app_sx.send(Event::BackgroundNotice(update)).ok();
+                    }
+                    Err(e) => {
+                        info.app_sx
+                            .send(Event::BackgroundNotice(
+                                BackgroundUpdate::new("popup")
+                                    .set("failure", (index, e.to_string())),
+                            ))
+                            .ok();
+                    }
+                }
+            }
+        }))
+    }
+
+    // TODO: then this is not needed
+    // TODO: removeing still stays white,
+    // TODO: SYNC WITH OTHER SCREENS AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH
+    pub fn apply_update(&mut self, mut update: BackgroundUpdate) {
+        if let Some((index, anime_id, update)) =
+            update.take::<(usize, usize, DeleteOrUpdate)>("success")
+        {
+            self.currently_working.retain(|&i| i != index);
+            self.anime.my_list_status = match update {
+                DeleteOrUpdate::Deleted(_) => MyListStatus::default(),
+                DeleteOrUpdate::Updated(status) => status,
+            };
+
+            if let Some(button) = self
+                .status_nav
+                .get_item_at_index_mut(&mut self.status_buttons, index)
+            {
+                if let Some(option) = button.get_selected_option() {
+                    button.set_color(anime_list_colors(option));
+                };
+            }
+        }
+
+        if let Some(index) = update.take::<usize>("failure") {
+            self.currently_working.retain(|&i| i != index);
+            if let Some(button) = self
+                .status_nav
+                .get_item_at_index_mut(&mut self.status_buttons, index)
+            {
+                button.set_color(ERROR_COLOR);
+            }
         }
     }
 
@@ -76,8 +156,9 @@ impl AnimePopup {
                 .add_option("Watching")
                 .add_option("Plan to watch")
                 .add_option("Completed")
-                .add_option("On-Hold")
+                .add_option("On Hold")
                 .add_option("Dropped")
+                .with_color(anime_list_colors(&self.anime.my_list_status.status))
                 .with_arrows(Arrows::Static)
                 .with_selected_option(self.anime.my_list_status.status.to_string())
                 .clone(),
@@ -85,12 +166,7 @@ impl AnimePopup {
                 .add_option("Not rated")
                 .add_options(vec!["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"])
                 .with_arrows(Arrows::Static)
-                .with_selected_option(
-                    self.anime
-                        .my_list_status
-                        .score
-                        .to_string()
-                )
+                .with_selected_option(self.anime.my_list_status.score.to_string())
                 .clone(),
             SelectionPopup::new()
                 .add_options(episode_options)
@@ -157,8 +233,7 @@ impl AnimePopup {
                                 "Play" => {
                                     return Some(Action::PlayAnime(self.anime.clone()));
                                 }
-                                "Share" => {
-                                }
+                                "Share" => {}
                                 _ => {}
                             }
                         }
@@ -198,9 +273,9 @@ impl AnimePopup {
                     return None;
                 }
 
-                if let Some(dropdown) = self
+                if let Some((dropdown, index)) = self
                     .status_nav
-                    .get_selected_item_mut(&mut self.status_buttons)
+                    .get_selected_item_mut_and_index(&mut self.status_buttons)
                 {
                     match (dropdown.is_open(), key_event.code) {
                         (false, KeyCode::Char('l') | KeyCode::Right) => {
@@ -215,7 +290,30 @@ impl AnimePopup {
                             self.close();
                             return None;
                         }
-                        _ => if let Some(selection) = dropdown.handle_input(key_event) {},
+                        _ => {
+                            if let Some(selection) = dropdown.handle_input(key_event) {
+                                match index {
+                                    0 => {
+                                        self.anime.my_list_status.status =
+                                            selection.to_lowercase().replace(" ", "_");
+                                    }
+                                    1 => {
+                                        self.anime.my_list_status.score =
+                                            selection.parse().unwrap_or(0);
+                                    }
+                                    2 => {
+                                        self.anime.my_list_status.num_episodes_watched =
+                                            selection.parse().unwrap_or(0);
+                                    }
+                                    _ => return None,
+                                }
+                                self.background_transmitter
+                                    .send((index, self.anime.clone()))
+                                    .ok();
+                                self.currently_working.push(index);
+                                dropdown.set_color(Color::White);
+                            }
+                        }
                     }
                 }
             }
@@ -417,8 +515,8 @@ impl AnimePopup {
         ];
 
         let mut total_length = info_area.x + (info_area.width / 6);
-        let y_pos = info_area.y + info_area.height * 1/5; 
-        const SPACE: u16 = 8; 
+        let y_pos = info_area.y + info_area.height * 1 / 5;
+        const SPACE: u16 = 8;
         for (i, (text, value)) in info_texts.iter().zip(info_values.iter()).enumerate() {
             let info_text_area = Rect {
                 x: total_length,
@@ -469,7 +567,7 @@ impl AnimePopup {
                 continue;
             }
             let separator_area = Rect {
-                x: total_length + SPACE/2,
+                x: total_length + SPACE / 2,
                 y: y_pos + 3,
                 width: 1,
                 height: 1,
@@ -832,6 +930,7 @@ pub struct SelectionPopup {
     arrows: Arrows,
     longest_word: usize,
     displaying_format: String,
+    color: Color,
 }
 
 impl SelectionPopup {
@@ -844,6 +943,15 @@ impl SelectionPopup {
             arrows: Arrows::None,
             longest_word: 0,
             displaying_format: String::new(),
+            color: PRIMARY_COLOR,
+        }
+    }
+
+    pub fn get_selected_option(&self) -> Option<String> {
+        if self.options.is_empty() {
+            None
+        } else {
+            Some(self.options[self.selected_index].clone())
         }
     }
 
@@ -865,6 +973,15 @@ impl SelectionPopup {
             self.next_index = 0;
         }
         self
+    }
+
+    pub fn with_color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
+    }
+
+    pub fn set_color(&mut self, color: Color) {
+        self.color = color;
     }
 
     pub fn add_option(mut self, option: impl Into<String>) -> Self {
@@ -970,7 +1087,7 @@ impl SelectionPopup {
             .style(Style::default().fg(if highlighted {
                 HIGHLIGHT_COLOR
             } else {
-                PRIMARY_COLOR
+                self.color
             }));
         frame.render_widget(filter, area);
 
