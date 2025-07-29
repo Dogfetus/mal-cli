@@ -95,10 +95,6 @@ impl Screen for SettingsScreen {
         };
         None
     }
-
-    fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
-        Box::new(self.clone())
-    }
 }
 
 

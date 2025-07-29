@@ -12,10 +12,11 @@ use crate::app::Event;
 use crate::config::HIGHLIGHT_COLOR;
 use crate::config::PRIMARY_COLOR;
 use crate::mal::models::anime::Anime;
+use crate::mal::models::anime::AnimeId;
 use crate::utils::functionStreaming::StreamableRunner;
 use crate::utils::imageManager::ImageManager;
 use crate::utils::input::Input;
-use crate::{app::Action, screens::Screen, screens::screens::*};
+use crate::{app::Action, screens::Screen};
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use ratatui::Frame;
@@ -31,10 +32,8 @@ use ratatui::widgets::Block;
 use ratatui::widgets::Borders;
 use ratatui::widgets::Clear;
 use ratatui::widgets::Paragraph;
-
 use super::ExtraInfo;
 use super::widgets::animebox::LongAnimeBox;
-use super::widgets::navbar::NavBar;
 use super::widgets::navigatable::Navigatable;
 use super::widgets::popup::{Arrows, SelectionPopup};
 
@@ -54,7 +53,7 @@ enum Focus {
 
 #[derive(Clone)]
 pub struct SearchScreen {
-    animes: Vec<Anime>,
+    animes: Vec<AnimeId>,
     image_manager: Arc<Mutex<ImageManager>>,
     app_info: ExtraInfo,
 
@@ -115,7 +114,7 @@ impl SearchScreen {
         len
     }
 
-    fn fetch_and_send_animes<F>(context: &ExtraInfo, id: String, fetch_fn: F)
+    fn fetch_and_send_animes<F>(app_sx: &Sender<Event>, id: String, fetch_fn: F)
     where
         F: FnMut(usize, usize) -> Option<Vec<Anime>>,
     {
@@ -124,9 +123,14 @@ impl SearchScreen {
             .stop_at(2);
 
         for animes in anime_generator.run(fetch_fn) {
-            let update = super::BackgroundUpdate::new(id.clone()).set("animes", animes);
-            context
-                .app_sx
+            let anime_ids = animes
+                .iter()
+                .map(|anime| anime.id)
+                .collect::<Vec<AnimeId>>();
+            let update = super::BackgroundUpdate::new(id.clone())
+                .set("animes", animes)
+                .set("anime_ids", anime_ids);
+            app_sx
                 .send(super::Event::BackgroundNotice(update))
                 .ok();
         }
@@ -211,14 +215,16 @@ impl Screen for SearchScreen {
         frame.render_widget(search_field, search_area);
 
         self.navigatable
-            .construct(&self.animes, anime_area, |anime, area, highlight| {
-                LongAnimeBox::render(
-                    anime,
-                    &self.image_manager,
-                    frame,
-                    area,
-                    highlight && self.focus == Focus::AnimeList,
-                );
+            .construct(&self.animes, anime_area, |anime_id, area, highlight| {
+                if let Some(anime) = self.app_info.anime_store.get(anime_id) {
+                    LongAnimeBox::render(
+                        &anime,
+                        &self.image_manager,
+                        frame,
+                        area,
+                        highlight && self.focus == Focus::AnimeList,
+                    );
+                }
             });
         self.search_input
             .render_cursor(frame, search_area.x + 1, search_area.y + 1);
@@ -318,8 +324,10 @@ impl Screen for SearchScreen {
                             self.navigatable.move_left();
                         }
                         KeyCode::Enter => {
-                            if let Some(anime) = self.navigatable.get_selected_item(&self.animes) {
-                                return Some(Action::ShowOverlay(anime.clone()));
+                            if let Some(anime_id) = self.navigatable.get_selected_item(&self.animes) {
+                                if let Some(anime) = self.app_info.anime_store.get(&anime_id) {
+                                    return Some(Action::ShowOverlay(anime.clone()));
+                                }
                             }
                         }
                         _ => {}
@@ -348,11 +356,13 @@ impl Screen for SearchScreen {
         let id = self.get_name();
         let image_manager = self.image_manager.clone();
         ImageManager::init_with_threads(&image_manager, info.app_sx.clone());
+        let mal_client= info.mal_client.clone();
+        let app_sx = info.app_sx.clone();
 
         let handle = std::thread::spawn(move || {
             if nr_of_animes <= 0 {
-                Self::fetch_and_send_animes(&info, id.clone(), |offset, limit| {
-                    info.mal_client
+                Self::fetch_and_send_animes(&app_sx, id.clone(), |offset, limit| {
+                    mal_client
                         .get_top_anime("all".to_string(), offset, limit)
                 });
             }
@@ -360,14 +370,14 @@ impl Screen for SearchScreen {
             while let Ok(event) = bg_receiver.recv() {
                 match event {
                     LocalEvent::FilterSwitch(filter_type) => {
-                        Self::fetch_and_send_animes(&info, id.clone(), |offset, limit| {
-                            info.mal_client
+                        Self::fetch_and_send_animes(&app_sx, id.clone(), |offset, limit| {
+                            mal_client
                                 .get_top_anime(filter_type.clone(), offset, limit)
                         });
                     }
 
                     LocalEvent::Search(query) => {
-                        Self::fetch_and_send_animes(&info, id.clone(), |offset, limit| {
+                        Self::fetch_and_send_animes(&app_sx, id.clone(), |offset, limit| {
                             info.mal_client.search_anime(query.clone(), offset, limit)
                         });
                     }
@@ -378,11 +388,11 @@ impl Screen for SearchScreen {
     }
 
     fn apply_update(&mut self, mut update: super::BackgroundUpdate) {
-        if let Some(animes) = update.take::<Vec<Anime>>("animes") {
+        if let Some(ids) = update.take::<Vec<AnimeId>>("anime_ids") {
             if self.fetching {
                 self.reset();
             }
-            self.animes.extend(animes);
+            self.animes.extend(ids);
         }
     }
 }

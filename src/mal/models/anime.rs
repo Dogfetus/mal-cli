@@ -1,15 +1,16 @@
 use super::na;
 use crate::{
     mal::{
-        Fetchable,
-        network::{Update, fetch_anime, fetch_favorited_anime},
+        network::{fetch_anime, fetch_favorited_anime, Update}, Fetchable
     },
-    utils::imageManager::HasDisplayableImage,
+    utils::{imageManager::HasDisplayableImage, store::Storable},
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt::{self};
 
 // season limit (first season ever) : year: 1917 season: winter
+
+pub type AnimeId = <Anime as Storable>::Id;
 
 fn status<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
@@ -337,6 +338,7 @@ impl Anime {
         }
     }
 
+    #[allow(dead_code)]
     pub fn example(id: usize) -> Self {
         Self {
             id,
@@ -746,11 +748,11 @@ impl Fetchable for FavoriteAnime {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum DeleteOrUpdate {
-    Updated(MyListStatus),      // For PUT - returns object
-    Deleted(()),                // For DELETE - returns []
+    Updated(MyListStatus),           // For PUT - returns object
+    Deleted(Vec<serde_json::Value>), // For DELETE - returns []
 }
 
 impl Update for Anime {
@@ -786,7 +788,6 @@ impl Update for Anime {
         }
     }
 
-    //TODO: somethings wrong with the body it gets (seems to allways return empty results)
     fn get_body(&self) -> Option<String> {
         if !status_is_known(self.my_list_status.status.clone()) {
             return None;
@@ -813,5 +814,13 @@ impl Update for Anime {
 impl HasDisplayableImage for FavoriteAnime {
     fn get_displayable_image(&self) -> Option<(usize, String)> {
         Some((self.id, self.image.clone()))
+    }
+}
+
+impl Storable for Anime {
+    type Id = usize;
+
+    fn get_id(&self) -> Self::Id {
+        self.id
     }
 }

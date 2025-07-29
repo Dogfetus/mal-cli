@@ -70,13 +70,4 @@ impl Screen for InfoScreen {
         }
         None
     }
-
-    fn should_store(&self) -> bool {
-        false
-    }
-
-    fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
-        Box::new(self.clone())
-     } 
-
 }

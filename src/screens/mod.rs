@@ -1,4 +1,4 @@
-use crate::app::{Action, Event};
+use crate::app::{Action, Event, ExtraInfo};
 use crate::mal;
 use crate::mal::models::anime::Anime;
 use ratatui::Frame;
@@ -77,7 +77,7 @@ macro_rules! add_screen_caching {
             true
         }
 
-        fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
+        fn clone_box(&self) -> Box<dyn Screen> {
             Box::new(self.clone())
         }
     };
@@ -116,14 +116,9 @@ define_screens! {
     // etc...
 }
 
-#[derive(Debug, Clone)]
-pub struct ExtraInfo {
-    pub app_sx: mpsc::Sender<Event>,
-    pub mal_client: Arc<mal::MalClient>,
-}
 
 #[allow(dead_code, unused_variables)]
-pub trait Screen: Send {
+pub trait Screen {
     fn draw(&mut self, frame: &mut Frame);
     fn handle_input(&mut self, key_event: crossterm::event::KeyEvent) -> Option<Action> {
         None
@@ -132,7 +127,7 @@ pub trait Screen: Send {
         let name = std::any::type_name::<Self>();
         name.split("::").last().unwrap_or(name).to_string()
     }
-    fn clone_box(&self) -> Box<dyn Screen + Send + Sync> {
+    fn clone_box(&self) -> Box<dyn Screen> {
         panic!(
             "Attempted to clone a screen type that doesn't support cloning: {}",
             self.get_name()
@@ -165,8 +160,7 @@ pub struct ScreenManager {
 
 #[allow(dead_code)]
 impl ScreenManager {
-    pub fn new(app_sx: mpsc::Sender<Event>, mal_client: Arc<mal::MalClient>) -> Self {
-        let passable_info = ExtraInfo { app_sx, mal_client };
+    pub fn new(passable_info: ExtraInfo) -> Self {
 
         Self {
             // default screen is the launch screen

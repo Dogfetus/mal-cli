@@ -6,7 +6,7 @@ use std::time::Duration;
 use crate::add_screen_caching;
 use crate::app::Event;
 use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
-use crate::mal::models::anime::Anime;
+use crate::mal::models::anime::{Anime, AnimeId};
 use crate::utils::functionStreaming::StreamableRunner;
 use crate::utils::imageManager::ImageManager;
 use crate::utils::input::Input;
@@ -95,6 +95,7 @@ enum Focus {
 
 #[derive(Clone)]
 pub struct ListScreen {
+    all_anime_ids: Vec<AnimeId>,
     all_animes: Vec<Anime>,
     filtered_animes: Vec<Anime>,
     filters: Filters,
@@ -165,6 +166,7 @@ impl ListScreen {
             focus: Focus::Content,
             all_animes: Vec::new(),
             filtered_animes: Vec::new(),
+            all_anime_ids: Vec::new(),
             bg_startup: true,
             bg_loaded: false,
             bg_fetching: true,
@@ -253,6 +255,7 @@ impl Screen for ListScreen {
 
     // draws the screen
     fn draw(&mut self, frame: &mut Frame) {
+        self.all_animes = self.app_info.anime_store.get_bulk(self.all_anime_ids.clone());
         let area = frame.area();
         frame.render_widget(Clear, area);
 
@@ -531,8 +534,10 @@ impl Screen for ListScreen {
             for animes in anime_generator.run(|offset, limit| {
                 info.mal_client.get_anime_list(None, offset as u16, limit as u16)
             }) {
+                let anime_ids = animes.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
                 let update = BackgroundUpdate::new(id.clone())
                     .set("animes", animes)
+                    .set("anime_ids", anime_ids)
                     .set("fetching", false)
                     .set("extend", true);
                 info.app_sx.send(Event::BackgroundNotice(update)).ok();
@@ -585,13 +590,17 @@ impl Screen for ListScreen {
 
     fn apply_update(&mut self, mut update: super::BackgroundUpdate) {
         match (
-            update.take::<Vec<Anime>>("animes"),
+            update.take::<Vec<AnimeId>>("anime_ids"),
             update.take::<bool>("extend"),
         ) {
-            (Some(animes), Some(true)) => self.all_animes.extend(animes),
-            (Some(animes), _) => {
-                self.all_animes = animes;
+            (Some(ids), Some(true)) => {
+                self.all_anime_ids.extend(ids);
+                self.all_animes = self.app_info.anime_store.get_bulk(self.all_anime_ids.clone());
+            },
+            (Some(ids), _) => {
+                self.all_anime_ids = ids;
                 self.navigatable.back_to_start();
+                self.all_animes = self.app_info.anime_store.get_bulk(self.all_anime_ids.clone());
             }
             _ => {}
         }

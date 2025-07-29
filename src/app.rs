@@ -1,17 +1,34 @@
-use crate::{
-    handlers::get_handlers,
-    mal::{models::anime::Anime, MalClient},
-    screens::{screens::*, BackgroundUpdate, ScreenManager},
-};
-use std::{io::ErrorKind, process::{Command, Stdio}};
+use crate::handlers::get_handlers;
+use crate::mal::MalClient;
+use crate::mal::models::anime::Anime;
+use crate::mal::models::anime::AnimeId;
+use crate::mal::models::anime::DeleteOrUpdate;
+use crate::mal::models::anime::MyListStatus;
+use crate::screens::BackgroundUpdate;
+use crate::screens::ScreenManager;
+use crate::screens::screens::*;
+use crate::utils::store::Store;
+
 use crossterm::event::KeyCode;
 use image::DynamicImage;
 use ratatui::DefaultTerminal;
-use std::sync::Arc;
 use regex::Regex;
+use std::io;
+use std::io::ErrorKind;
+use std::process::Command;
+use std::process::Stdio;
+use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use std::thread::{self, JoinHandle};
-use std::{io, sync::mpsc};
+use std::sync::mpsc;
+use std::thread;
+use std::thread::JoinHandle;
+
+#[derive(Debug, Clone)]
+pub struct ExtraInfo {
+    pub app_sx: mpsc::Sender<Event>,
+    pub mal_client: Arc<MalClient>,
+    pub anime_store: Store<Anime>,
+}
 
 pub enum Action {
     PlayAnime(Anime),
@@ -35,6 +52,7 @@ pub enum Event {
     Resize(u16, u16),
     BackgroundNotice(BackgroundUpdate),
     ImageCached(usize, DynamicImage),
+    StorageUpdate(AnimeId, DeleteOrUpdate),
     Rerender,
 }
 
@@ -45,6 +63,7 @@ pub struct App {
     current_info: Option<CurrentInfo>,
     is_running: bool,
     terminal: DefaultTerminal,
+    shared_info: ExtraInfo,
 
     sx: mpsc::Sender<Event>,
     rx: mpsc::Receiver<Event>,
@@ -58,19 +77,25 @@ impl App {
         let (sx, rx) = mpsc::channel::<Event>();
         let mal_client = Arc::new(MalClient::new());
         let terminal = ratatui::init();
+        let universal_info = ExtraInfo {
+            app_sx: sx.clone(),
+            mal_client: mal_client.clone(),
+            anime_store: Store::new(),
+        };
 
         App {
             mal_client: mal_client.clone(),
-            screen_manager: ScreenManager::new(sx.clone(), mal_client),
+            screen_manager: ScreenManager::new(universal_info.clone()),
             current_info: None,
             is_running: true,
             terminal,
+            shared_info: universal_info,
 
             rx,
             sx,
             threads: Vec::new(),
             stop: Arc::new(AtomicBool::new(false)),
-            ansi_regex: Regex::new(r"\x1b\[[0-9;]*[a-zA-Z]|\x1b\([AB]|\r|\x1b[78]").unwrap()
+            ansi_regex: Regex::new(r"\x1b\[[0-9;]*[a-zA-Z]|\x1b\([AB]|\r|\x1b[78]").unwrap(),
         }
     }
 
@@ -80,7 +105,8 @@ impl App {
 
         // WARNING: don't use just unwrap here
         while self.is_running {
-            self.terminal.draw(|frame| self.screen_manager.render_screen(frame))?;
+            self.terminal
+                .draw(|frame| self.screen_manager.render_screen(frame))?;
 
             let first_event = self.rx.recv().unwrap();
             let mut events = vec![first_event];
@@ -93,9 +119,25 @@ impl App {
             for event in events {
                 match event {
                     Event::KeyPress(key_event) => self.handle_input(key_event),
-                    Event::BackgroundNotice(update) => {
+                    Event::BackgroundNotice(mut update) => {
+                        if let Some(animes) = update.take::<Vec<Anime>>("animes") {
+                            self.shared_info.anime_store.add_bulk(animes);
+                        }
+
                         self.screen_manager.update_screen(update);
                     }
+                    Event::StorageUpdate(id, update) => match update {
+                        DeleteOrUpdate::Deleted(_vec) => {
+                            self.shared_info.anime_store.update(id, |anime| {
+                                anime.my_list_status = MyListStatus::default();
+                            });
+                        }
+                        DeleteOrUpdate::Updated(myliststatus) => {
+                            self.shared_info.anime_store.update(id, |anime| {
+                                anime.my_list_status = myliststatus;
+                            });
+                        }
+                    },
                     _ => {}
                 }
             }
@@ -120,8 +162,8 @@ impl App {
         ratatui::restore();
 
         let next_episode = std::cmp::min(
-            anime.my_list_status.num_episodes_watched + 1, 
-            anime.num_episodes
+            anime.my_list_status.num_episodes_watched + 1,
+            anime.num_episodes,
         );
 
         let output = Command::new("ani-cli")
@@ -149,8 +191,7 @@ impl App {
                             "ani-cli replied:\nError: {}\nthe anime might not be available yet",
                             stderr
                         ));
-                    }
-                    else{
+                    } else {
                         self.screen_manager.show_error(format!(
                             "ani-cli replied:\nError: {}Exit code: {}\nOutput: {}",
                             stderr,
@@ -161,17 +202,12 @@ impl App {
                 }
             }
             Err(e) => {
-                if e.kind() == ErrorKind::NotFound{
-                    self.screen_manager.show_error(format!(
-                        "Can't seem to find ani-cli: \n{}",
-                        e
-                    ));
-                }
-                else {
-                    self.screen_manager.show_error(format!(
-                        "Error running ani-cli: \n{}",
-                        e
-                    ));
+                if e.kind() == ErrorKind::NotFound {
+                    self.screen_manager
+                        .show_error(format!("Can't seem to find ani-cli: \n{}", e));
+                } else {
+                    self.screen_manager
+                        .show_error(format!("Error running ani-cli: \n{}", e));
                 }
             }
         }

@@ -93,8 +93,9 @@ impl AnimePopup {
                 match info.mal_client.update_user_list(anime) {
                     Ok(result) => {
                         let update = BackgroundUpdate::new("popup")
-                            .set("success", (index, result.0, result.1));
+                            .set("success", (index, result.clone()));
                         info.app_sx.send(Event::BackgroundNotice(update)).ok();
+                        info.app_sx.send(Event::StorageUpdate(result.0, result.1)).ok();
                     }
                     Err(e) => {
                         info.app_sx
@@ -110,15 +111,13 @@ impl AnimePopup {
     }
 
     // TODO: then this is not needed
-    // TODO: removeing still stays white,
-    // TODO: SYNC WITH OTHER SCREENS AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH
     pub fn apply_update(&mut self, mut update: BackgroundUpdate) {
-        if let Some((index, anime_id, update)) =
-            update.take::<(usize, usize, DeleteOrUpdate)>("success")
+        if let Some((index, (anime_id, update))) =
+            update.take::<(usize, (usize, DeleteOrUpdate))>("success")
         {
             self.currently_working.retain(|&i| i != index);
             self.anime.my_list_status = match update {
-                DeleteOrUpdate::Deleted(_) => MyListStatus::default(),
+                DeleteOrUpdate::Deleted(_vec) => MyListStatus::default(),
                 DeleteOrUpdate::Updated(status) => status,
             };
 

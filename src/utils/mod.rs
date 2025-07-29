@@ -5,3 +5,4 @@ pub mod imageManager;
 pub mod customThreadProtocol;
 pub mod input;
 pub mod functionStreaming;
+pub mod store;
