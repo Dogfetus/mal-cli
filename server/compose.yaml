@@ -1,11 +1,13 @@
 version: "3.9"
 services:
   app:
-    build: .
+    image: dogfetus/mal-cli:latest 
     env_file:
       - .env
     ports:
       - "8000:8000"
+    container_name: mal-cli
+    restart: unless-stopped
 
 
 networks:
