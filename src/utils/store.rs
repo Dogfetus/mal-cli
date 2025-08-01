@@ -59,7 +59,7 @@ impl<T: Storable> Store<T> {
 
     pub fn update(&mut self, id: T::Id, f: impl FnOnce(&mut T))
     where
-        T: Clone,
+        T: Clone + Send + 'static,
     {
         if let Some(item) = self.data.borrow_mut().get_mut(&id) {
             f(item);

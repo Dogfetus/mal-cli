@@ -13,7 +13,7 @@ use crate::{
         models::anime::{status_is_known, Anime, AnimeId, DeleteOrUpdate, MyListStatus}, MalClient
     },
     screens::{BackgroundUpdate, ExtraInfo},
-    utils::{imageManager::ImageManager, terminalCapabilities::TERMINAL_RATIO},
+    utils::{imageManager::ImageManager, stringManipulation::format_date, terminalCapabilities::TERMINAL_RATIO},
 };
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
@@ -45,7 +45,10 @@ enum Focus {
 }
 
 // #[derive(PartialEq, Clone, Debug)]
-type UserChoice = (usize, Anime);
+enum LocalEvent {
+    UserChoice(usize, Anime),
+    ExtraInfo(Anime)
+}
 
 #[derive(Clone)]
 pub struct AnimePopup {
@@ -57,7 +60,7 @@ pub struct AnimePopup {
     status_nav: Navigatable,
     image_manager: Arc<Mutex<ImageManager>>,
     focus: Focus,
-    background_transmitter: Sender<UserChoice>,
+    background_transmitter: Sender<LocalEvent>,
     app_info: ExtraInfo,
 }
 
@@ -69,7 +72,7 @@ impl AnimePopup {
             "Share".to_string(),
         ];
         let image_manager = Arc::new(Mutex::new(ImageManager::new()));
-        let (tx, rx) = std::sync::mpsc::channel::<UserChoice>();
+        let (tx, rx) = std::sync::mpsc::channel::<LocalEvent>();
 
         ImageManager::init_with_threads(&image_manager, info.app_sx.clone());
 
@@ -92,26 +95,47 @@ impl AnimePopup {
     fn spawn_background(
         &self,
         info: ExtraInfo,
-        reveicer: Receiver<UserChoice>,
+        reveicer: Receiver<LocalEvent>,
     ) -> Option<JoinHandle<()>> {
+        let mal_client = info.mal_client.clone();
+        let app_sx = info.app_sx.clone();
         Some(std::thread::spawn(move || {
-            while let Ok((index, anime)) = reveicer.recv() {
-                match info.mal_client.update_user_list(anime) {
-                    Ok(result) => {
-                        let update =
-                            BackgroundUpdate::new("popup").set("success", (index, result.clone()));
-                        info.app_sx.send(Event::BackgroundNotice(update)).ok();
-                        // info.app_sx
-                        //     .send(Event::StorageUpdate(result.0, result.1))
-                        //     .ok();
+            while let Ok(event) = reveicer.recv() {
+                match event {
+                    // send any userchoice to the mal backend 
+                    LocalEvent::UserChoice(index, anime) => {
+                        match info.mal_client.update_user_list(anime) {
+                            Ok(result) => {
+                                let update =
+                                    BackgroundUpdate::new("popup").set("success", (index, result.clone()));
+                                info.app_sx.send(Event::BackgroundNotice(update)).ok();
+                            }
+                            Err(e) => {
+                                info.app_sx
+                                    .send(Event::BackgroundNotice(
+                                        BackgroundUpdate::new("popup")
+                                            .set("failure", (index, e.to_string())),
+                                    ))
+                                    .ok();
+                            }
+                        }
                     }
-                    Err(e) => {
-                        info.app_sx
-                            .send(Event::BackgroundNotice(
-                                BackgroundUpdate::new("popup")
-                                    .set("failure", (index, e.to_string())),
-                            ))
-                            .ok();
+
+                    // update the number of released episodes
+                    LocalEvent::ExtraInfo(anime) => {
+                        let available_episodes = mal_client
+                            .get_available_episodes(anime.id)
+                            .unwrap_or(None);
+                         if let Some(episodes) = available_episodes {
+                            app_sx.send(
+                                Event::StorageUpdate(anime.id, Box::new(move |anime: &mut Anime| {
+                                    anime.num_released_episodes = Some(episodes);
+                                    if anime.num_episodes == 0 {
+                                        anime.num_episodes = episodes;
+                                    }
+                                }))
+                            ).unwrap();
+                        }
                     }
                 }
             }
@@ -152,19 +176,51 @@ impl AnimePopup {
         self.update_buttons();
     }
 
-    pub fn set_play_button_episode(&mut self, episodes: u32) -> &Self {
-        self.buttons[0] = format!(
-            "Play ▶ (EP {})",
-            episodes
-        );
+    pub fn set_play_button_episode(&mut self, episode: Option<u32>) -> &Self {
+        // if an anime is given set the button to its episode
+        if let Some(episode) = episode {
+            self.buttons[0] = format!(
+                "Play ▶ (EP {})",
+                episode
+            );
+            return self;
+        }
+
+        // if no aniem is set use the current anime of the popup
+        let anime = self
+            .app_info
+            .anime_store
+            .get(&self.anime_id)
+            .expect("unexpected anime id given");
+
+        // if the anime has no episodes set the button to "no episodes"
+        if anime.num_episodes == 0 {
+            self.buttons[0] = "No episodes".to_string();
+
+        // noraml case
+        } else {
+            self.buttons[0] = format!(
+                "Play ▶ (EP {})",
+                (anime.my_list_status.num_episodes_watched + 1).min(anime.num_episodes)
+            );
+        }
+
+        // if the anime has released episodes and the next episode to play is higher than the available episodes
+        if let Some(available_episodes) = anime.num_released_episodes {
+            let episode_to_play = (anime.my_list_status.num_episodes_watched + 1).min(anime.num_episodes);
+            if episode_to_play > available_episodes {
+                self.buttons[0] = format!(
+                    "Try to play (EP {})",
+                    episode_to_play
+                )
+            }
+        }
         self
     }
     pub fn update_buttons(&mut self) -> &Self {
         let anime = self.app_info.anime_store.get(&self.anime_id).expect("unexpected anime id given");
 
-        self.set_play_button_episode(
-            (anime.my_list_status.num_episodes_watched + 1).min(anime.num_episodes),
-        );
+        self.set_play_button_episode(None);
         let episode_options: Vec<String> = (0..=anime.num_episodes.max(1))
             .map(|i| i.to_string())
             .collect();
@@ -200,6 +256,17 @@ impl AnimePopup {
     pub fn set_anime(&mut self, anime_id: AnimeId) -> &Self {
         self.anime_id = anime_id;
         self.update_buttons();
+
+        let anime = self
+            .app_info
+            .anime_store
+            .get(&self.anime_id)
+            .expect("unexpected anime id given");
+
+        if anime.num_released_episodes.is_none() {
+            self.background_transmitter
+                .send(LocalEvent::ExtraInfo(anime)).ok();
+        }
         self
     }
 
@@ -333,20 +400,23 @@ impl AnimePopup {
                                     2 => {
                                         anime.my_list_status.num_episodes_watched =
                                             selection.parse().unwrap_or(0);
-                                        if !status_is_known(anime.my_list_status.status.clone()) {
-                                            anime.my_list_status.status = "watching".to_string();
+                                        if !status_is_known(anime.my_list_status.status.clone()) && anime.my_list_status.num_episodes_watched == 0 {
+                                            return None;
                                         }
+                                        else if !status_is_known(anime.my_list_status.status.clone()) {
+                                            anime.my_list_status.status = "watching".to_string();
+                                        } 
                                     }
                                     _ => return None,
                                 }
                                 self.background_transmitter
-                                    .send((index, anime.clone()))
+                                    .send(LocalEvent::UserChoice(index, anime.clone()))
                                     .ok();
                                 dropdown.set_color(Color::White);
 
                                 self.set_play_button_episode(
-                                    (anime.my_list_status.num_episodes_watched + 1)
-                                        .min(anime.num_episodes),
+                                    Some((anime.my_list_status.num_episodes_watched + 1)
+                                        .min(anime.num_episodes)),
                                 );
                             }
                         }
@@ -598,13 +668,15 @@ impl AnimePopup {
             );
 
         InfoBox::new()
-            .add_text_item("Added", anime.created_at.to_string())
-            .add_text_item("Updated", anime.updated_at.to_string())
-            .add_text_item("Aired", anime.start_date. to_string())
+            .add_text_item("Added", format_date(&anime.created_at))
+            .add_text_item("Updated", format_date(&anime.updated_at))
+            .add_text_item("Aired", format_date(&anime.start_date))
             .add_row()
             .add_text_item("Rating", anime.rating.to_string())
             .add_text_item("Duration", anime.average_episode_duration.to_string())
             .add_text_item("Id", anime.id.to_string())
+            .add_row()
+            .add_text_item("Available", anime.num_released_episodes.unwrap_or(0).to_string())
             .render(
                 frame,
                 info_area_two,
@@ -1112,26 +1184,44 @@ impl SelectionPopup {
         frame.render_widget(filter, area);
 
         if self.is_open {
+            let terminal_height = frame.size().height;
+            let available_space_below = terminal_height.saturating_sub(area.y + area.height);
+            let needed_height = self.options.len() as u16 + 2;
+            let popup_height = std::cmp::min(needed_height, available_space_below);
+            if popup_height < 3 {
+                return;
+            }
+
             let options_area = Rect::new(
                 area.x,
                 area.y + area.height,
                 area.width,
-                self.options.len() as u16 + 2,
+                popup_height,
             );
-
             frame.render_widget(Clear, options_area);
 
             let options_block = Block::default()
                 .borders(Borders::ALL)
                 .border_set(border::ROUNDED)
                 .style(Style::default().fg(PRIMARY_COLOR));
-
             frame.render_widget(options_block, options_area);
 
-            for (i, option) in self.options.iter().enumerate() {
+            let max_visible_options = (popup_height.saturating_sub(2)) as usize;
+            let start_index = if self.next_index >= max_visible_options {
+                self.next_index + 1 - max_visible_options
+            } else {
+                0
+            };
+
+            let visible_options = self.options
+                .iter()
+                .enumerate()
+                .skip(start_index)
+                .take(max_visible_options);
+            for (display_row, (original_index, option)) in visible_options.enumerate() {
                 let option_area = Rect::new(
                     options_area.x + 1,
-                    options_area.y + i as u16 + 1,
+                    options_area.y + display_row as u16 + 1,
                     options_area.width.saturating_sub(2),
                     1,
                 );
@@ -1140,7 +1230,7 @@ impl SelectionPopup {
                     .direction(Direction::Horizontal)
                     .constraints([
                         Constraint::Fill(1),
-                        Constraint::Length(min(
+                        Constraint::Length(std::cmp::min(
                             self.longest_word as u16 + 2,
                             option_area.width.saturating_sub(2),
                         )),
@@ -1148,7 +1238,7 @@ impl SelectionPopup {
                     ])
                     .areas(option_area);
 
-                if i == self.next_index {
+                if original_index == self.next_index {
                     let mut text = option.to_string();
 
                     if self.arrows == Arrows::Dynamic {
@@ -1181,8 +1271,37 @@ impl SelectionPopup {
                     frame.render_widget(option_paragraph, option_area);
                 }
             }
+
+            if self.options.len() > max_visible_options {
+                let scroll_info_area = Rect::new(
+                    options_area.x + options_area.width.saturating_sub(1),
+                    options_area.y + 1,
+                    1,
+                    options_area.height.saturating_sub(2),
+                );
+
+                if start_index > 0 {
+                    frame.render_widget(
+                        Paragraph::new("↑").style(Style::default().fg(HIGHLIGHT_COLOR)),
+                        Rect::new(scroll_info_area.x, scroll_info_area.y, 1, 1)
+                    );
+                }
+
+                if start_index + max_visible_options < self.options.len() {
+                    frame.render_widget(
+                        Paragraph::new("↓").style(Style::default().fg(HIGHLIGHT_COLOR)),
+                        Rect::new(
+                            scroll_info_area.x, 
+                            scroll_info_area.y + scroll_info_area.height.saturating_sub(1), 
+                            1, 
+                            1
+                        )
+                    );
+                }
+            }
         }
     }
+
 }
 
 

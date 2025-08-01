@@ -132,7 +132,7 @@ impl AnimeBox {
             .alignment(Alignment::Center)
             .style(Style::default().fg(color))
             .wrap(Wrap { trim: true })
-            .block(Block::default().padding(Padding::new(0, 2, 6, 1)));
+            .block(Block::default().padding(Padding::new(0, 2, 7, 1)));
 
         let [info_area, user_stats_area] = Layout::default()
             .direction(Direction::Vertical)
@@ -233,11 +233,11 @@ impl LongAnimeBox {
         let image_area = image_area.inner(Margin::new(1, 1));
         ImageManager::render_image(&image_manager, anime, frame, image_area, FETCH_IMAGE_ON_DEMAND);
 
-        let info_text = "Score:\nType:\nEpisodes:\nStatus:\nTags:\nAired:";
+        let info_text = "Score:\nType:\nEpisodes:\nStatus:\nAired:";
 
         let value_text = format!(
-            "{}\n{}\n{}\n{}\n{}",
-            anime.mean, anime.media_type, anime.num_episodes, anime.status, anime.my_list_status.priority
+            "{}\n{}\n{}\n{}",
+            anime.mean, anime.media_type, anime.num_episodes, anime.status 
         );
         let airing_text = format!("{} -> {}", anime.start_date, anime.end_date);
         let user_stats_value_text = format!("{}", anime.my_list_status.status,);

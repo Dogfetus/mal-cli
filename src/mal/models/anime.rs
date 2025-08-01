@@ -256,6 +256,10 @@ pub struct Anime {
     #[serde(default)]
     pub num_episodes: u32,
 
+    /// Number of episodes that have been released
+    #[serde(default)]
+    pub num_released_episodes: Option<u32>,
+
     /// Start season of the anime { year, season }
     #[serde(default)]
     pub start_season: StartSeason,
@@ -323,6 +327,7 @@ impl Anime {
             genres: Vec::new(),
             my_list_status: MyListStatus::default(),
             num_episodes: 0,
+            num_released_episodes: None,
             start_season: StartSeason::default(),
             broadcast: None,
             source: String::new(),
@@ -371,6 +376,7 @@ impl Anime {
             }],
             my_list_status: MyListStatus::default(),
             num_episodes: 12,
+            num_released_episodes: Some(12),
             start_season: StartSeason {
                 year: 2023,
                 season: "Winter".to_string(),
@@ -710,11 +716,11 @@ where
 /// mini version of anime model for favorties
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct FavoriteResponse {
-    pub data: AnimeData,
+    pub data: JikanData,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct AnimeData {
+pub struct JikanData {
     pub anime: Vec<FavoriteAnime>,
 }
 

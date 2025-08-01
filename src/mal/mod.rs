@@ -5,9 +5,10 @@ mod oauth;
 use crate::mal::network::Fetchable;
 use crate::params;
 use chrono::{Datelike, Local};
-use models::anime::{fields, Anime, FavoriteAnime, FavoriteResponse};
+use models::anime::{fields, Anime, AnimeId, FavoriteAnime, FavoriteResponse};
 use models::user::User;
 use network::Update;
+use regex::Regex;
 use std::any::type_name;
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -28,6 +29,7 @@ pub struct Identity {
 #[derive(Debug, Clone)]
 pub struct MalClient {
     identity: Arc<RwLock<Identity>>,
+    re: Regex
 }
 
 impl MalClient {
@@ -38,6 +40,7 @@ impl MalClient {
                 refresh_token: None,
                 expires_in: None,
             })),
+            re: Regex::new(r"\(([0-9,]+)/([0-9,]+|Unknown)\)").unwrap()
         };
 
         client.login_from_file();
@@ -248,6 +251,21 @@ impl MalClient {
                     ))
                 })
         })
+    }
+
+    // this a very specific request
+    pub fn get_available_episodes(&self, anime_id: AnimeId) -> Result<Option<u32>, Box<dyn std::error::Error>>{
+        let url = format!("https://myanimelist.net/anime/{}/thiscanbewhatever/episode", anime_id);
+        let mut response = ureq::get(&url).call()?;
+        let html = response.body_mut().read_to_string()?;
+        if let Some(captures) = self.re.captures(&html) {
+            if let Some(available_str) = captures.get(1) {
+                let cleaned = available_str.as_str().replace(",", "");
+                return Ok(Some(cleaned.parse::<u32>()?));
+            }
+        }
+
+        Ok(None)
     }
 
     fn send_request<T>(&self, url: String, parameters: Vec<(String, String)>) -> Option<T::Output>

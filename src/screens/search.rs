@@ -33,7 +33,7 @@ use ratatui::widgets::Borders;
 use ratatui::widgets::Clear;
 use ratatui::widgets::Paragraph;
 use super::ExtraInfo;
-use super::widgets::animebox::LongAnimeBox;
+use super::widgets::animebox::AnimeBox;
 use super::widgets::navigatable::Navigatable;
 use super::widgets::popup::{Arrows, SelectionPopup};
 
@@ -217,7 +217,7 @@ impl Screen for SearchScreen {
         self.navigatable
             .construct(&self.animes, anime_area, |anime_id, area, highlight| {
                 if let Some(anime) = self.app_info.anime_store.get(anime_id) {
-                    LongAnimeBox::render(
+                    AnimeBox::render(
                         &anime,
                         &self.image_manager,
                         frame,

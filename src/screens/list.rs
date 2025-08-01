@@ -25,7 +25,7 @@ use ratatui::widgets::Borders;
 use ratatui::widgets::Clear;
 use ratatui::widgets::Paragraph;
 
-use super::widgets::animebox::LongAnimeBox;
+use super::widgets::animebox::{AnimeBox, LongAnimeBox};
 use super::widgets::navbar::NavBar;
 use super::widgets::navigatable::Navigatable;
 use super::widgets::popup::{Arrows, SelectionPopup};
@@ -348,7 +348,7 @@ impl Screen for ListScreen {
         } else {
             self.navigatable
                 .construct(&self.filtered_animes, content, |anime, area, highlight| {
-                    LongAnimeBox::render(
+                    AnimeBox::render(
                         anime,
                         &self.image_manager,
                         frame,

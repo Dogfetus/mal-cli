@@ -53,7 +53,7 @@ pub enum Event {
     Resize(u16, u16),
     BackgroundNotice(BackgroundUpdate),
     ImageCached(usize, DynamicImage),
-    StorageUpdate(AnimeId, DeleteOrUpdate),
+    StorageUpdate(AnimeId, Box<dyn FnOnce(&mut Anime) + Send>),
     Rerender,
 }
 
@@ -126,18 +126,12 @@ impl App {
 
                         self.screen_manager.update_screen(update);
                     }
-                    Event::StorageUpdate(id, update) => match update {
-                        DeleteOrUpdate::Deleted(_vec) => {
-                            self.shared_info.anime_store.update(id, |anime| {
-                                anime.my_list_status = MyListStatus::default();
-                            });
-                        }
-                        DeleteOrUpdate::Updated(myliststatus) => {
-                            self.shared_info.anime_store.update(id, |anime| {
-                                anime.my_list_status = myliststatus;
-                            });
-                        }
-                    },
+                    Event::StorageUpdate(anime, updater ) => {
+                        self.shared_info.anime_store.update(anime, |anime_to_update| {
+                            updater(anime_to_update);
+                        });
+                        self.screen_manager.refresh();
+                    }
                     _ => {}
                 }
             }

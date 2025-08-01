@@ -64,3 +64,21 @@ impl DisplayString{
     }
 }
 
+
+pub fn format_date(date_str: &str) -> String {
+    use chrono::{DateTime, Utc};
+    
+    if let Ok(dt) = DateTime::parse_from_rfc3339(date_str) {
+        return dt.format("%B %d, %Y at %I:%M %p").to_string();
+    }
+    
+    if let Ok(dt) = DateTime::parse_from_str(date_str, "%Y-%m-%dT%H:%M") {
+        return dt.format("%B %d, %Y at %I:%M %p").to_string();
+    }
+    
+    if let Ok(dt) = DateTime::parse_from_str(&format!("{}T00:00:00Z", date_str), "%Y-%m-%dT%H:%M:%SZ") {
+        return dt.format("%B %d, %Y").to_string();
+    }
+    
+    date_str.to_string()
+}

@@ -1,4 +1,4 @@
-use super::models::anime::{AnimeResponse, FavoriteResponse};
+use super::models::anime::{AnimeId, AnimeResponse, FavoriteResponse};
 use super::models::user::User;
 use cached::proc_macro::cached;
 use std::fmt::Debug;
