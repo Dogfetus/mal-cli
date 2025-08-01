@@ -10,6 +10,7 @@ use models::user::User;
 use network::Update;
 use std::any::type_name;
 use std::sync::{Arc, RwLock};
+use std::thread;
 use std::{fs, thread::JoinHandle};
 
 const BASE_URL: &str = "https://api.myanimelist.net/v2";
@@ -228,6 +229,25 @@ impl MalClient {
                 element.get_belonging_list(),
                 element.get_id())
             )
+    }
+
+    pub fn update_user_list_async<T: Update + Send + 'static>(
+        &self,
+        element: T,
+    ) -> tokio::task::JoinHandle<Result<(usize, T::Response), Box<(dyn std::error::Error + Send + 'static)>>> 
+    where
+        T::Response: Send,
+    {
+        let client = self.clone();
+        tokio::task::spawn_blocking(move || {
+            client.update_user_list(element)
+                .map_err(|e| -> Box<dyn std::error::Error + Send + 'static> {
+                    Box::new(std::io::Error::new(
+                        std::io::ErrorKind::Other, 
+                        format!("{}", e)
+                    ))
+                })
+        })
     }
 
     fn send_request<T>(&self, url: String, parameters: Vec<(String, String)>) -> Option<T::Output>

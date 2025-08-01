@@ -1,6 +1,6 @@
 use crate::app::{Action, Event, ExtraInfo};
 use crate::mal;
-use crate::mal::models::anime::Anime;
+use crate::mal::models::anime::{Anime, AnimeId};
 use ratatui::Frame;
 use ratatui::layout::Layout;
 use screens::*;
@@ -203,9 +203,13 @@ impl ScreenManager {
         }
     }
 
-    pub fn toggle_overlay(&mut self, anime: Anime) {
+    pub fn toggle_overlay(&mut self, anime: AnimeId) {
         self.overlay.set_anime(anime);
         self.overlay.open();
+    }
+
+    pub fn refresh(&mut self) {
+        self.overlay.update_buttons();
     }
 
     pub fn show_error(&mut self, error: String) {

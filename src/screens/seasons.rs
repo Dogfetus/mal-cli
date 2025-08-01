@@ -484,7 +484,7 @@ impl Screen for SeasonsScreen {
                         KeyCode::Enter | KeyCode::Char(' ') => {
                             if let Some(id) = self.navigatable.get_selected_item(&self.animes) {
                                 if let Some(anime) = self.app_info.anime_store.get(id) {
-                                    return Some(Action::ShowOverlay(anime.clone()));
+                                    return Some(Action::ShowOverlay(anime.id));
                                 }
                             }
                         }

@@ -4,18 +4,26 @@ mod mal;
 mod handlers;
 mod utils;
 mod config;
+mod player;
 
 use crate::app::App;
 use anyhow::Result;
+use ratatui::{prelude::CrosstermBackend, Terminal};
 
 #[tokio::main]
 async fn main() -> Result<()> {
 
+    // let mut terminal = Terminal::new(CrosstermBackend::new(std::io::stdout()))?;
+    // terminal.clear()?;
+    // terminal.hide_cursor()?;
+    // terminal.backend();
+
+    let terminal = ratatui::init();
+
     // start the app
-    let mut app = App::new();
+    let mut app = App::new(terminal);
     app.run()?;
 
-    // restore terminal view
     ratatui::restore();
 
     Ok(())

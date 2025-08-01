@@ -442,7 +442,7 @@ impl Screen for ListScreen {
                         if let Some(anime) =
                             self.navigatable.get_selected_item(&self.filtered_animes)
                         {
-                            return Some(Action::ShowOverlay(anime.clone()));
+                            return Some(Action::ShowOverlay(anime.id));
                         }
                     }
                     _ => {}

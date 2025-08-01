@@ -342,7 +342,7 @@ impl Anime {
     pub fn example(id: usize) -> Self {
         Self {
             id,
-            title: format!("Example Anime {}", id),
+            title: "Sono Bisque Doll wa Koi wo Suru Season 2".to_string(),
             main_picture: Pictures {
                 large: "https://cdn.myanimelist.net/images/anime/1712/148299l.jpg".to_string(),
                 medium: "https://cdn.myanimelist.net/images/anime/1526/148873.jpg".to_string(),
@@ -791,15 +791,6 @@ impl Update for Anime {
     fn get_body(&self) -> Option<String> {
         if !status_is_known(self.my_list_status.status.clone()) {
             return None;
-        }
-        else if correct_status(self.my_list_status.status.clone()) == "plan_to_watch" &&
-            self.my_list_status.num_episodes_watched > 0{
-            return Some(format!(
-                "status={}&score={}&num_watched_episodes={}",
-                "watching",
-                self.my_list_status.score,
-                self.my_list_status.num_episodes_watched,
-            ));
         }
 
         Some(format!(

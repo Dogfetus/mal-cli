@@ -326,7 +326,7 @@ impl Screen for SearchScreen {
                         KeyCode::Enter => {
                             if let Some(anime_id) = self.navigatable.get_selected_item(&self.animes) {
                                 if let Some(anime) = self.app_info.anime_store.get(&anime_id) {
-                                    return Some(Action::ShowOverlay(anime.clone()));
+                                    return Some(Action::ShowOverlay(anime.id));
                                 }
                             }
                         }

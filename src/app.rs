@@ -4,6 +4,7 @@ use crate::mal::models::anime::Anime;
 use crate::mal::models::anime::AnimeId;
 use crate::mal::models::anime::DeleteOrUpdate;
 use crate::mal::models::anime::MyListStatus;
+use crate::player;
 use crate::screens::BackgroundUpdate;
 use crate::screens::ScreenManager;
 use crate::screens::screens::*;
@@ -11,12 +12,12 @@ use crate::utils::store::Store;
 
 use crossterm::event::KeyCode;
 use image::DynamicImage;
+use ratatui::prelude::CrosstermBackend;
 use ratatui::DefaultTerminal;
-use regex::Regex;
+use ratatui::Terminal;
 use std::io;
-use std::io::ErrorKind;
-use std::process::Command;
-use std::process::Stdio;
+use std::io::stdout;
+use std::io::Stdout;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
@@ -31,9 +32,9 @@ pub struct ExtraInfo {
 }
 
 pub enum Action {
-    PlayAnime(Anime),
+    PlayAnime(AnimeId),
     SwitchScreen(&'static str),
-    ShowOverlay(Anime),
+    ShowOverlay(AnimeId),
     NavbarSelect(bool),
     Quit,
 }
@@ -64,19 +65,18 @@ pub struct App {
     is_running: bool,
     terminal: DefaultTerminal,
     shared_info: ExtraInfo,
+    anime_player: player::AnimePlayer,
 
     sx: mpsc::Sender<Event>,
     rx: mpsc::Receiver<Event>,
     threads: Vec<JoinHandle<()>>,
     stop: Arc<AtomicBool>,
-    ansi_regex: Regex,
 }
 
 impl App {
-    pub fn new() -> App {
+    pub fn new(terminal: DefaultTerminal) -> App {
         let (sx, rx) = mpsc::channel::<Event>();
         let mal_client = Arc::new(MalClient::new());
-        let terminal = ratatui::init();
         let universal_info = ExtraInfo {
             app_sx: sx.clone(),
             mal_client: mal_client.clone(),
@@ -90,12 +90,12 @@ impl App {
             is_running: true,
             terminal,
             shared_info: universal_info,
+            anime_player: player::AnimePlayer::new(),
 
             rx,
             sx,
             threads: Vec::new(),
             stop: Arc::new(AtomicBool::new(false)),
-            ansi_regex: Regex::new(r"\x1b\[[0-9;]*[a-zA-Z]|\x1b\([AB]|\r|\x1b[78]").unwrap(),
         }
     }
 
@@ -146,73 +146,33 @@ impl App {
         Ok(())
     }
 
-    pub fn play_anime(&mut self, anime: Anime) {
-        if anime.status == "upcoming" {
-            self.screen_manager.show_error(format!(
-                "\"{}\"\nis not yet released.",
-                if anime.alternative_titles.en.is_empty() {
-                    anime.title
-                } else {
-                    anime.alternative_titles.en
-                }
-            ));
-            return;
-        }
+    fn play_anime(&mut self, anime: Anime) -> Option<()> {
+        match self.anime_player.play_anime(&anime) {
+            Ok(details) => {
+                if details.percentage > 90 {
+                    self.shared_info.anime_store.update(anime.id, |anime_to_update| {
+                        if anime_to_update.my_list_status.num_episodes_watched < anime_to_update.num_episodes {
+                            anime_to_update.my_list_status.num_episodes_watched += 1;
+                            anime_to_update.my_list_status.status = "watching".to_string();
+                        } else {
+                            anime_to_update.my_list_status.status = "completed".to_string();
+                        }
+                    });
 
-        ratatui::restore();
+                    let updated = self.shared_info.anime_store.get(&anime.id)?;
+                    self.shared_info.mal_client.update_user_list_async(updated);
+                } 
 
-        let next_episode = std::cmp::min(
-            anime.my_list_status.num_episodes_watched + 1,
-            anime.num_episodes,
-        );
-
-        let output = Command::new("ani-cli")
-            .arg("--no-detach")
-            .arg("--exit-after-play")
-            .arg("-e")
-            .arg(&next_episode.to_string())
-            .arg(&anime.title)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output();
-
-        match output {
-            Ok(output) => {
-                let messy_stdout = String::from_utf8_lossy(&output.stdout);
-                let messy_stderr = String::from_utf8_lossy(&output.stderr);
-                let stdout = self.ansi_regex.replace_all(&messy_stdout, "").to_string();
-                let stderr = self.ansi_regex.replace_all(&messy_stderr, "").to_string();
-                println!("ani-cli output:\n{}", stdout);
-                println!("ani-cli error:\n{}", stderr);
-                println!("ani-cli t {:?}, {}", output, anime.title);
-                if !stderr.is_empty() {
-                    if stderr.contains("No results found!") {
-                        self.screen_manager.show_error(format!(
-                            "ani-cli replied:\nError: {}\nthe anime might not be available yet",
-                            stderr
-                        ));
-                    } else {
-                        self.screen_manager.show_error(format!(
-                            "ani-cli replied:\nError: {}Exit code: {}\nOutput: {}",
-                            stderr,
-                            output.status.code().unwrap_or(-1),
-                            stdout
-                        ));
-                    }
-                }
+                self.screen_manager.refresh();
             }
             Err(e) => {
-                if e.kind() == ErrorKind::NotFound {
-                    self.screen_manager
-                        .show_error(format!("Can't seem to find ani-cli: \n{}", e));
-                } else {
-                    self.screen_manager
-                        .show_error(format!("Error running ani-cli: \n{}", e));
-                }
+                self.screen_manager.show_error(e.to_string());
             }
         }
 
         self.terminal = ratatui::init();
+
+        None
     }
 
     fn handle_input(&mut self, key_event: crossterm::event::KeyEvent) {
@@ -229,10 +189,14 @@ impl App {
                 Action::Quit => {
                     self.is_running = false;
                 }
-                Action::ShowOverlay(anime) => {
-                    self.screen_manager.toggle_overlay(anime);
+                Action::ShowOverlay(anime_id) => {
+                    self.screen_manager.toggle_overlay(anime_id);
                 }
-                Action::PlayAnime(anime) => {
+                Action::PlayAnime(anime_id) => {
+                    let anime = self.shared_info.anime_store.get(&anime_id).unwrap_or_else(|| {
+                        self.screen_manager.show_error("Unexpected anime given".to_string());
+                        return Anime::default();
+                    });
                     self.play_anime(anime);
                 }
                 Action::NavbarSelect(selected) => {
@@ -271,17 +235,10 @@ impl App {
 
 // TODO: check if this is even necessary? ii mean its rust right
 //
-// impl Drop for App {
-//     fn drop(&mut self) {
-//         self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
-//
-//         println!("Stopping threads...");
-//         for handle in self.threads.drain(..) {
-//             let _ = handle.join();
-//         }
-//
-//         // sending a fake key input to stop the input handler (for now?)
-//
-//     }
-// }
-//
+impl Drop for App {
+    fn drop(&mut self) {
+        // restore terminal view
+        ratatui::restore();
+    }
+}
+

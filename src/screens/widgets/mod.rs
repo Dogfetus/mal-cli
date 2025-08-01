@@ -4,3 +4,4 @@ pub mod navbar;
 pub mod popup;
 pub mod navigatable;
 pub mod printable;
+pub mod infobox;

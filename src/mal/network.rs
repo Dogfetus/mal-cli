@@ -16,8 +16,8 @@ macro_rules! params {
     };
 }
 
-pub const PROXY: &str = "http://localhost:1111/proxy?url=";
-// pub const PROXY: &str = "";
+// pub const PROXY: &str = "http://localhost:1111/proxy?url=";
+pub const PROXY: &str = "";
 const MAX_RETRIES: u32 = 5;
 static AGENT: OnceLock<Agent> = OnceLock::new();
 fn get_agent() -> &'static Agent {
@@ -251,7 +251,7 @@ pub trait Fetchable: Sized {
 }
 
 pub trait Update: Sized {
-    type Response: serde::de::DeserializeOwned + Debug;
+    type Response: serde::de::DeserializeOwned + Debug + Send;
 
     fn get_method(&self) -> &'static str;
     fn get_headers(&self, token: String) -> Vec<(String, String)>;
