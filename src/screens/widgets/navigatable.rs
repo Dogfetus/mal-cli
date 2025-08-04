@@ -12,6 +12,8 @@ pub struct Navigatable {
 }
 
 impl Navigatable{
+
+    /// size: (rows, cols)
     pub fn new(size: (u16, u16)) -> Self {
         Self {
             reverse: false,
@@ -32,6 +34,7 @@ impl Navigatable{
         self.reverse = true;
         self
     }
+
     pub fn in_reverse(&self) -> bool {
         self.reverse
     }

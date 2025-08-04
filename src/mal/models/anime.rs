@@ -60,6 +60,10 @@ where
     Ok(status)
 }
 
+fn default_true() -> bool {
+    true
+}
+
 #[allow(unused)]
 pub mod fields {
     pub const ID: &str = "id";
@@ -302,6 +306,10 @@ pub struct Anime {
     /// Statistics about the anime { status, num_list_users }
     #[serde(default)]
     pub statistics: Statistics,
+
+    /// If the number of episodes is decided  
+    #[serde(default = "default_true")]
+    pub episode_count_ready: bool,
 }
 
 impl Anime {
@@ -340,6 +348,7 @@ impl Anime {
             recommendations: None,
             studios: Vec::new(),
             statistics: Statistics::default(),
+            episode_count_ready: false,
         }
     }
 
@@ -398,6 +407,7 @@ impl Anime {
                 name: "Studio Example".to_string(),
             }],
             statistics: Statistics::default(),
+            episode_count_ready: true,
         }
     }
 

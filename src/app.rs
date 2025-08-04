@@ -1,28 +1,27 @@
-use crate::handlers::get_handlers;
-use crate::mal::MalClient;
-use crate::mal::models::anime::Anime;
 use crate::mal::models::anime::AnimeId;
-use crate::mal::models::anime::DeleteOrUpdate;
-use crate::mal::models::anime::MyListStatus;
-use crate::player;
 use crate::screens::BackgroundUpdate;
+use crate::mal::models::anime::Anime;
+use crate::handlers::get_handlers;
 use crate::screens::ScreenManager;
 use crate::screens::screens::*;
 use crate::utils::store::Store;
+use crate::mal::MalClient;
+use crate::player;
 
-use crossterm::event::KeyCode;
-use image::DynamicImage;
-use ratatui::prelude::CrosstermBackend;
-use ratatui::DefaultTerminal;
-use ratatui::Terminal;
-use std::io;
-use std::io::stdout;
-use std::io::Stdout;
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use std::sync::mpsc;
-use std::thread;
+use crossterm::event::KeyCode;
+use ratatui::DefaultTerminal;
 use std::thread::JoinHandle;
+use std::fs::OpenOptions;
+use image::DynamicImage;
+use std::path::PathBuf;
+use chrono::DateTime;
+use std::sync::mpsc;
+use std::io::Write;
+use std::sync::Arc;
+use chrono::Local;
+use std::thread;
+use std::io;
 
 #[derive(Debug, Clone)]
 pub struct ExtraInfo {
@@ -140,24 +139,61 @@ impl App {
         Ok(())
     }
 
-    fn play_anime(&mut self, anime: Anime) -> Option<()> {
+    fn logg_watched_info(&self, anime: &Anime, details: &player::PlayResult) {
+        let app_dir = std::env::var("HOME").ok()
+            .map(|home| PathBuf::from(home)
+            .join(".local/share/mal-cli"))
+            .expect("Failed to get app directory");
+
+        let now: DateTime<Local> = Local::now();
+        let timestamp = now.format("%Y-%m-%d %H:%M:%S");
+        let log_file = app_dir.join("watch_history");
+        let log_entry = format!(
+            "{} -> \"{}\" -> {} -> {}/{} -> {} -> {}\n",
+            timestamp,
+            anime.title,
+            details.episode,
+            details.current_time,
+            details.total_time,
+            details.percentage,
+            details.completed
+        );
+
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log_file)
+            .expect("Failed to open log file");
+    
+        file.write_all(log_entry.as_bytes()).ok();
+    }
+
+    fn play_anime(&mut self, anime_id: AnimeId) -> Option<()> {
+        let anime = self.shared_info.anime_store.get(&anime_id)?;
+
         match self.anime_player.play_anime(&anime) {
             Ok(details) => {
-                if details.percentage > 90 {
+
+                // update teh status to now watching
+                self.shared_info.anime_store.update(anime.id, |anime_to_update| {
+                    anime_to_update.my_list_status.status = "watching".to_string();
+                });
+
+                if details.completed {
+                    // update the store <-
                     self.shared_info.anime_store.update(anime.id, |anime_to_update| {
                         if anime_to_update.my_list_status.num_episodes_watched < anime_to_update.num_episodes {
                             anime_to_update.my_list_status.num_episodes_watched += 1;
-                            anime_to_update.my_list_status.status = "watching".to_string();
                         } else {
                             anime_to_update.my_list_status.status = "completed".to_string();
                         }
                     });
-
-                    let updated = self.shared_info.anime_store.get(&anime.id)?;
-                    self.shared_info.mal_client.update_user_list_async(updated);
                 } 
-
+                // get the anime again to make sure the details are up to date with the update above
+                let updated = self.shared_info.anime_store.get(&anime.id)?;
+                self.shared_info.mal_client.update_user_list_async(updated);
                 self.screen_manager.refresh();
+                self.logg_watched_info(&anime, &details);
             }
             Err(e) => {
                 self.screen_manager.show_error(e.to_string());
@@ -165,7 +201,6 @@ impl App {
         }
 
         self.terminal = ratatui::init();
-
         None
     }
 
@@ -180,21 +215,17 @@ impl App {
                 Action::SwitchScreen(screen_name) => {
                     self.screen_manager.change_screen(screen_name);
                 }
-                Action::Quit => {
-                    self.is_running = false;
-                }
                 Action::ShowOverlay(anime_id) => {
                     self.screen_manager.toggle_overlay(anime_id);
                 }
-                Action::PlayAnime(anime_id) => {
-                    let anime = self.shared_info.anime_store.get(&anime_id).unwrap_or_else(|| {
-                        self.screen_manager.show_error("Unexpected anime given".to_string());
-                        return Anime::default();
-                    });
-                    self.play_anime(anime);
-                }
                 Action::NavbarSelect(selected) => {
                     self.screen_manager.toggle_navbar(selected);
+                }
+                Action::PlayAnime(anime_id) => {
+                    self.play_anime(anime_id);
+                }
+                Action::Quit => {
+                    self.is_running = false;
                 }
             }
         }
@@ -212,23 +243,20 @@ impl App {
                 _ => return,
             }
         }
+
     }
 
-    // TODO: might not even need the stop since the thread will exit when the app exits
     fn spawn_background(&mut self) {
         for handler in get_handlers() {
             let _sx = self.sx.clone();
-            let _stop = self.stop.clone();
             let _thread = thread::spawn(move || {
-                handler(_sx, _stop);
+                handler(_sx);
             });
             self.threads.push(_thread);
         }
     }
 }
 
-// TODO: check if this is even necessary? ii mean its rust right
-//
 impl Drop for App {
     fn drop(&mut self) {
         // restore terminal view

@@ -25,9 +25,11 @@ pub enum PlayError {
 
 #[derive(Debug)]
 pub struct PlayResult {
+    pub episode: u32,
     pub current_time: String,
     pub total_time: String,
     pub percentage: u8,
+    pub fully_watched: bool,
     pub completed: bool,
 }
 
@@ -83,7 +85,7 @@ impl AnimePlayer {
         }
     }
 
-    pub fn extract_play_info(&self, stdout: &str) -> Option<PlayResult> {
+    pub fn extract_play_info(&self, stdout: &str, episode: u32) -> Option<PlayResult> {
         let last_av = if let Some(last_av) = stdout.rfind("AV: ") {
             let last_stdout = &stdout[last_av..];
             self.av_regex.captures(last_stdout)?
@@ -97,11 +99,15 @@ impl AnimePlayer {
             .and_then(|cap| cap.get(1))
             .map(|m| m.as_str());
 
+        let percentage = last_av[3].parse().unwrap_or(0);
+
         Some(PlayResult {
             current_time: last_av[1].to_string(),
             total_time: last_av[2].to_string(),
-            percentage: last_av[3].parse().unwrap_or(0),
-            completed: exit_reason == Some("End of file"),
+            completed: percentage >= 90,
+            fully_watched: exit_reason == Some("End of file"),
+            percentage,
+            episode,
         })
     }
 
@@ -152,7 +158,7 @@ impl AnimePlayer {
             }
         }
 
-        self.extract_play_info(&stdout).ok_or_else(|| {
+        self.extract_play_info(&stdout, next_episode).ok_or_else(|| {
             PlayError::Other("ani-cli did not return any play information".to_string())
         })
     }

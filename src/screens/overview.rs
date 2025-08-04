@@ -1,49 +1,57 @@
 use std::cell::RefCell;
+use std::fs::OpenOptions;
+use std::io::{BufRead, BufReader, Read};
+use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 use std::thread::{self, JoinHandle};
 
 use super::widgets::navbar::NavBar;
-use super::{screens::*, BackgroundUpdate, ExtraInfo, Screen};
+use super::widgets::navigatable::{self, Navigatable};
+use super::{BackgroundUpdate, ExtraInfo, Screen, screens::*};
+use crate::app::{Action, Event};
 use crate::config::PRIMARY_COLOR;
 use crate::mal::models::anime::Anime;
-use crate::app::{Action, Event};
 use crate::utils::terminalCapabilities::get_picker;
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Margin, Rect};
 use ratatui::widgets::{Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};
 use ratatui::{
-    layout::{Constraint, Direction, Layout}, style::{Color, Style}, widgets::{Block,  Borders, Clear}, Frame,
+    Frame,
+    layout::{Constraint, Direction, Layout},
+    style::{Color, Style},
     symbols,
+    widgets::{Block, Borders, Clear},
 };
-use crossterm::event::{KeyCode, KeyEvent};
 use ratatui_image::{
-    thread::{ResizeRequest, ResizeResponse, ThreadProtocol},
     StatefulImage,
+    thread::{ResizeRequest, ResizeResponse, ThreadProtocol},
 };
-
 
 #[derive(Clone)]
-pub struct OverviewScreen { 
-    loading: bool,
+pub struct OverviewScreen {
+    bg_loaded: bool,
     animes: Vec<Anime>,
     scroll_offset: u16,
     app_info: ExtraInfo,
+    navigation: Navigatable,
 }
 
 impl OverviewScreen {
     pub fn new(info: ExtraInfo) -> Self {
         Self {
             animes: vec![
-                Anime::empty(),
-                Anime::empty(),
-                Anime::empty(),
-                Anime::empty(),
+                Anime::example(1),
+                Anime::example(2),
+                Anime::example(3),
+                Anime::example(4),
+                Anime::example(5),
             ],
 
             scroll_offset: 0,
             app_info: info,
-            loading: false,
-            // async_state: ThreadProtocol::new(sx_worker, Some(picker.new_resize_protocol(dyn_img))),
+            bg_loaded: false,
+            navigation: Navigatable::new((1, 3)),
         }
     }
 }
@@ -53,19 +61,26 @@ impl Screen for OverviewScreen {
         let area = frame.area();
         frame.render_widget(Clear, area);
 
-
-        let [top, bottom] = Layout::default()
+        let [_, content] = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(
-                [
-                    Constraint::Length(3),
-                    Constraint::Percentage(100),
-                ]
-            )
+            .constraints([Constraint::Length(6), Constraint::Fill(1)])
             .areas(area);
 
+        self.navigation
+            .construct(&self.animes, content, |anime, area, highlighted| {
+                let b = Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(PRIMARY_COLOR))
+                    .title(anime.title.clone())
+                    .title_alignment(ratatui::layout::Alignment::Center)
+                    .style(if highlighted {
+                        Style::default().fg(Color::Yellow)
+                    } else {
+                        Style::default().fg(Color::White)
+                    });
 
-
+                frame.render_widget(b, area);
+            });
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
@@ -79,28 +94,37 @@ impl Screen for OverviewScreen {
             KeyCode::Enter => {
                 return Some(Action::NavbarSelect(true));
             }
-            _ => {} 
+            _ => {}
         };
         None
     }
 
     fn background(&mut self) -> Option<JoinHandle<()>> {
-        if self.loading {
+        if self.bg_loaded {
             return None;
         }
-        self.loading = true; 
+        self.bg_loaded = true;
         let info = self.app_info.clone();
-
-        // let rx = Arc::clone(&self.rx);
         let id = self.get_name();
 
-        Some(thread::spawn(move || {
-            let update = BackgroundUpdate::new(id)
-            .set("anime", Anime::empty());
+        let app_dir = std::env::var("HOME")
+            .ok()
+            .map(|home| PathBuf::from(home).join(".local/share/mal-cli"))
+            .expect("Failed to get app directory");
+        let log_file = app_dir.join("watch_history");
 
-            thread::sleep(std::time::Duration::from_secs(2));
-            // let _ = info.mal_client.test();
-            let _ = info.app_sx.send(Event::BackgroundNotice(update));
+        Some(thread::spawn(move || {
+            if let Ok(file) = OpenOptions::new().open(log_file) {
+
+                // read line by line
+                let content = BufReader::new(file);
+                for line in content.lines() {
+                    if let Ok(line) = line {}
+                    // TODO: idk if this will be necessary, considering this may or may not reuslt
+                    // in me fetching multiple requests a second, unless only the title is
+                    // necesarry which might be good enough. we'll see
+                }
+            }
         }))
     }
 

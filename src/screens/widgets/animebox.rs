@@ -1,18 +1,23 @@
 use std::sync::{Arc, Mutex};
 
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect}, style::{Modifier, Style, Stylize}, symbols, widgets::{Block, Borders, Padding, Paragraph, Wrap}, Frame
+    Frame,
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
+    style::{Modifier, Style, Stylize},
+    symbols,
+    widgets::{Block, Borders, Padding, Paragraph, Wrap},
 };
 
 use crate::{
     config::{HIGHLIGHT_COLOR, PRIMARY_COLOR, anime_list_colors},
     mal::models::anime::Anime,
-    utils::imageManager::ImageManager,
+    utils::{
+        imageManager::ImageManager,
+        stringManipulation::{DisplayString, format_date},
+    },
 };
 
-
 const FETCH_IMAGE_ON_DEMAND: bool = true;
-
 
 pub struct AnimeBox {}
 
@@ -89,10 +94,7 @@ impl AnimeBox {
 
         let title = Paragraph::new(title_text)
             .alignment(Alignment::Center)
-            .style(
-                Style::default()
-                    .fg(color)
-            )
+            .style(Style::default().fg(color))
             .block(Block::default().padding(Padding::new(2, 2, 1, 0)));
         frame.render_widget(title, title_area);
 
@@ -102,15 +104,39 @@ impl AnimeBox {
             .areas(info_area);
 
         let image_area = image_area.inner(Margin::new(1, 1));
-        ImageManager::render_image(&image_manager, anime, frame, image_area, FETCH_IMAGE_ON_DEMAND);
+        ImageManager::render_image(
+            &image_manager,
+            anime,
+            frame,
+            image_area,
+            FETCH_IMAGE_ON_DEMAND,
+        );
 
-        let info_text = "Id:\nScore:\nType:\nEpisodes:\nStatus:\nAired:";
+        let info_text = "Id:\nScore:\nType:\nEpisodes:\nStatus:\nSeason:\nAired:";
+
+        let season = DisplayString::new()
+            .add(&anime.start_season.season)
+            .capitalize(0)
+            .build("{0}");
 
         let value_text = format!(
-            "{}\n{}\n{}\n{}\n{}",
-            anime.id, anime.mean, anime.media_type, anime.num_episodes, anime.status,
+            "{}\n{}\n{}\n{}\n{}\n{}",
+            anime.id, anime.mean, anime.media_type, anime.num_episodes, anime.status, season,
         );
-        let airing_text = format!("{} -> {}", anime.start_date, anime.end_date);
+
+        let airing_text = if anime.start_date == anime.end_date {
+            format!(
+                "{}",
+                format_date(&anime.start_date)
+            )
+        } else {
+            format!(
+                "{}\n->\n{}",
+                format_date(&anime.start_date),
+                format_date(&anime.end_date)
+            )
+        };
+
         let user_stats_value_text = format!("{}", anime.my_list_status.status,);
 
         let [info, value] = Layout::default()
@@ -132,7 +158,7 @@ impl AnimeBox {
             .alignment(Alignment::Center)
             .style(Style::default().fg(color))
             .wrap(Wrap { trim: true })
-            .block(Block::default().padding(Padding::new(0, 2, 7, 1)));
+            .block(Block::default().padding(Padding::new(0, 2, 8, 1)));
 
         let [info_area, user_stats_area] = Layout::default()
             .direction(Direction::Vertical)
@@ -231,13 +257,19 @@ impl LongAnimeBox {
             .areas(info_area);
 
         let image_area = image_area.inner(Margin::new(1, 1));
-        ImageManager::render_image(&image_manager, anime, frame, image_area, FETCH_IMAGE_ON_DEMAND);
+        ImageManager::render_image(
+            &image_manager,
+            anime,
+            frame,
+            image_area,
+            FETCH_IMAGE_ON_DEMAND,
+        );
 
         let info_text = "Score:\nType:\nEpisodes:\nStatus:\nAired:";
 
         let value_text = format!(
             "{}\n{}\n{}\n{}",
-            anime.mean, anime.media_type, anime.num_episodes, anime.status 
+            anime.mean, anime.media_type, anime.num_episodes, anime.status
         );
         let airing_text = format!("{} -> {}", anime.start_date, anime.end_date);
         let user_stats_value_text = format!("{}", anime.my_list_status.status,);

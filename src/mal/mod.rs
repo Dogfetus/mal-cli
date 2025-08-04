@@ -5,13 +5,12 @@ mod oauth;
 use crate::mal::network::Fetchable;
 use crate::params;
 use chrono::{Datelike, Local};
-use models::anime::{fields, Anime, AnimeId, FavoriteAnime, FavoriteResponse};
+use models::anime::{fields, Anime, AnimeId, FavoriteAnime};
 use models::user::User;
 use network::Update;
 use regex::Regex;
 use std::any::type_name;
 use std::sync::{Arc, RwLock};
-use std::thread;
 use std::{fs, thread::JoinHandle};
 
 const BASE_URL: &str = "https://api.myanimelist.net/v2";
@@ -253,7 +252,7 @@ impl MalClient {
         })
     }
 
-    // this a very specific request
+    // this a very specific request i must say (gets the number of available episodes for an anime)
     pub fn get_available_episodes(&self, anime_id: AnimeId) -> Result<Option<u32>, Box<dyn std::error::Error>>{
         let url = format!("https://myanimelist.net/anime/{}/thiscanbewhatever/episode", anime_id);
         let mut response = ureq::get(&url).call()?;

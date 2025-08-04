@@ -5,12 +5,15 @@ use std::sync::Arc;
 
 
 
-pub fn input_handler(sx: mpsc::Sender<Event>, stop: Arc<AtomicBool>) {
-    while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+pub fn input_handler(sx: mpsc::Sender<Event>) {
+    loop {
         if let Ok(event) = crossterm::event::read() {
             match event {
                 crossterm::event::Event::Key(key_event) => {
-                    sx.send(Event::KeyPress(key_event)).unwrap();
+                    if sx.send(Event::KeyPress(key_event)).is_err() {
+                        // this happens when the receiver is dropped
+                        return;
+                    }
 
                     // handle quit  TODO: (change to something better)
                     if key_event.kind == crossterm::event::KeyEventKind::Press &&
@@ -26,7 +29,9 @@ pub fn input_handler(sx: mpsc::Sender<Event>, stop: Arc<AtomicBool>) {
                         crossterm::event::MouseEventKind::Down(_) | 
                         crossterm::event::MouseEventKind::Up(_) |
                         crossterm::event::MouseEventKind::Drag(_) => {
-                            sx.send(Event::MouseClick(mouse_event)).unwrap();
+                            if sx.send(Event::MouseClick(mouse_event)).is_err(){
+                                return;
+                            };
                             // sx.send(Event::MousePosition(x, y, mouse_event.kind)).unwrap();??
                         }
                         _ => {}
@@ -34,7 +39,9 @@ pub fn input_handler(sx: mpsc::Sender<Event>, stop: Arc<AtomicBool>) {
                 }
 
                 crossterm::event::Event::Resize(width, height) => {
-                    sx.send(Event::Resize(width, height)).unwrap();
+                    if sx.send(Event::Resize(width, height)).is_err() {
+                        return;
+                    }
                 }
 
                 _ => {

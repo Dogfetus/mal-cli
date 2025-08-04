@@ -1,12 +1,7 @@
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::mpsc::Sender;
-use std::sync::mpsc::channel;
-use std::thread::JoinHandle;
-
-//TODO: remember to fetch all search results and also fetch list of animes when going to this
-//screen
-
+use super::ExtraInfo;
+use super::widgets::animebox::AnimeBox;
+use super::widgets::navigatable::Navigatable;
+use super::widgets::popup::{Arrows, SelectionPopup};
 use crate::add_screen_caching;
 use crate::app::Event;
 use crate::config::HIGHLIGHT_COLOR;
@@ -32,10 +27,11 @@ use ratatui::widgets::Block;
 use ratatui::widgets::Borders;
 use ratatui::widgets::Clear;
 use ratatui::widgets::Paragraph;
-use super::ExtraInfo;
-use super::widgets::animebox::AnimeBox;
-use super::widgets::navigatable::Navigatable;
-use super::widgets::popup::{Arrows, SelectionPopup};
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::mpsc::Sender;
+use std::sync::mpsc::channel;
+use std::thread::JoinHandle;
 
 #[derive(Debug, Clone)]
 enum LocalEvent {
@@ -69,8 +65,6 @@ pub struct SearchScreen {
 }
 
 impl SearchScreen {
-    add_screen_caching!();
-
     pub fn new(info: ExtraInfo) -> Self {
         Self {
             image_manager: Arc::new(Mutex::new(ImageManager::new())),
@@ -130,9 +124,7 @@ impl SearchScreen {
             let update = super::BackgroundUpdate::new(id.clone())
                 .set("animes", animes)
                 .set("anime_ids", anime_ids);
-            app_sx
-                .send(super::Event::BackgroundNotice(update))
-                .ok();
+            app_sx.send(super::Event::BackgroundNotice(update)).ok();
         }
     }
 }
@@ -226,8 +218,12 @@ impl Screen for SearchScreen {
                     );
                 }
             });
-        self.search_input
-            .render_cursor(frame, search_area.x + 1, search_area.y + 1);
+        self.search_input.render_cursor(
+            frame,
+            search_area.x + 1,
+            search_area.y + 1,
+            self.focus == Focus::Search,
+        );
         self.filter_popup
             .render(frame, filter_area, self.focus == Focus::Filter);
     }
@@ -247,7 +243,7 @@ impl Screen for SearchScreen {
                         KeyCode::Char('j') | KeyCode::Up => {
                             self.focus = Focus::NavBar;
                             self.filter_popup.close();
-                            return Some(Action::NavbarSelect(true))
+                            return Some(Action::NavbarSelect(true));
                         }
                         KeyCode::Char('h') | KeyCode::Left => {
                             self.focus = Focus::Search;
@@ -276,7 +272,7 @@ impl Screen for SearchScreen {
                     match key_event.code {
                         KeyCode::Char('j') | KeyCode::Up => {
                             self.focus = Focus::NavBar;
-                            return Some(Action::NavbarSelect(true))
+                            return Some(Action::NavbarSelect(true));
                         }
                         KeyCode::Char('k') | KeyCode::Down => {
                             self.focus = Focus::AnimeList;
@@ -324,7 +320,8 @@ impl Screen for SearchScreen {
                             self.navigatable.move_left();
                         }
                         KeyCode::Enter => {
-                            if let Some(anime_id) = self.navigatable.get_selected_item(&self.animes) {
+                            if let Some(anime_id) = self.navigatable.get_selected_item(&self.animes)
+                            {
                                 if let Some(anime) = self.app_info.anime_store.get(&anime_id) {
                                     return Some(Action::ShowOverlay(anime.id));
                                 }
@@ -356,14 +353,13 @@ impl Screen for SearchScreen {
         let id = self.get_name();
         let image_manager = self.image_manager.clone();
         ImageManager::init_with_threads(&image_manager, info.app_sx.clone());
-        let mal_client= info.mal_client.clone();
+        let mal_client = info.mal_client.clone();
         let app_sx = info.app_sx.clone();
 
         let handle = std::thread::spawn(move || {
             if nr_of_animes <= 0 {
                 Self::fetch_and_send_animes(&app_sx, id.clone(), |offset, limit| {
-                    mal_client
-                        .get_top_anime("all".to_string(), offset, limit)
+                    mal_client.get_top_anime("all".to_string(), offset, limit)
                 });
             }
 
@@ -371,8 +367,7 @@ impl Screen for SearchScreen {
                 match event {
                     LocalEvent::FilterSwitch(filter_type) => {
                         Self::fetch_and_send_animes(&app_sx, id.clone(), |offset, limit| {
-                            mal_client
-                                .get_top_anime(filter_type.clone(), offset, limit)
+                            mal_client.get_top_anime(filter_type.clone(), offset, limit)
                         });
                     }
 

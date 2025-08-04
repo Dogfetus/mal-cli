@@ -38,12 +38,10 @@ impl Input {
         self
     }
 
-    pub fn render_cursor(&self, frame: &mut Frame, x: u16, y: u16) {
-        frame.set_cursor_position(Position::new(x + self.cursor, y));
-    }
-
-    pub fn hide_cursor(&self, frame: &mut Frame) {
-        frame.set_cursor_position(Position::new(u16::MAX, u16::MAX));
+    pub fn render_cursor(&self, frame: &mut Frame, x: u16, y: u16, focused: bool) {
+        if focused {
+            frame.set_cursor_position(Position::new(x + self.cursor, y));
+        }
     }
 
     pub fn handle_event(&mut self, event: KeyEvent, return_by_keypress: bool) -> Option<String> {

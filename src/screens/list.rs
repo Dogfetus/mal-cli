@@ -29,7 +29,7 @@ use super::widgets::animebox::{AnimeBox, LongAnimeBox};
 use super::widgets::navbar::NavBar;
 use super::widgets::navigatable::Navigatable;
 use super::widgets::popup::{Arrows, SelectionPopup};
-use super::{screens::*, BackgroundUpdate, ExtraInfo};
+use super::{BackgroundUpdate, ExtraInfo, screens::*};
 
 #[derive(Debug, Clone)]
 struct Statistics {
@@ -255,7 +255,10 @@ impl Screen for ListScreen {
 
     // draws the screen
     fn draw(&mut self, frame: &mut Frame) {
-        self.all_animes = self.app_info.anime_store.get_bulk(self.all_anime_ids.clone());
+        self.all_animes = self
+            .app_info
+            .anime_store
+            .get_bulk(self.all_anime_ids.clone());
         let area = frame.area();
         frame.render_widget(Clear, area);
 
@@ -290,9 +293,9 @@ impl Screen for ListScreen {
                     .border_set(border::ROUNDED),
             )
             .style(style::Style::default().fg(if self.focus == Focus::Search {
-                HIGHLIGHT_COLOR 
+                HIGHLIGHT_COLOR
             } else {
-                PRIMARY_COLOR 
+                PRIMARY_COLOR
             }));
         frame.render_widget(search_field, search);
 
@@ -326,9 +329,13 @@ impl Screen for ListScreen {
             .alignment(Alignment::Left)
             .style(style::Style::default().fg(PRIMARY_COLOR));
 
-        let info_value = Paragraph::new(format!("{}/{}\n0\n", self.filtered_animes.len(), self.all_animes.len()))
-            .alignment(Alignment::Left)
-            .style(style::Style::default().fg(PRIMARY_COLOR));
+        let info_value = Paragraph::new(format!(
+            "{}/{}\n0\n",
+            self.filtered_animes.len(),
+            self.all_animes.len()
+        ))
+        .alignment(Alignment::Left)
+        .style(style::Style::default().fg(PRIMARY_COLOR));
         frame.render_widget(info, info_area_left.inner(Margin::new(1, 0)));
         frame.render_widget(info_value, info_area_right.inner(Margin::new(1, 1)));
 
@@ -357,9 +364,7 @@ impl Screen for ListScreen {
                     );
                 });
         }
-        self.dropdown_nav
-            .as_reverse()
-            .construct(
+        self.dropdown_nav.as_reverse().construct(
             &self.dropdowns,
             dropdown_area,
             |dropdown, area, highlight| {
@@ -367,7 +372,12 @@ impl Screen for ListScreen {
             },
         );
 
-        self.search_input.render_cursor(frame, search.x+1, search.y+1);
+        self.search_input.render_cursor(
+            frame,
+            search.x + 1,
+            search.y + 1,
+            self.focus == Focus::Search,
+        );
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
@@ -517,10 +527,7 @@ impl Screen for ListScreen {
         let id = self.get_name();
         let (sx, rx) = channel::<LocalEvent>();
         self.bg_sx = Some(sx);
-        ImageManager::init_with_threads(
-            &self.image_manager,
-            info.app_sx.clone(),
-        );
+        ImageManager::init_with_threads(&self.image_manager, info.app_sx.clone());
         Some(std::thread::spawn(move || {
             let mut cached_filter = Option::<Filters>::None;
             let mut cached_search = String::new();
@@ -532,7 +539,8 @@ impl Screen for ListScreen {
                 .stop_at(20);
 
             for animes in anime_generator.run(|offset, limit| {
-                info.mal_client.get_anime_list(None, offset as u16, limit as u16)
+                info.mal_client
+                    .get_anime_list(None, offset as u16, limit as u16)
             }) {
                 let anime_ids = animes.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
                 let update = BackgroundUpdate::new(id.clone())
@@ -554,7 +562,8 @@ impl Screen for ListScreen {
                         Self::filter_animes(&mut filtered_animes, &filters);
 
                         if !cached_search.is_empty() {
-                            Self::search_animes(&mut filtered_animes, cached_search.clone()); }
+                            Self::search_animes(&mut filtered_animes, cached_search.clone());
+                        }
 
                         let update = BackgroundUpdate::new(id.clone())
                             .set("filtered_animes", filtered_animes);
@@ -595,12 +604,18 @@ impl Screen for ListScreen {
         ) {
             (Some(ids), Some(true)) => {
                 self.all_anime_ids.extend(ids);
-                self.all_animes = self.app_info.anime_store.get_bulk(self.all_anime_ids.clone());
-            },
+                self.all_animes = self
+                    .app_info
+                    .anime_store
+                    .get_bulk(self.all_anime_ids.clone());
+            }
             (Some(ids), _) => {
                 self.all_anime_ids = ids;
                 self.navigatable.back_to_start();
-                self.all_animes = self.app_info.anime_store.get_bulk(self.all_anime_ids.clone());
+                self.all_animes = self
+                    .app_info
+                    .anime_store
+                    .get_bulk(self.all_anime_ids.clone());
             }
             _ => {}
         }

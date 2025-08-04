@@ -5,7 +5,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 
-pub fn get_handlers() -> Vec<fn(mpsc::Sender<Event>, Arc<AtomicBool>)> {
+pub fn get_handlers() -> Vec<fn(mpsc::Sender<Event>)> {
     vec![
         input_handler::input_handler,
         // add more handlers here

@@ -1,27 +1,19 @@
 #![allow(unused)]
-//TODO: use the one thread per image approach again
-//TODO: fix these doc strings
-//
-//! claude used to generate doc strings lol
 //! Image management utilities for terminal-based anime applications.
 //!
 //! This module provides the `ImageManager` struct which handles concurrent image downloading,
-//! resizing, and rendering for anime cover images in terminal interfaces. It supports two
-//! initialization modes: per-image threading and shared thread pool processing.
+//! resizing, and rendering for anime cover images in terminal interfaces. It uses a shared
+//! thread pool approach with two background threads for efficient processing.
 //!
 //! # Architecture
 //!
-//! The ImageManager supports two threading models:
+//! The ImageManager uses a shared thread pool model:
 //!
-//! ## Per-Image Threading (`init` + `prepare_image`)
-//! - Creates a dedicated thread for each image
-//! - Simple but can create many threads with large image sets
-//! - Each thread handles both fetching and resizing for one image
-//!
-//! ## Shared Thread Pool (`init_with_threads` + `fetch_image`)  
-//! - Uses two shared threads: one fetcher, one resizer
-//! - More efficient for large numbers of images
+//! ## Shared Thread Pool (`init_with_threads` + `query_image_for_fetching`)  
+//! - Uses two shared threads: one fetcher thread and one resizer thread
+//! - Efficient for large numbers of images as it limits total thread count
 //! - Fetcher thread downloads images, resizer thread processes resize requests
+//! - Images can be queued using `query_image_for_fetching` for any type implementing `HasDisplayableImage`
 //!
 //! # Example Usage
 //!
@@ -29,21 +21,14 @@
 //! use std::sync::{Arc, Mutex};
 //!
 //! // Initialize with thread pool
-//! let mut image_manager = ImageManager::new();
-//! image_manager.init_with_threads(app_sender, self.get_name());
-//! // where self is a screen or application context, get_name() returns something like
-//! // "mainScreen"
+//! let image_manager = Arc::new(Mutex::new(ImageManager::new()));
+//! ImageManager::init_with_threads(&image_manager, app_sender);
 //!
 //! // Queue images for processing
-//! image_manager.fetch_image(&anime);
+//! ImageManager::query_image_for_fetching(&image_manager, &anime);
 //!
-//! // In your event loop, handle the results
-//! match event {
-//!     Event::ImageRedraw(id, response) => {
-//!         image_manager.update_image(id, response);
-//!     }
-//!     _ => {}
-//! }
+//! // Render images in your UI
+//! ImageManager::render_image(&image_manager, &anime, frame, area, true);
 //! ```
 
 use super::customThreadProtocol::{
@@ -65,10 +50,21 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+/// Trait for types that can provide displayable image information.
+///
+/// This trait allows the ImageManager to work with any type that has
+/// an associated image, not just Anime objects.
 pub trait HasDisplayableImage {
+    /// Returns the image ID and URL for display.
+    ///
+    /// # Returns
+    ///
+    /// * `Some((id, url))` - The unique ID and image URL
+    /// * `None` - If no displayable image is available
     fn get_displayable_image(&self) -> Option<(usize, String)>;
 }
 
+/// Internal request structure for the fetcher thread.
 struct FetchRequest {
     id: usize,
     url: String,
@@ -76,32 +72,33 @@ struct FetchRequest {
 
 /// Manages anime cover image downloading, resizing, and rendering for terminal applications.
 ///
-/// The ImageManager provides two threading models for image processing:
-/// - **Per-image threading**: Each image gets its own dedicated thread
-/// - **Shared thread pool**: Two shared threads handle all image operations
+/// The ImageManager uses a shared thread pool approach with two background threads:
+/// - **Fetcher Thread**: Downloads images from URLs and creates resize protocols
+/// - **Resizer Thread**: Processes resize requests from all images
 ///
-/// Images are identified by anime IDs and can be rendered directly to terminal frames
-/// using the ratatui library.
+/// Images are identified by unique IDs and can be rendered directly to terminal frames
+/// using the ratatui library. The manager supports any type implementing `HasDisplayableImage`.
 pub struct ImageManager {
-    /// Map of anime IDs to their corresponding thread protocols
+    /// Map of image IDs to their corresponding thread protocols
     protocols: HashMap<usize, CustomThreadProtocol>,
     /// Optional sender for communicating with the main application
     app_sx: Option<Sender<Event>>,
-    /// Optional sender for custom resize requests (single-thread mode)
+    /// Optional sender for custom resize requests (shared resizer thread)
     image_tx: Option<Sender<CustomResizeRequest>>,
+    /// Optional sender for fetch requests (shared fetcher thread)
     fetcher_tx: Option<Sender<FetchRequest>>,
 }
 
 impl ImageManager {
     /// Creates a new, uninitialized ImageManager.
     ///
-    /// The ImageManager must be initialized with either `init()` or `init_with_threads()`
+    /// The ImageManager must be initialized with `init_with_threads()`
     /// before it can process images.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// let image_manager = ImageManager::new();
+    /// let image_manager = Arc::new(Mutex::new(ImageManager::new()));
     /// ```
     pub fn new() -> Self {
         Self {
@@ -112,35 +109,40 @@ impl ImageManager {
         }
     }
 
+    /// Clears all cached images and protocols from the ImageManager.
+    ///
+    /// This method removes all stored image protocols, which will cause
+    /// associated background processing to be cleaned up. Useful for
+    /// memory management when switching contexts or clearing data.
+    ///
+    /// # Arguments
+    ///
+    /// * `instance` - Arc<Mutex<Self>> reference to the ImageManager instance
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// ImageManager::clear_cache(&image_manager);
+    /// ```
     pub fn clear_cache(instance: &Arc<Mutex<Self>>) {
         let mut self_lock = instance.lock().unwrap();
         self_lock.protocols.clear();
     }
 
-    /// Initializes the ImageManager for per-image threading mode.
+    /// Initializes the ImageManager with basic functionality (deprecated).
     ///
-    /// In this mode, each call to `prepare_image()` will create a dedicated thread
-    /// that handles both downloading and resizing for that specific image.
+    /// This method only sets up the app sender but doesn't create background threads.
+    /// It's maintained for compatibility but `init_with_threads` is recommended.
     ///
     /// # Arguments
     ///
+    /// * `instance` - Arc<Mutex<Self>> reference to the ImageManager instance
     /// * `app_sx` - Sender channel for communicating events back to the main application
-    /// * `id` - Unique identifier for this ImageManager instance (typically the screen name)
-    ///
-    /// # Thread Safety
-    ///
-    /// This method is safe to call multiple times, but will reset the ImageManager state.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// let mut image_manager = ImageManager::new();
-    /// image_manager.init(app_sender, self.get_name());
-    /// // where self is a screen or application context, get_name() returns something like
-    /// // "mainScreen"
-    ///
-    /// // Now you can use prepare_image() to process individual images
-    /// image_manager.prepare_image(&anime);
+    /// ImageManager::init(&image_manager, app_sender);
     /// ```
     pub fn init(instance: &Arc<Mutex<Self>>, app_sx: Sender<Event>) {
         let mut self_lock = instance.lock().unwrap();
@@ -153,13 +155,13 @@ impl ImageManager {
     /// 1. **Fetcher Thread**: Downloads images from URLs and creates resize protocols
     /// 2. **Resizer Thread**: Processes resize requests from all images
     ///
-    /// This approach is more efficient when processing many images as it limits
+    /// This approach is efficient when processing many images as it limits
     /// the total number of threads to two, regardless of image count.
     ///
     /// # Arguments
     ///
+    /// * `instance` - Arc<Mutex<Self>> reference to the ImageManager instance
     /// * `app_sx` - Sender channel for communicating events back to the main application
-    /// * `id` - Unique identifier for this ImageManager instance (typically the screen name)
     ///
     /// # Thread Lifecycle
     ///
@@ -170,14 +172,12 @@ impl ImageManager {
     /// # Examples
     ///
     /// ```rust
-    /// let mut image_manager = ImageManager::new();
-    /// image_manager.init_with_threads(app_sender, self.get_name());
-    /// // where self is a screen or application context, get_name() returns something like
-    /// // "mainScreen"
+    /// let image_manager = Arc::new(Mutex::new(ImageManager::new()));
+    /// ImageManager::init_with_threads(&image_manager, app_sender);
     ///
     /// // Queue multiple images efficiently
     /// for anime in anime_list {
-    ///     image_manager.fetch_image(&anime);
+    ///     ImageManager::query_image_for_fetching(&image_manager, &anime);
     /// }
     /// ```
     pub fn init_with_threads(
@@ -243,42 +243,25 @@ impl ImageManager {
         });
     }
 
-    /// Downloads and processes an anime cover image using per-image threading.
+    /// Downloads and processes an image using per-image threading (deprecated).
     ///
-    /// This method creates a dedicated thread for the specified anime that will:
-    /// 1. Download the image from the anime's medium picture URL
-    /// 2. Create a resize protocol for terminal display
-    /// 3. Handle all resize requests for this image
+    /// This method creates a dedicated thread for the specified anime that will
+    /// download and process the image. This approach is less efficient than the
+    /// shared thread pool and is maintained for compatibility.
     ///
-    /// **Note**: This method should only be used when the ImageManager was initialized
-    /// with `init()`. For thread pool mode, use `fetch_image()` instead.
+    /// **Note**: This method is deprecated. Use `query_image_for_fetching()` instead
+    /// after initializing with `init_with_threads()`.
     ///
     /// # Arguments
     ///
+    /// * `instance` - Arc<Mutex<Self>> reference to the ImageManager instance
     /// * `anime` - The anime whose cover image should be downloaded and processed
-    ///
-    /// # Behavior
-    ///
-    /// - Returns early if the ImageManager is not initialized
-    /// - Skips processing if the anime image is already loaded
-    /// - Creates a background thread that terminates when resize requests stop
-    ///
-    /// # Thread Safety
-    ///
-    /// Each call creates an independent thread. The thread will automatically terminate
-    /// when the image is removed from the ImageManager or the application shuts down.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// // Initialize with per-image threading
-    /// image_manager.init(app_sender, self.get_name());
-    /// // where self is a screen or application context, get_name() returns something like
-    /// // "mainScreen"
-    ///
-    /// // Process individual images
-    /// image_manager.prepare_image(&anime1);
-    /// image_manager.prepare_image(&anime2);
+    /// // Deprecated - use query_image_for_fetching instead
+    /// ImageManager::prepare_image(&image_manager, &anime);
     /// ```
     pub fn prepare_image(instance: &Arc<Mutex<Self>>, anime: &Anime) {
         {
@@ -329,42 +312,23 @@ impl ImageManager {
         });
     }
 
-    /// Queues an anime cover image for download using the shared thread pool.
+    /// Queues an anime cover image for download using the shared thread pool (deprecated).
     ///
-    /// This method sends the anime to the fetcher thread for processing. The fetcher
-    /// thread will download the image and set up the resize protocol, while the
-    /// resizer thread handles all resize operations.
+    /// This method is similar to `query_image_for_fetching` but specifically for Anime objects.
+    /// It's maintained for compatibility, but `query_image_for_fetching` is more flexible.
     ///
-    /// **Note**: This method should only be used when the ImageManager was initialized
-    /// with `init_with_threads()`. For per-image threading, use `prepare_image()` instead.
+    /// **Note**: Use `query_image_for_fetching()` instead for better type flexibility.
     ///
     /// # Arguments
     ///
+    /// * `instance` - Arc<Mutex<Self>> reference to the ImageManager instance
     /// * `anime` - The anime whose cover image should be downloaded and processed
-    ///
-    /// # Behavior
-    ///
-    /// - Returns early if the ImageManager is not initialized with thread pool mode
-    /// - Skips processing if the anime image is already loaded
-    /// - Queues the anime for background processing by the fetcher thread
-    ///
-    /// # Performance
-    ///
-    /// This method is non-blocking and returns immediately. The actual image download
-    /// and processing happens asynchronously in the background threads.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// // Initialize with shared thread pool
-    /// image_manager.init_with_threads(app_sender, self.get_name());
-    /// // where self is a screen or application context, get_name() returns something like
-    /// // "mainScreen"
-    ///
-    /// // Queue multiple images efficiently
-    /// for anime in anime_list {
-    ///     image_manager.fetch_image(&anime);
-    /// }
+    /// // Deprecated - use query_image_for_fetching instead
+    /// ImageManager::fetch_image(&image_manager, &anime);
     /// ```
     pub fn fetch_image(instance: &Arc<Mutex<Self>>, anime: &Anime) {
         {
@@ -401,6 +365,52 @@ impl ImageManager {
         }
     }
 
+    /// Queues an image for download using the shared thread pool.
+    ///
+    /// This is the recommended method for requesting image downloads. It works with any
+    /// type that implements `HasDisplayableImage`, making it flexible for different
+    /// data types beyond just Anime objects.
+    ///
+    /// The method sends the item to the fetcher thread for processing. The fetcher
+    /// thread will download the image and set up the resize protocol, while the
+    /// resizer thread handles all resize operations.
+    ///
+    /// # Arguments
+    ///
+    /// * `instance` - Arc<Mutex<Self>> reference to the ImageManager instance
+    /// * `item` - Any item implementing `HasDisplayableImage` trait
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Must implement `HasDisplayableImage` trait
+    ///
+    /// # Behavior
+    ///
+    /// - Returns early if the ImageManager is not initialized with thread pool mode
+    /// - Skips processing if the image is already loaded or being processed
+    /// - Queues the item for background processing by the fetcher thread
+    /// - Creates a placeholder entry immediately to prevent duplicate requests
+    ///
+    /// # Performance
+    ///
+    /// This method is non-blocking and returns immediately. The actual image download
+    /// and processing happens asynchronously in the background threads.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// // Initialize with shared thread pool first
+    /// ImageManager::init_with_threads(&image_manager, app_sender);
+    ///
+    /// // Queue multiple images efficiently
+    /// for anime in anime_list {
+    ///     ImageManager::query_image_for_fetching(&image_manager, &anime);
+    /// }
+    ///
+    /// // Works with any type implementing HasDisplayableImage
+    /// ImageManager::query_image_for_fetching(&image_manager, &manga);
+    /// ImageManager::query_image_for_fetching(&image_manager, &character);
+    /// ```
     pub fn query_image_for_fetching<T: HasDisplayableImage>(instance: &Arc<Mutex<Self>>, item: &T) {
         {
             let mut instance = instance.lock().unwrap();
@@ -437,14 +447,14 @@ impl ImageManager {
     ///
     /// # Arguments
     ///
-    /// * `id` - The anime ID to associate with this protocol
+    /// * `id` - The unique ID to associate with this protocol
     /// * `protocol` - The custom thread protocol for handling this image
     ///
     /// # Examples
     ///
     /// ```rust
     /// // Usually called internally, but can be used for custom protocols
-    /// image_manager.load_image(anime_id, custom_protocol);
+    /// image_manager.load_image(image_id, custom_protocol);
     /// ```
     pub fn load_image(&mut self, id: usize, protocol: CustomThreadProtocol) {
         if self.app_sx.is_none() {
@@ -454,6 +464,15 @@ impl ImageManager {
         self.protocols.insert(id, protocol);
     }
 
+    /// Loads an empty placeholder protocol for an image ID.
+    ///
+    /// This method creates a placeholder entry in the protocols map to indicate
+    /// that an image is being processed. This prevents duplicate requests for
+    /// the same image while it's being downloaded.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - The unique ID to create a placeholder for
     pub fn load_empy_image(&mut self, id: usize) {
         if self.app_sx.is_none() {
             eprintln!("App sender is not initialized");
@@ -467,45 +486,53 @@ impl ImageManager {
     /// Removes an image from the ImageManager and cleans up its resources.
     ///
     /// This method removes the image protocol from the internal storage, which
-    /// will cause the associated background thread to terminate automatically
-    /// when its channel is closed.
+    /// will cause any associated background processing to be cleaned up automatically
+    /// when channels are closed.
     ///
     /// # Arguments
     ///
-    /// * `id` - The anime ID of the image to remove
+    /// * `id` - The unique ID of the image to remove
     ///
     /// # Thread Cleanup
     ///
-    /// Removing an image automatically signals its background thread to terminate,
-    /// preventing resource leaks from unused images.
+    /// Removing an image helps with memory management and prevents resource leaks
+    /// from unused images.
     ///
     /// # Examples
     ///
     /// ```rust
     /// // Remove an image when it's no longer needed
-    /// image_manager.remove_image(anime_id);
+    /// image_manager.remove_image(image_id);
     /// ```
     pub fn remove_image(&mut self, id: usize) {
         self.protocols.remove(&id);
     }
 
-    /// Renders an anime cover image to the terminal frame.
+    /// Renders an image to the terminal frame.
     ///
     /// This method renders the image at the specified area using ratatui's
     /// StatefulImage widget. If the image is not loaded or is currently being
-    /// processed, nothing will be rendered.
+    /// processed, it can optionally trigger a fetch operation.
     ///
     /// # Arguments
     ///
-    /// * `id` - The anime ID of the image to render
+    /// * `instance` - Arc<Mutex<Self>> reference to the ImageManager instance
+    /// * `item` - Any item implementing `HasDisplayableImage` trait
     /// * `frame` - The ratatui frame to render into
     /// * `area` - The rectangular area where the image should be displayed
+    /// * `fetch_if_not_found` - Whether to automatically fetch the image if not found
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - Must implement `HasDisplayableImage` trait
     ///
     /// # Behavior
     ///
-    /// - Returns silently if the image is not found
+    /// - Renders the image if it's loaded and ready
+    /// - If `fetch_if_not_found` is true and the image isn't found, automatically queues it for download
+    /// - Returns silently if the item doesn't have a displayable image
     /// - Automatically handles image scaling to fit the specified area
-    /// - Triggers resize operations if the area size has changed
+    /// - Uses a try_lock to avoid blocking if the ImageManager is busy
     ///
     /// # Examples
     ///
@@ -513,7 +540,12 @@ impl ImageManager {
     /// // In your render loop
     /// fn render(&mut self, frame: &mut Frame) {
     ///     let image_area = Rect::new(0, 0, 20, 10);
-    ///     image_manager.render_image(anime_id, frame, image_area);
+    ///     
+    ///     // Render with automatic fetching
+    ///     ImageManager::render_image(&image_manager, &anime, frame, image_area, true);
+    ///     
+    ///     // Render without fetching (only show if already loaded)
+    ///     ImageManager::render_image(&image_manager, &anime, frame, image_area, false);
     /// }
     /// ```
     pub fn render_image<T: HasDisplayableImage>(
@@ -557,12 +589,12 @@ impl ImageManager {
     /// Updates an image with the results of a resize operation.
     ///
     /// This method is typically called from the main event loop when receiving
-    /// `Event::ImageRedraw` events. It updates the image protocol with the
-    /// completed resize operation, allowing the image to be rendered at the new size.
+    /// image update events from the background threads. It updates the image protocol
+    /// with the completed resize operation, allowing the image to be rendered at the new size.
     ///
     /// # Arguments
     ///
-    /// * `id` - The anime ID of the image to update
+    /// * `id` - The unique ID of the image to update
     /// * `response` - The result of the resize operation, either success or error
     ///
     /// # Returns
@@ -578,17 +610,10 @@ impl ImageManager {
     /// # Examples
     ///
     /// ```rust
-    /// // In your event handling code
-    /// match event {
-    ///     Event::ImageRedraw(id, response) => {
-    ///         image_manager.update_image(id, response);
-    ///     }
-    ///     _ => {}
-    /// }
-    ///
-    /// // Or called directly from an event handler
-    /// fn image_redraw(&mut self, id: usize, response: Result<CustomResizeResponse, Errors>) {
-    ///     self.image_manager.lock().unwrap().update_image(id, response);
+    /// // Usually called internally by the resize thread, but can be used manually
+    /// let success = image_manager.update_image(image_id, resize_result);
+    /// if !success {
+    ///     eprintln!("Failed to update image");
     /// }
     /// ```
     pub fn update_image(

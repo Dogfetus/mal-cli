@@ -8,12 +8,17 @@ use std::{
 
 use crate::{
     app::{Action, Event},
-    config::{anime_list_colors, ERROR_COLOR, HIGHLIGHT_COLOR, PRIMARY_COLOR, SECONDARY_COLOR},
+    config::{ERROR_COLOR, HIGHLIGHT_COLOR, PRIMARY_COLOR, SECONDARY_COLOR, anime_list_colors},
     mal::{
-        models::anime::{status_is_known, Anime, AnimeId, DeleteOrUpdate, MyListStatus}, MalClient
+        MalClient,
+        models::anime::{Anime, AnimeId, DeleteOrUpdate, MyListStatus, status_is_known},
     },
     screens::{BackgroundUpdate, ExtraInfo},
-    utils::{imageManager::ImageManager, stringManipulation::format_date, terminalCapabilities::TERMINAL_RATIO},
+    utils::{
+        imageManager::ImageManager,
+        stringManipulation::{DisplayString, format_date},
+        terminalCapabilities::TERMINAL_RATIO,
+    },
 };
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
@@ -47,7 +52,7 @@ enum Focus {
 // #[derive(PartialEq, Clone, Debug)]
 enum LocalEvent {
     UserChoice(usize, Anime),
-    ExtraInfo(Anime)
+    ExtraInfo(Anime),
 }
 
 #[derive(Clone)]
@@ -102,12 +107,12 @@ impl AnimePopup {
         Some(std::thread::spawn(move || {
             while let Ok(event) = reveicer.recv() {
                 match event {
-                    // send any userchoice to the mal backend 
+                    // send any userchoice to the mal backend
                     LocalEvent::UserChoice(index, anime) => {
                         match info.mal_client.update_user_list(anime) {
                             Ok(result) => {
-                                let update =
-                                    BackgroundUpdate::new("popup").set("success", (index, result.clone()));
+                                let update = BackgroundUpdate::new("popup")
+                                    .set("success", (index, result.clone()));
                                 info.app_sx.send(Event::BackgroundNotice(update)).ok();
                             }
                             Err(e) => {
@@ -123,18 +128,21 @@ impl AnimePopup {
 
                     // update the number of released episodes
                     LocalEvent::ExtraInfo(anime) => {
-                        let available_episodes = mal_client
-                            .get_available_episodes(anime.id)
-                            .unwrap_or(None);
-                         if let Some(episodes) = available_episodes {
-                            app_sx.send(
-                                Event::StorageUpdate(anime.id, Box::new(move |anime: &mut Anime| {
-                                    anime.num_released_episodes = Some(episodes);
-                                    if anime.num_episodes == 0 {
-                                        anime.num_episodes = episodes;
-                                    }
-                                }))
-                            ).unwrap();
+                        let available_episodes =
+                            mal_client.get_available_episodes(anime.id).unwrap_or(None);
+                        if let Some(episodes) = available_episodes {
+                            app_sx
+                                .send(Event::StorageUpdate(
+                                    anime.id,
+                                    Box::new(move |anime: &mut Anime| {
+                                        anime.num_released_episodes = Some(episodes);
+                                        if anime.num_episodes == 0 {
+                                            anime.num_episodes = episodes;
+                                            anime.episode_count_ready = false;
+                                        }
+                                    }),
+                                ))
+                                .unwrap();
                         }
                     }
                 }
@@ -147,7 +155,7 @@ impl AnimePopup {
         if let Some((index, (_, update))) =
             update.take::<(usize, (usize, DeleteOrUpdate))>("success")
         {
-            self.app_info.anime_store.update(self.anime_id, |anime|{
+            self.app_info.anime_store.update(self.anime_id, |anime| {
                 anime.my_list_status = match update {
                     DeleteOrUpdate::Deleted(_vec) => MyListStatus::default(),
                     DeleteOrUpdate::Updated(status) => status,
@@ -179,10 +187,7 @@ impl AnimePopup {
     pub fn set_play_button_episode(&mut self, episode: Option<u32>) -> &Self {
         // if an anime is given set the button to its episode
         if let Some(episode) = episode {
-            self.buttons[0] = format!(
-                "Play ▶ (EP {})",
-                episode
-            );
+            self.buttons[0] = format!("Play ▶ (EP {})", episode);
             return self;
         }
 
@@ -207,18 +212,20 @@ impl AnimePopup {
 
         // if the anime has released episodes and the next episode to play is higher than the available episodes
         if let Some(available_episodes) = anime.num_released_episodes {
-            let episode_to_play = (anime.my_list_status.num_episodes_watched + 1).min(anime.num_episodes);
+            let episode_to_play =
+                (anime.my_list_status.num_episodes_watched + 1).min(anime.num_episodes);
             if episode_to_play > available_episodes {
-                self.buttons[0] = format!(
-                    "Try to play (EP {})",
-                    episode_to_play
-                )
+                self.buttons[0] = format!("Try to play (EP {})", episode_to_play)
             }
         }
         self
     }
     pub fn update_buttons(&mut self) -> &Self {
-        let anime = self.app_info.anime_store.get(&self.anime_id).expect("unexpected anime id given");
+        let anime = self
+            .app_info
+            .anime_store
+            .get(&self.anime_id)
+            .expect("unexpected anime id given");
 
         self.set_play_button_episode(None);
         let episode_options: Vec<String> = (0..=anime.num_episodes.max(1))
@@ -265,7 +272,8 @@ impl AnimePopup {
 
         if anime.num_released_episodes.is_none() {
             self.background_transmitter
-                .send(LocalEvent::ExtraInfo(anime)).ok();
+                .send(LocalEvent::ExtraInfo(anime))
+                .ok();
         }
         self
     }
@@ -394,18 +402,20 @@ impl AnimePopup {
                                             selection.to_lowercase().replace(" ", "_");
                                     }
                                     1 => {
-                                        anime.my_list_status.score =
-                                            selection.parse().unwrap_or(0);
+                                        anime.my_list_status.score = selection.parse().unwrap_or(0);
                                     }
                                     2 => {
                                         anime.my_list_status.num_episodes_watched =
                                             selection.parse().unwrap_or(0);
-                                        if !status_is_known(anime.my_list_status.status.clone()) && anime.my_list_status.num_episodes_watched == 0 {
+                                        if !status_is_known(anime.my_list_status.status.clone())
+                                            && anime.my_list_status.num_episodes_watched == 0
+                                        {
                                             return None;
-                                        }
-                                        else if !status_is_known(anime.my_list_status.status.clone()) {
+                                        } else if !status_is_known(
+                                            anime.my_list_status.status.clone(),
+                                        ) {
                                             anime.my_list_status.status = "watching".to_string();
-                                        } 
+                                        }
                                     }
                                     _ => return None,
                                 }
@@ -414,10 +424,10 @@ impl AnimePopup {
                                     .ok();
                                 dropdown.set_color(Color::White);
 
-                                self.set_play_button_episode(
-                                    Some((anime.my_list_status.num_episodes_watched + 1)
-                                        .min(anime.num_episodes)),
-                                );
+                                self.set_play_button_episode(Some(
+                                    (anime.my_list_status.num_episodes_watched + 1)
+                                        .min(anime.num_episodes),
+                                ));
                             }
                         }
                     }
@@ -635,9 +645,9 @@ impl AnimePopup {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(2),
-                Constraint::Length(6),
+                Constraint::Length(8),
                 Constraint::Length(2),
-                Constraint::Length(6),
+                Constraint::Length(8),
             ])
             .areas(info_area);
 
@@ -648,41 +658,49 @@ impl AnimePopup {
             .style(Style::default().fg(PRIMARY_COLOR));
         frame.render_widget(block, info_area);
 
+        let startseason = DisplayString::new()
+            .add(anime.start_season.to_string())
+            .uppercase(0)
+            .build("{0}");
+
         InfoBox::new()
             .add_ranked_item("Ranked", anime.rank.to_string())
             .add_ranked_item("Popularity", anime.popularity.to_string())
             .add_text_item("Members", anime.num_list_users.to_string())
             .add_row()
-            .add_text_item("Start", anime.start_season.to_string())
+            .add_text_item("Start", startseason)
             .add_text_item("type", anime.media_type.to_string())
             .add_text_item("studio", anime.studios_as_string())
             .add_row()
-            .add_text_item("End", anime.end_date.to_string())
-            .add_text_item("Episodes", anime.num_episodes.to_string())
+            .add_text_item(
+                "Episodes",
+                format!(
+                    "{}/{}",
+                    anime.num_released_episodes.unwrap_or(0).to_string(),
+                    if anime.episode_count_ready {
+                        anime.num_episodes.to_string()
+                    } else {
+                        "?".to_string()
+                    }
+                ),
+            )
+            .add_text_item("Duration", anime.average_episode_duration.to_string())
+            .add_text_item("Rating", anime.rating.to_string())
+            .add_row()
             .add_text_item("Status", anime.status.to_string())
-            .render(
-                frame,
-                info_area_one,
-                Margin::new(8, 0),
-                PRIMARY_COLOR,
-            );
+            .add_text_item("Source", anime.source.to_string())
+            .add_text_item("Id", anime.id.to_string())
+            .render(frame, info_area_one, Margin::new(8, 0), PRIMARY_COLOR);
 
         InfoBox::new()
             .add_text_item("Added", format_date(&anime.created_at))
+            .add_row()
             .add_text_item("Updated", format_date(&anime.updated_at))
-            .add_text_item("Aired", format_date(&anime.start_date))
             .add_row()
-            .add_text_item("Rating", anime.rating.to_string())
-            .add_text_item("Duration", anime.average_episode_duration.to_string())
-            .add_text_item("Id", anime.id.to_string())
+            .add_text_item("Started", format_date(&anime.start_date))
             .add_row()
-            .add_text_item("Available", anime.num_released_episodes.unwrap_or(0).to_string())
-            .render(
-                frame,
-                info_area_two,
-                Margin::new(8, 0),
-                PRIMARY_COLOR,
-            );
+            .add_text_item("Ended", format_date(&anime.end_date))
+            .render(frame, info_area_two, Margin::new(8, 0), PRIMARY_COLOR);
 
         // buttons within info area
         let status_buttons_area = Rect {
@@ -1192,12 +1210,7 @@ impl SelectionPopup {
                 return;
             }
 
-            let options_area = Rect::new(
-                area.x,
-                area.y + area.height,
-                area.width,
-                popup_height,
-            );
+            let options_area = Rect::new(area.x, area.y + area.height, area.width, popup_height);
             frame.render_widget(Clear, options_area);
 
             let options_block = Block::default()
@@ -1213,7 +1226,8 @@ impl SelectionPopup {
                 0
             };
 
-            let visible_options = self.options
+            let visible_options = self
+                .options
                 .iter()
                 .enumerate()
                 .skip(start_index)
@@ -1283,7 +1297,7 @@ impl SelectionPopup {
                 if start_index > 0 {
                     frame.render_widget(
                         Paragraph::new("↑").style(Style::default().fg(HIGHLIGHT_COLOR)),
-                        Rect::new(scroll_info_area.x, scroll_info_area.y, 1, 1)
+                        Rect::new(scroll_info_area.x, scroll_info_area.y, 1, 1),
                     );
                 }
 
@@ -1291,19 +1305,17 @@ impl SelectionPopup {
                     frame.render_widget(
                         Paragraph::new("↓").style(Style::default().fg(HIGHLIGHT_COLOR)),
                         Rect::new(
-                            scroll_info_area.x, 
-                            scroll_info_area.y + scroll_info_area.height.saturating_sub(1), 
-                            1, 
-                            1
-                        )
+                            scroll_info_area.x,
+                            scroll_info_area.y + scroll_info_area.height.saturating_sub(1),
+                            1,
+                            1,
+                        ),
                     );
                 }
             }
         }
     }
-
 }
-
 
 #[derive(Clone)]
 pub struct ErrorPopup {
@@ -1378,12 +1390,12 @@ impl ErrorPopup {
         let area = frame.area();
 
         let max_width = std::cmp::min(
-            self.width, 
-            std::cmp::max(area.width * 4 / 5, area.width.saturating_sub(4))
+            self.width,
+            std::cmp::max(area.width * 4 / 5, area.width.saturating_sub(4)),
         );
         let max_height = std::cmp::min(
-            self.height, 
-            std::cmp::max(area.height * 4 / 5, area.height.saturating_sub(4))
+            self.height,
+            std::cmp::max(area.height * 4 / 5, area.height.saturating_sub(4)),
         );
 
         let popup_area = Rect::new(
