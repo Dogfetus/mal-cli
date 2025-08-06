@@ -62,7 +62,7 @@ impl MalClient {
     }
 
     //TODO: add a check for token validity
-    pub fn login_from_file(&mut self) -> bool {
+    pub fn login_from_file(&self) -> bool {
         if !fs::metadata(".mal/client").is_ok() {
             return false;
         }
@@ -81,6 +81,10 @@ impl MalClient {
             return true;
         }
         false
+    }
+
+    pub fn update_user_login(&self) {
+        self.login_from_file();
     }
 
     pub fn log_out() {

@@ -35,6 +35,7 @@ pub enum Action {
     SwitchScreen(&'static str),
     ShowOverlay(AnimeId),
     NavbarSelect(bool),
+    ShowError(String),
     Quit,
 }
 
@@ -224,6 +225,9 @@ impl App {
                 }
                 Action::PlayAnime(anime_id) => {
                     self.play_anime(anime_id);
+                }
+                Action::ShowError(message) => {
+                    self.screen_manager.show_error(message);
                 }
                 Action::Quit => {
                     self.is_running = false;

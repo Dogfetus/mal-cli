@@ -86,7 +86,12 @@ impl Screen for LaunchScreen {
             }
             KeyCode::Enter => {
                 match self.selected_button {
-                    0 => return Some(Action::SwitchScreen(OVERVIEW)),
+                    0 => 
+                    if MalClient::user_is_logged_in() {
+                        return Some(Action::SwitchScreen(OVERVIEW));
+                    } else {
+                        return Some(Action::ShowError("Please log in to browse".to_string()));
+                    },
                     1 => {
 
                         // return None;

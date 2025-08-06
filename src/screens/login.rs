@@ -131,7 +131,12 @@ impl Screen for LoginScreen {
             }
             KeyCode::Enter => {
                 match self.selected_button {
-                    _ => { return Some(Action::SwitchScreen(LAUNCH)); }
+                    _ => { 
+                        if MalClient::user_is_logged_in() {
+                            self.login_url.clear();
+                        }
+                        return Some(Action::SwitchScreen(LAUNCH));
+                    }
                 }
             }
             _ => {} 
@@ -151,6 +156,7 @@ impl Screen for LoginScreen {
         let login_url = self.login_url.clone();
         let id = self.get_name();
         let info = self.app_info.clone();
+        let mal_client = info.mal_client.clone(); 
 
         Some(std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_millis(100));
@@ -172,6 +178,7 @@ impl Screen for LoginScreen {
             }
 
             joinable.join().unwrap();  
+            mal_client.update_user_login();
             let new_url = "Login successful".to_string();
             let update = BackgroundUpdate::new(id.clone())
                 .set("login_url", new_url);
