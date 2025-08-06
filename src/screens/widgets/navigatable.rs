@@ -210,4 +210,43 @@ impl Navigatable{
             }
         }
     }
+
+    pub fn construct_mut<T, F>(&mut self, items: &mut [T], area: Rect, mut callback: F)
+    where
+        F: FnMut(&mut T, Rect, bool),
+    {
+        if items.is_empty() {
+            return;
+        }
+
+        self.total_items = items.len();
+
+        let grid = self.create_grid(area);
+
+        if self.reverse {
+            for (visible_idx, absolute_idx) in self.visible_indices().enumerate().rev() {
+                let row = visible_idx / self.cols as usize;
+                let col = visible_idx % self.cols as usize;
+
+                if row < grid.len() && col < grid[row].len() {
+                    let item = &mut items[absolute_idx];
+                    let is_selected = absolute_idx == self.selected;
+                    callback(item, grid[row][col], is_selected);
+                }
+            }
+        }
+
+        else {
+            for (visible_idx, absolute_idx) in self.visible_indices().enumerate() {
+                let row = visible_idx / self.cols as usize;
+                let col = visible_idx % self.cols as usize;
+
+                if row < grid.len() && col < grid[row].len() {
+                    let item = &mut items[absolute_idx];
+                    let is_selected = absolute_idx == self.selected;
+                    callback(item, grid[row][col], is_selected);
+                }
+            }
+        }
+    }
 }

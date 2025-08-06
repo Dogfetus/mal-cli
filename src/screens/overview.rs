@@ -1,57 +1,83 @@
-use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 use std::fs::OpenOptions;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 
-use super::widgets::navbar::NavBar;
-use super::widgets::navigatable::{self, Navigatable};
-use super::{BackgroundUpdate, ExtraInfo, Screen, screens::*};
+use super::widgets::animebox::AnimeBox;
+use super::widgets::navigatable::Navigatable;
+use super::{BackgroundUpdate, ExtraInfo, Screen};
 use crate::app::{Action, Event};
-use crate::config::PRIMARY_COLOR;
-use crate::mal::models::anime::Anime;
-use crate::utils::terminalCapabilities::get_picker;
+use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
+use crate::mal::models::anime::AnimeId;
+use crate::utils::functionStreaming::StreamableRunner;
+use crate::utils::imageManager::ImageManager;
 use crossterm::event::{KeyCode, KeyEvent};
+use indexmap::IndexSet;
 use ratatui::layout::{Margin, Rect};
-use ratatui::widgets::{Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};
+use ratatui::style::Stylize;
+use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
-    symbols,
     widgets::{Block, Borders, Clear},
 };
-use ratatui_image::{
-    StatefulImage,
-    thread::{ResizeRequest, ResizeResponse, ThreadProtocol},
-};
+use tui_widgets::big_text::{BigText, PixelSize};
+
+
+#[derive(PartialEq, Clone)]
+enum Focus {
+    NavBar,
+    Content,
+}
+
+#[derive(Clone)]
+struct List {
+    title: String,
+    navigatable: Navigatable,
+    items: Vec<AnimeId>,
+}
 
 #[derive(Clone)]
 pub struct OverviewScreen {
     bg_loaded: bool,
-    animes: Vec<Anime>,
     scroll_offset: u16,
     app_info: ExtraInfo,
+    image_manager: Arc<Mutex<ImageManager>>,
+
     navigation: Navigatable,
+    lists: Vec<List>,
+    focus: Focus,
 }
 
 impl OverviewScreen {
     pub fn new(info: ExtraInfo) -> Self {
         Self {
-            animes: vec![
-                Anime::example(1),
-                Anime::example(2),
-                Anime::example(3),
-                Anime::example(4),
-                Anime::example(5),
-            ],
-
             scroll_offset: 0,
             app_info: info,
             bg_loaded: false,
-            navigation: Navigatable::new((1, 3)),
+            image_manager: Arc::new(Mutex::new(ImageManager::new())),
+            navigation: Navigatable::new((3, 1)),
+            lists: vec![
+                List {
+                    title: "Recently Watched".to_string(),
+                    navigatable: Navigatable::new((1, 5)),
+                    items: vec![],
+                },
+                List {
+                    title: "Suggested Animes".to_string(),
+                    navigatable: Navigatable::new((1, 5)),
+                    items: vec![],
+                },
+                List {
+                    title: "Most Popular".to_string(),
+                    navigatable: Navigatable::new((1, 5)),
+                    items: vec![],
+                },
+            ],
+            focus: Focus::Content,
         }
     }
 }
@@ -63,39 +89,147 @@ impl Screen for OverviewScreen {
 
         let [_, content] = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(6), Constraint::Fill(1)])
+            .constraints([
+                Constraint::Length(2), 
+                Constraint::Fill(1)
+            ])
             .areas(area);
 
+        // this is the outer navigatable meaning it splits into the vertical thre sections
         self.navigation
-            .construct(&self.animes, content, |anime, area, highlighted| {
-                let b = Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(PRIMARY_COLOR))
-                    .title(anime.title.clone())
-                    .title_alignment(ratatui::layout::Alignment::Center)
-                    .style(if highlighted {
-                        Style::default().fg(Color::Yellow)
-                    } else {
-                        Style::default().fg(Color::White)
-                    });
+            .construct_mut(&mut self.lists, content, |list, area, highlighted| {
+                let area = Rect::new(
+                    area.x,
+                    area.y + 3,
+                    area.width,
+                    area.height.saturating_sub(2),
+                );
 
-                frame.render_widget(b, area);
+                // determine the highlighted color
+                let color = if highlighted && self.focus == Focus::Content {
+                    HIGHLIGHT_COLOR
+                } else {
+                    PRIMARY_COLOR
+                };
+
+                // draw a box for the highlighted section
+                let block = Block::default()
+                    .borders(Borders::TOP)
+                    .border_style(Style::default().fg(color));
+                frame.render_widget(block, area.inner(Margin {
+                    vertical: 1,
+                    horizontal: 3,
+                }));
+
+                // split into title and list area (for each list section)
+                let [title_area, list_area, _] = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([
+                        Constraint::Length(3), 
+                        Constraint::Fill(1), 
+                        Constraint::Length(1)
+                    ])
+                    .areas(area.inner(Margin {
+                        vertical: 0,
+                        horizontal: 8,
+                    }));
+
+                // add margin to the title 
+                let [_, title_area] = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([Constraint::Fill(1), Constraint::Length(3)])
+                    .areas(title_area);
+
+                let title = BigText::builder()
+                    .style(Style::new().fg(color))
+                    .pixel_size(PixelSize::Sextant)
+                    .lines(vec![list.title.clone().into()])
+                    .build();
+
+                frame.render_widget(title, title_area);
+
+                // this is the inner navigatable (the vertical sections)
+                list.navigatable.construct(
+                    &list.items,
+                    list_area,
+                    |anime_id, inner_area, inner_highlighted| {
+                        if let Some(anime) = &self.app_info.anime_store.get(anime_id) {
+                            AnimeBox::render(
+                                anime,
+                                &self.image_manager,
+                                frame,
+                                inner_area.inner(Margin {
+                                    vertical: 0,
+                                    horizontal: 3,
+                                }),
+                                inner_highlighted && highlighted && self.focus == Focus::Content,
+                            )
+                        } else {
+                            let text = format!("Anime with ID {} not found", anime_id);
+                            let paragraph = Paragraph::new(text)
+                                .block(Block::default().borders(Borders::ALL))
+                                .style(Style::default().fg(Color::Red))
+                                .wrap(Wrap { trim: true });
+                            frame.render_widget(paragraph, inner_area);
+                        }
+                    },
+                );
             });
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
-        match key_event.code {
-            KeyCode::Up | KeyCode::Char('j') => {
-                self.scroll_offset = self.scroll_offset.saturating_sub(1);
+        match self.focus {
+            Focus::NavBar => {
+                self.focus = Focus::Content;
             }
-            KeyCode::Down | KeyCode::Char('k') => {
-                self.scroll_offset += 1;
+
+            Focus::Content => {
+                if key_event
+                    .modifiers
+                    .contains(crossterm::event::KeyModifiers::CONTROL)
+                {
+                    match key_event.code {
+                        KeyCode::Char('j') | KeyCode::Up => {
+                            self.focus = Focus::NavBar;
+                            return Some(Action::NavbarSelect(true));
+                        }
+                        _ => {}
+                    }
+
+                    return None;
+                }
+
+                match key_event.code {
+                    KeyCode::Char('k') | KeyCode::Down => {
+                        self.navigation.move_down();
+                    }
+                    KeyCode::Char('j') | KeyCode::Up => {
+                        self.navigation.move_up();
+                    }
+                    KeyCode::Char('l') | KeyCode::Right => {
+                        if let Some(selected) = self.navigation.get_selected_item_mut(&mut self.lists) {
+                            selected.navigatable.move_right();
+                        }
+                    }
+
+                    KeyCode::Char('h') | KeyCode::Left => {
+                        if let Some(selected) = self.navigation.get_selected_item_mut(&mut self.lists) {
+                            selected.navigatable.move_left();
+                        }
+                    }
+                    KeyCode::Enter => {
+                        if let Some(selected) = self.navigation.get_selected_item_mut(&mut self.lists) {
+                            if let Some(anime_id) = selected.navigatable.get_selected_item(&selected.items) {
+                                return Some(Action::ShowOverlay(*anime_id));
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+
             }
-            KeyCode::Enter => {
-                return Some(Action::NavbarSelect(true));
-            }
-            _ => {}
-        };
+        }
+
         None
     }
 
@@ -104,9 +238,11 @@ impl Screen for OverviewScreen {
             return None;
         }
         self.bg_loaded = true;
+
+        ImageManager::init_with_threads(&self.image_manager, self.app_info.app_sx.clone());
         let info = self.app_info.clone();
         let id = self.get_name();
-
+        let sender = info.app_sx.clone();
         let app_dir = std::env::var("HOME")
             .ok()
             .map(|home| PathBuf::from(home).join(".local/share/mal-cli"))
@@ -114,22 +250,94 @@ impl Screen for OverviewScreen {
         let log_file = app_dir.join("watch_history");
 
         Some(thread::spawn(move || {
-            if let Ok(file) = OpenOptions::new().open(log_file) {
-
-                // read line by line
+            if let Ok(file) = OpenOptions::new().read(true).open(log_file) {
+                // this is first to fetch the file where the recent watched animes are
                 let content = BufReader::new(file);
-                for line in content.lines() {
-                    if let Ok(line) = line {}
-                    // TODO: idk if this will be necessary, considering this may or may not reuslt
-                    // in me fetching multiple requests a second, unless only the title is
-                    // necesarry which might be good enough. we'll see
+                let entries: Vec<String> = content.lines().filter_map(|line| line.ok()).collect();
+                let mut animes = IndexSet::new();
+
+                for entry in entries.iter().rev() {
+                    let parts: Vec<&str> = entry.split(" -> ").collect();
+                    if parts.len() < 7 {
+                        // unexpected format, skip this entry
+                        continue;
+                    }
+
+                    // idk what to do with this inforamiton yet but here it is.
+                    let (timestamp, anime_id, title, episode, watched_time, percentage, completed) = (
+                        parts[0].to_string(),
+                        parts[1].parse::<AnimeId>().expect("Failed to read history"),
+                        parts[2].to_string(),
+                        parts[3].to_string(),
+                        parts[4].to_string(),
+                        parts[5].to_string(),
+                        parts[6].to_string(),
+                    );
+
+                    // save each individual anime id to the set
+                    animes.insert(anime_id);
+                }
+
+                let animes: Vec<AnimeId> = animes.into_iter().collect();
+                let update = BackgroundUpdate::new(id.clone()).set("WatchHistory", animes);
+                sender.send(Event::BackgroundNotice(update)).ok();
+
+
+                // then we fetch the animes data from the mal api (this is just the users list as
+                // the watchd animes will allways be in the users list after a watch)
+                // this information will just be handled by the app and the store, and will not be
+                // retrieved in this local apply_update
+                let anime_generator = StreamableRunner::new()
+                    .stop_at(1);
+
+                // this is the users list of animes
+                for animes in anime_generator.run(|offset, limit| {
+                    info.mal_client
+                        .get_anime_list(None, offset, limit)
+                }) {
+                    let update = BackgroundUpdate::new(id.clone())
+                        .set("animes", animes);
+                    info.app_sx.send(Event::BackgroundNotice(update)).ok();
+                }
+
+                // this is the suggested animes
+                for animes in anime_generator.run(|offset, limit| {
+                    info.mal_client
+                        .get_suggested_anime(offset, limit)
+                }) {
+                    let anime_ids = animes.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
+                    let update = BackgroundUpdate::new(id.clone())
+                        .set("animes", animes)
+                        .set("SuggestedAnime", anime_ids);
+                    info.app_sx.send(Event::BackgroundNotice(update)).ok();
+                }
+
+                // this is the most popular animes
+                for animes in anime_generator.run(|offset, limit| {
+                    info.mal_client
+                        .get_top_anime("bypopularity".to_string(), offset, limit)
+                }) {
+                    let anime_ids = animes.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
+                    let update = BackgroundUpdate::new(id.clone())
+                        .set("animes", animes)
+                        .set("PopularAnime", anime_ids);
+                    info.app_sx.send(Event::BackgroundNotice(update)).ok();
                 }
             }
         }))
     }
 
-    fn apply_update(&mut self, update: BackgroundUpdate) {
-        // Handle updates from the background thread if needed
-        // For now, we do nothing
+    fn apply_update(&mut self, mut update: BackgroundUpdate) {
+        if let Some(watch_history) = update.take::<Vec<AnimeId>>("WatchHistory") {
+            self.lists[0].items = watch_history;
+        }
+
+        if let Some(suggested_anime) = update.take::<Vec<AnimeId>>("SuggestedAnime") {
+            self.lists[1].items = suggested_anime;
+        }
+
+        if let Some(popular_anime) = update.take::<Vec<AnimeId>>("PopularAnime") {
+            self.lists[2].items = popular_anime;
+        }
     }
 }

@@ -1,4 +1,4 @@
-use std::sync::OnceLock;
+use std::{sync::OnceLock, thread, time::Duration};
 use ratatui_image::picker::Picker;
 
 static GLOBAL_PICKER: OnceLock<Picker> = OnceLock::new();
@@ -16,9 +16,27 @@ impl TerminalCapabilities {
         }
     }
  
+
     fn get_picker() -> &'static Picker {
         GLOBAL_PICKER.get_or_init(|| {
-            Picker::from_query_stdio().expect("Failed to initialize Picker")
+            let max_retries = 30;
+            let retry_delay = Duration::from_millis(100);
+
+            for attempt in 1..=max_retries {
+                match Picker::from_query_stdio() {
+                    Ok(picker) => {
+                        return picker;
+                    }
+                    Err(e) => {
+                        eprintln!("Attempt {}/{} failed: {}", attempt, max_retries, e);
+                        if attempt < max_retries {
+                            thread::sleep(retry_delay);
+                        }
+                    }
+                }
+            }
+
+            panic!("Failed to initialize Picker after {} attempts (quitting)", max_retries);
         })
     }
  

@@ -149,8 +149,9 @@ impl App {
         let timestamp = now.format("%Y-%m-%d %H:%M:%S");
         let log_file = app_dir.join("watch_history");
         let log_entry = format!(
-            "{} -> \"{}\" -> {} -> {}/{} -> {} -> {}\n",
+            "{} -> {} -> \"{}\" -> {} -> {}/{} -> {} -> {}\n",
             timestamp,
+            anime.id,
             anime.title,
             details.episode,
             details.current_time,

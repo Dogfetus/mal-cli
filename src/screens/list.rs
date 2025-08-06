@@ -540,7 +540,7 @@ impl Screen for ListScreen {
 
             for animes in anime_generator.run(|offset, limit| {
                 info.mal_client
-                    .get_anime_list(None, offset as u16, limit as u16)
+                    .get_anime_list(None, offset, limit)
             }) {
                 let anime_ids = animes.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
                 let update = BackgroundUpdate::new(id.clone())

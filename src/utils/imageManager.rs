@@ -434,7 +434,7 @@ impl ImageManager {
                     eprintln!("Failed to send anime to fetcher thread: {}", e);
                 }
             } else {
-                eprintln!("Fetcher thread is not initialized");
+                eprintln!("Fetcher thread is not initialized (ImageManager has not been initialized properly");
             }
         }
     }
@@ -580,7 +580,7 @@ impl ImageManager {
                         eprintln!("Failed to send anime to fetcher thread: {}", e);
                     }
                 } else {
-                    eprintln!("Fetcher thread is not initialized");
+                    eprintln!("Fetcher thread is not initialized (ImageManager has not been initialized properly");
                 }
             }
         }

@@ -16,6 +16,7 @@ macro_rules! params {
     };
 }
 
+// this proxy url is just used to access a local cache server, for debugging and development
 // pub const PROXY: &str = "http://localhost:1111/proxy?url=";
 pub const PROXY: &str = "";
 const MAX_RETRIES: u32 = 5;

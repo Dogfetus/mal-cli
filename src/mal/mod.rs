@@ -142,6 +142,17 @@ impl MalClient {
         )
     }
 
+    pub fn get_suggested_anime(&self, offset: usize, limit: usize) -> Option<Vec<Anime>> {
+        self.send_request::<Anime>(
+            format!("{}/anime/suggestions", BASE_URL),
+            params![
+                "fields" => fields::ALL.join(","),
+                "limit" => limit,
+                "offset" => offset,
+            ],
+        )
+    }
+
     pub fn get_top_anime(&self, filter: String, offset: usize, limit: usize) -> Option<Vec<Anime>> {
         self.send_request::<Anime>(
             format!("{}/anime/ranking", BASE_URL),
@@ -178,8 +189,8 @@ impl MalClient {
     pub fn get_anime_list(
         &self,
         status: Option<String>,
-        offset: u16,
-        limit: u16,
+        offset: usize,
+        limit: usize,
     ) -> Option<Vec<Anime>> {
         self.get_anime_list_by_user("@me".to_string(), status, offset, limit)
     }
@@ -188,8 +199,8 @@ impl MalClient {
         &self,
         username: String,
         status: Option<String>,
-        offset: u16,
-        limit: u16,
+        offset: usize,
+        limit: usize,
     ) -> Option<Vec<Anime>> {
         let mut parameters = params![
             "fields" => fields::ALL.join(","),

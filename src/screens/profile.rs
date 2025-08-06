@@ -13,6 +13,7 @@ use crate::mal::models::anime::FavoriteAnime;
 use crate::mal::models::user::User;
 use crate::utils::functionStreaming::StreamableRunner;
 use crate::utils::imageManager::ImageManager;
+use crate::utils::stringManipulation::format_date;
 use crate::utils::terminalCapabilities::TERMINAL_RATIO;
 
 use super::BackgroundUpdate;
@@ -181,9 +182,9 @@ impl Screen for ProfileScreen {
 
         let user_info_text = vec![
             format!("Username: {}", self.user.name),
-            format!("Joined: {}", self.user.joined_at),
+            format!("Joined: {}", format_date(&self.user.joined_at)),
             format!("Gender: {}", self.user.gender),
-            format!("Birthday: {}", self.user.birthday),
+            format!("Birthday: {}", format_date(&self.user.birthday)),
             format!("Location: {}", self.user.location),
             format!("Time Zone: {}", self.user.time_zone)
         ];
@@ -348,15 +349,6 @@ impl Screen for ProfileScreen {
                     .set("user", user);
                 info.app_sx.send(Event::BackgroundNotice(update)).ok();
 
-                // get the users favorited animes
-                if let Some(favorited_animes) = info.mal_client.get_favorited_anime(username) {
-                    for anime in favorited_animes.clone() {
-                        ImageManager::query_image_for_fetching(&image_manager, &anime);
-                    }
-                    let update = BackgroundUpdate::new(id.clone())
-                        .set("favorited_animes", favorited_animes);
-                    info.app_sx.send(Event::BackgroundNotice(update)).ok();
-                }
 
                 // get the users anime list
                 let anime_generator = StreamableRunner::new()
@@ -366,10 +358,21 @@ impl Screen for ProfileScreen {
 
                 for animes in anime_generator.run(|offset, limit| {
                     info.mal_client
-                        .get_anime_list(None, offset as u16, limit as u16)
+                        .get_anime_list(None, offset, limit)
                 }) {
                     let update = BackgroundUpdate::new(id.clone())
                         .set("listed_animes", animes);
+                    info.app_sx.send(Event::BackgroundNotice(update)).ok();
+                }
+
+
+                // get the users favorited animes
+                if let Some(favorited_animes) = info.mal_client.get_favorited_anime(username) {
+                    for anime in favorited_animes.clone() {
+                        ImageManager::query_image_for_fetching(&image_manager, &anime);
+                    }
+                    let update = BackgroundUpdate::new(id.clone())
+                        .set("favorited_animes", favorited_animes);
                     info.app_sx.send(Event::BackgroundNotice(update)).ok();
                 }
 
