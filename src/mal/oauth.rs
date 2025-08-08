@@ -70,12 +70,9 @@ where
                         expires_in: String,
                     }));
 
-                    // println!("Got callback with data: {:?}", data);
 
-                    let html_content = match std::fs::read_to_string("src/templates/success.html") {
-                        Ok(content) => content,
-                        Err(_) => return rouille::Response::text("Failed to read template") 
-                    };
+                    // read the template file
+                    let html_content = include_str!("../templates/success.html");
 
                     match callback(data.access_token, data.refresh_token, data.expires_in) {
                         Ok(_) => {}, 
