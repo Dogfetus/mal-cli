@@ -39,12 +39,12 @@ impl Navigatable{
         self.reverse
     }
 
-    pub fn visable_elements(&self) -> usize {
+    pub fn visible_elements(&self) -> usize {
         (self.rows * self.cols) as usize
     }
 
     pub fn update_scroll(&mut self) {
-        let visible_count = self.visable_elements();
+        let visible_count = self.visible_elements();
         if self.selected < self.scroll {
             self.scroll = self.scroll.saturating_sub(self.cols as usize);
         } 
@@ -87,12 +87,25 @@ impl Navigatable{
     }
 
     pub fn visible_indices(&self) -> std::ops::Range<usize> {
-        let visible_count = self.visable_elements();
+        let visible_count = self.visible_elements();
         let start = self.scroll;
         let end = (start + visible_count).min(self.total_items);
         start..end
     }
 
+    pub fn get_visible_items<'a, T>(&'a self, items: &'a [T]) -> &'a [T] {
+        let range = self.visible_indices();
+        let start = range.start.min(items.len());
+        let end = range.end.min(items.len());
+        &items[start..end]
+    }
+
+    pub fn get_visible_items_mut<'a, T>(&'a mut self, items: &'a mut [T]) -> &'a mut [T] {
+        let range = self.visible_indices();
+        let start = range.start.min(items.len());
+        let end = range.end.min(items.len());
+        &mut items[start..end]
+    }
 
     fn create_balanced_constraints(&self, count: u16) -> Vec<Constraint> {
         let base_percentage = 100 / count;

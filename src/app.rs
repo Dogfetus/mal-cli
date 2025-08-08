@@ -190,7 +190,7 @@ impl App {
                 } 
                 // get the anime again to make sure the details are up to date with the update above
                 let updated = self.shared_info.anime_store.get(&anime.id)?;
-                self.shared_info.mal_client.update_user_list_async(updated);
+                self.shared_info.mal_client.update_user_list_async((*updated).clone());
                 self.screen_manager.refresh();
                 self.logg_watched_info(&anime, &details);
             }

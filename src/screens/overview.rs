@@ -1,7 +1,5 @@
-use std::collections::{HashMap, HashSet};
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader};
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 
@@ -18,7 +16,6 @@ use crate::utils::imageManager::ImageManager;
 use crossterm::event::{KeyCode, KeyEvent};
 use indexmap::IndexSet;
 use ratatui::layout::{Margin, Rect};
-use ratatui::style::Stylize;
 use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::{
     Frame,
@@ -45,7 +42,6 @@ struct List {
 #[derive(Clone)]
 pub struct OverviewScreen {
     bg_loaded: bool,
-    scroll_offset: u16,
     app_info: ExtraInfo,
     image_manager: Arc<Mutex<ImageManager>>,
 
@@ -57,7 +53,6 @@ pub struct OverviewScreen {
 impl OverviewScreen {
     pub fn new(info: ExtraInfo) -> Self {
         Self {
-            scroll_offset: 0,
             app_info: info,
             bg_loaded: false,
             image_manager: Arc::new(Mutex::new(ImageManager::new())),
@@ -151,6 +146,17 @@ impl Screen for OverviewScreen {
                     .build();
 
                 frame.render_widget(title, title_area);
+
+
+                // lett the user know nothin gis there yet if the list is empty
+                if list.items.is_empty() {
+                    let text = "No here yet!";
+                    let paragraph = Paragraph::new(text)
+                        .style(Style::default().fg(Color::Red))
+                        .wrap(Wrap { trim: true });
+                    frame.render_widget(paragraph, list_area);
+                    return;
+                }
 
                 // this is the inner navigatable (the vertical sections)
                 list.navigatable.construct(
@@ -248,6 +254,9 @@ impl Screen for OverviewScreen {
         let log_file = app_dir.join("watch_history");
 
         Some(thread::spawn(move || {
+            let anime_generator = StreamableRunner::new()
+                .stop_at(1);
+
             if let Ok(file) = OpenOptions::new().read(true).open(log_file) {
                 // this is first to fetch the file where the recent watched animes are
                 let content = BufReader::new(file);
@@ -288,8 +297,6 @@ impl Screen for OverviewScreen {
                 // the watchd animes will allways be in the users list after a watch)
                 // this information will just be handled by the app and the store, and will not be
                 // retrieved in this local apply_update
-                let anime_generator = StreamableRunner::new()
-                    .stop_at(1);
 
                 // this is the users list of animes
                 for animes in anime_generator.run(|offset, limit| {
@@ -301,29 +308,30 @@ impl Screen for OverviewScreen {
                     info.app_sx.send(Event::BackgroundNotice(update)).ok();
                 }
 
-                // this is the suggested animes
-                for animes in anime_generator.run(|offset, limit| {
-                    info.mal_client
-                        .get_suggested_anime(offset, limit)
-                }) {
-                    let anime_ids = animes.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
-                    let update = BackgroundUpdate::new(id.clone())
-                        .set("animes", animes)
-                        .set("SuggestedAnime", anime_ids);
-                    info.app_sx.send(Event::BackgroundNotice(update)).ok();
-                }
+            }
 
-                // this is the most popular animes
-                for animes in anime_generator.run(|offset, limit| {
-                    info.mal_client
-                        .get_top_anime("bypopularity".to_string(), offset, limit)
-                }) {
-                    let anime_ids = animes.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
-                    let update = BackgroundUpdate::new(id.clone())
-                        .set("animes", animes)
-                        .set("PopularAnime", anime_ids);
-                    info.app_sx.send(Event::BackgroundNotice(update)).ok();
-                }
+            // this is the suggested animes
+            for animes in anime_generator.run(|offset, limit| {
+                info.mal_client
+                    .get_suggested_anime(offset, limit)
+            }) {
+                let anime_ids = animes.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
+                let update = BackgroundUpdate::new(id.clone())
+                    .set("animes", animes)
+                    .set("SuggestedAnime", anime_ids);
+                info.app_sx.send(Event::BackgroundNotice(update)).ok();
+            }
+
+            // this is the most popular animes
+            for animes in anime_generator.run(|offset, limit| {
+                info.mal_client
+                    .get_top_anime("bypopularity".to_string(), offset, limit)
+            }) {
+                let anime_ids = animes.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
+                let update = BackgroundUpdate::new(id.clone())
+                    .set("animes", animes)
+                    .set("PopularAnime", anime_ids);
+                info.app_sx.send(Event::BackgroundNotice(update)).ok();
             }
         }))
     }

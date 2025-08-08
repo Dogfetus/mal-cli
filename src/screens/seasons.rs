@@ -145,7 +145,7 @@ impl Screen for SeasonsScreen {
         let mut anime = Anime::empty();
         if let Some(selected_anime) = self.navigatable.get_selected_item(&self.animes) {
             if let Some(found_anime) = self.app_info.anime_store.get(selected_anime) {
-                anime = found_anime.clone();
+                anime = (*found_anime).clone();
             }
         }
 
@@ -506,7 +506,7 @@ impl Screen for SeasonsScreen {
                             self.focus = Focus::Navbar;
                             return Some(Action::NavbarSelect(true));
                         }
-                        KeyCode::Char('h') | KeyCode::Down => {
+                        KeyCode::Char('h') | KeyCode::Left => {
                             self.focus = Focus::AnimeList;
                         }
                         _ => {}

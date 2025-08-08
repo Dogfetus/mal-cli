@@ -281,7 +281,7 @@ impl AnimePopup {
         self.update_buttons();
         if anime.num_released_episodes.is_none() {
             self.background_transmitter
-                .send(LocalEvent::ExtraInfo(anime))
+                .send(LocalEvent::ExtraInfo((*anime).clone()))
                 .ok();
         }
         self
@@ -401,11 +401,13 @@ impl AnimePopup {
                         }
                         _ => {
                             if let Some(selection) = dropdown.handle_input(key_event) {
-                                let mut anime = self
+                                let mut anime = (
+                                    *self
                                     .app_info
                                     .anime_store
                                     .get(&self.anime_id)
-                                    .expect( "(Focus) unexpected anime id given");
+                                    .expect( "(Focus) unexpected anime id given")
+                                ).clone();
 
                                 match index {
                                     0 => {
@@ -430,6 +432,7 @@ impl AnimePopup {
                                     }
                                     _ => return None,
                                 }
+
                                 self.background_transmitter
                                     .send(LocalEvent::UserChoice(index, anime.clone()))
                                     .ok();
@@ -567,7 +570,7 @@ impl AnimePopup {
             height: image_height,
         };
 
-        ImageManager::render_image(&self.image_manager, &anime, frame, image_area, true);
+        ImageManager::render_image(&self.image_manager, anime.as_ref(), frame, image_area, true);
 
         //title and info area
         let [title_area, info_area] = Layout::default()
