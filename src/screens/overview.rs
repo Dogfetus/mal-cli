@@ -8,10 +8,12 @@ use std::thread::{self, JoinHandle};
 use super::widgets::animebox::AnimeBox;
 use super::widgets::navigatable::Navigatable;
 use super::{BackgroundUpdate, ExtraInfo, Screen};
+use crate::add_screen_caching;
 use crate::app::{Action, Event};
 use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
 use crate::mal::models::anime::AnimeId;
 use crate::utils::functionStreaming::StreamableRunner;
+use crate::utils::get_app_dir;
 use crate::utils::imageManager::ImageManager;
 use crossterm::event::{KeyCode, KeyEvent};
 use indexmap::IndexSet;
@@ -83,6 +85,8 @@ impl OverviewScreen {
 }
 
 impl Screen for OverviewScreen {
+    add_screen_caching!();
+
     fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
         frame.render_widget(Clear, area);
@@ -234,19 +238,13 @@ impl Screen for OverviewScreen {
     }
 
     fn background(&mut self) -> Option<JoinHandle<()>> {
-        if self.bg_loaded {
-            return None;
-        }
-        self.bg_loaded = true;
 
+        let already_loaded = self.bg_loaded;
         ImageManager::init_with_threads(&self.image_manager, self.app_info.app_sx.clone());
         let info = self.app_info.clone();
         let id = self.get_name();
         let sender = info.app_sx.clone();
-        let app_dir = std::env::var("HOME")
-            .ok()
-            .map(|home| PathBuf::from(home).join(".local/share/mal-cli"))
-            .expect("Failed to get app directory");
+        let app_dir = get_app_dir();
         let log_file = app_dir.join("watch_history");
 
         Some(thread::spawn(move || {
@@ -282,6 +280,9 @@ impl Screen for OverviewScreen {
                 let update = BackgroundUpdate::new(id.clone()).set("WatchHistory", animes);
                 sender.send(Event::BackgroundNotice(update)).ok();
 
+                if already_loaded {
+                    return;
+                }
 
                 // then we fetch the animes data from the mal api (this is just the users list as
                 // the watchd animes will allways be in the users list after a watch)

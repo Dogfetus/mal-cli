@@ -1,7 +1,6 @@
 use std::sync::mpsc::{Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
-use std::time::Duration;
 
 use crate::add_screen_caching;
 use crate::app::Event;
@@ -11,7 +10,6 @@ use crate::utils::functionStreaming::StreamableRunner;
 use crate::utils::imageManager::ImageManager;
 use crate::utils::input::Input;
 use crate::{app::Action, screens::Screen};
-use color_eyre::owo_colors::OwoColorize;
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use ratatui::Frame;
@@ -25,11 +23,10 @@ use ratatui::widgets::Borders;
 use ratatui::widgets::Clear;
 use ratatui::widgets::Paragraph;
 
-use super::widgets::animebox::{AnimeBox, LongAnimeBox};
-use super::widgets::navbar::NavBar;
+use super::widgets::animebox::AnimeBox;
 use super::widgets::navigatable::Navigatable;
 use super::widgets::popup::{Arrows, SelectionPopup};
-use super::{BackgroundUpdate, ExtraInfo, screens::*};
+use super::{BackgroundUpdate, ExtraInfo};
 
 #[derive(Debug, Clone)]
 struct Statistics {

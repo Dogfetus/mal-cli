@@ -4,8 +4,9 @@ mod oauth;
 
 use crate::mal::network::Fetchable;
 use crate::params;
+use crate::utils::get_app_dir;
 use chrono::{Datelike, Local};
-use models::anime::{fields, Anime, AnimeId, FavoriteAnime};
+use models::anime::{Anime, AnimeId, FavoriteAnime, fields};
 use models::user::User;
 use network::Update;
 use regex::Regex;
@@ -15,9 +16,10 @@ use std::{fs, thread::JoinHandle};
 
 const BASE_URL: &str = "https://api.myanimelist.net/v2";
 const EXTRA_URL: &str = "https://api.jikan.moe/v4";
+const CLIENT_FOLDER: &str = ".mal";
+const CLIENT_FILE: &str = "client";
 
-//TODO: encrypt the tokens somehow???
-
+//TODO: encrypt the tokens
 #[derive(Debug, Clone)]
 pub struct Identity {
     access_token: Option<String>,
@@ -28,18 +30,18 @@ pub struct Identity {
 #[derive(Debug, Clone)]
 pub struct MalClient {
     identity: Arc<RwLock<Identity>>,
-    re: Regex
+    re: Regex,
 }
 
 impl MalClient {
     pub fn new() -> Self {
-        let mut client = Self {
+        let client = Self {
             identity: Arc::new(RwLock::new(Identity {
                 access_token: None,
                 refresh_token: None,
                 expires_in: None,
             })),
-            re: Regex::new(r"\(([0-9,]+)/([0-9,]+|Unknown)\)").unwrap()
+            re: Regex::new(r"\(([0-9,]+)/([0-9,]+|Unknown)\)").unwrap(),
         };
 
         client.login_from_file();
@@ -47,27 +49,35 @@ impl MalClient {
     }
 
     pub fn init_oauth() -> (String, JoinHandle<()>) {
-        if !fs::metadata(".mal").is_ok() {
-            fs::create_dir(".mal").expect("Failed to create .mal directory");
-        }
-
         oauth::oauth_login(|at, rt, ei| {
+            // format the tokens and expiration time
             let data = format!(
                 "mal_access_token = \"{}\"\nmal_refresh_token = \"{}\"\nmal_token_expires_at = \"{}\"",
                 at, rt, ei
             );
-            fs::write(".mal/client", data)?;
+
+            // get the file path and folder
+            let app_dir = get_app_dir();
+            let mal_dir = app_dir.join(".mal");
+            if !mal_dir.exists() {
+                fs::create_dir_all(&mal_dir).expect("Failed to create app directory");
+            }
+
+            // write the data to the client file
+            let client_file = mal_dir.join("client");
+            fs::write(client_file, data)?;
             Ok(())
         })
     }
 
     //TODO: add a check for token validity
     pub fn login_from_file(&self) -> bool {
-        if !fs::metadata(".mal/client").is_ok() {
+        let app_dir = get_app_dir();
+        if !app_dir.exists() || !app_dir.join(".mal/client").exists() {
             return false;
         }
 
-        if let Ok(client_file) = fs::read_to_string(".mal/client") {
+        if let Ok(client_file) = fs::read_to_string(app_dir.join(".mal/client")) {
             let mut identity = self.identity.write().unwrap();
             for line in client_file.lines() {
                 if line.starts_with("mal_access_token") {
@@ -88,18 +98,25 @@ impl MalClient {
     }
 
     pub fn log_out() {
-        fs::remove_file(".mal/client").expect("Failed to remove client file");
+        let app_dir = get_app_dir();
+        if !app_dir.exists() || !app_dir.join(".mal/client").exists() {
+            return;
+        }
+        fs::remove_file(app_dir.join(".mal/client")).expect("Failed to remove client file");
     }
 
     pub fn user_is_logged_in() -> bool {
-        let client_file = fs::metadata(".mal/client");
-        if client_file.is_ok() {
-            let client_file =
-                fs::read_to_string(".mal/client").expect("Failed to read client file");
-            if client_file.contains("mal_access_token") {
-                return true;
-            }
+        let app_dir = get_app_dir();
+        let client_file = app_dir.join(".mal/client");
+
+        if !client_file.exists() {
+            return false;
         }
+
+        if let Ok(content) = fs::read_to_string(&client_file) {
+            return content.contains("mal_access_token");
+        }
+
         false
     }
 
@@ -142,6 +159,7 @@ impl MalClient {
                 "limit" => limit,
                 "offset" => offset,
                 "sort" => "anime_num_list_users",
+                "nsfw" => "true",
             ],
         )
     }
@@ -153,6 +171,7 @@ impl MalClient {
                 "fields" => fields::ALL.join(","),
                 "limit" => limit,
                 "offset" => offset,
+                "nsfw" => "true",
             ],
         )
     }
@@ -165,6 +184,7 @@ impl MalClient {
             "fields" => fields::ALL.join(","),
             "limit" => limit,
             "offset" => offset,
+            "nsfw" => "true",
             ],
         )
     }
@@ -177,6 +197,7 @@ impl MalClient {
                 "fields" => fields::ALL.join(","),
                 "limit" => limit,
                 "offset" => offset,
+                "nsfw" => "true",
             ],
         )
     }
@@ -186,6 +207,7 @@ impl MalClient {
             format!("{}/users/@me", BASE_URL),
             params![
                 "fields" => "anime_statistics",
+                "nsfw" => "true",
             ],
         )
     }
@@ -211,6 +233,7 @@ impl MalClient {
             "limit" => limit,
             "offset" => offset,
             "sort" => "list_updated_at",
+            "nsfw" => "true",
         ];
 
         if let Some(status) = status {
@@ -240,36 +263,48 @@ impl MalClient {
             return Err("not logged in".into());
         }
 
-        element.update(token.unwrap(), 
-            format!("{}/{}/{}/my_list_status", 
+        element.update(
+            token.unwrap(),
+            format!(
+                "{}/{}/{}/my_list_status",
                 BASE_URL,
                 element.get_belonging_list(),
-                element.get_id())
-            )
+                element.get_id()
+            ),
+        )
     }
 
     pub fn update_user_list_async<T: Update + Send + 'static>(
         &self,
         element: T,
-    ) -> tokio::task::JoinHandle<Result<(usize, T::Response), Box<(dyn std::error::Error + Send + 'static)>>> 
+    ) -> tokio::task::JoinHandle<
+        Result<(usize, T::Response), Box<(dyn std::error::Error + Send + 'static)>>,
+    >
     where
         T::Response: Send,
     {
         let client = self.clone();
         tokio::task::spawn_blocking(move || {
-            client.update_user_list(element)
-                .map_err(|e| -> Box<dyn std::error::Error + Send + 'static> {
+            client.update_user_list(element).map_err(
+                |e| -> Box<dyn std::error::Error + Send + 'static> {
                     Box::new(std::io::Error::new(
-                        std::io::ErrorKind::Other, 
-                        format!("{}", e)
+                        std::io::ErrorKind::Other,
+                        format!("{}", e),
                     ))
-                })
+                },
+            )
         })
     }
 
     // this a very specific request i must say (gets the number of available episodes for an anime)
-    pub fn get_available_episodes(&self, anime_id: AnimeId) -> Result<Option<u32>, Box<dyn std::error::Error>>{
-        let url = format!("https://myanimelist.net/anime/{}/thiscanbewhatever/episode", anime_id);
+    pub fn get_available_episodes(
+        &self,
+        anime_id: AnimeId,
+    ) -> Result<Option<u32>, Box<dyn std::error::Error>> {
+        let url = format!(
+            "https://myanimelist.net/anime/{}/thiscanbewhatever/episode",
+            anime_id
+        );
         let mut response = ureq::get(&url).call()?;
         let html = response.body_mut().read_to_string()?;
         if let Some(captures) = self.re.captures(&html) {
@@ -278,7 +313,6 @@ impl MalClient {
                 return Ok(Some(cleaned.parse::<u32>()?));
             }
         }
-
         Ok(None)
     }
 

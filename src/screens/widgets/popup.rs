@@ -57,6 +57,7 @@ enum LocalEvent {
 
 #[derive(Clone)]
 pub struct AnimePopup {
+    untogglable: bool,
     anime_id: AnimeId,
     toggled: bool,
     buttons: Vec<String>,
@@ -82,6 +83,7 @@ impl AnimePopup {
         ImageManager::init_with_threads(&image_manager, info.app_sx.clone());
 
         let popup = Self {
+            untogglable: false,
             app_info: info.clone(),
             image_manager,
             anime_id: AnimeId::default(),
@@ -196,7 +198,7 @@ impl AnimePopup {
             .app_info
             .anime_store
             .get(&self.anime_id)
-            .expect("unexpected anime id given");
+            .expect("(buttons) unexpected anime id given");
 
         // if the anime has no episodes set the button to "no episodes"
         if anime.num_episodes == 0 {
@@ -221,11 +223,14 @@ impl AnimePopup {
         self
     }
     pub fn update_buttons(&mut self) -> &Self {
-        let anime = self
-            .app_info
-            .anime_store
-            .get(&self.anime_id)
-            .expect("unexpected anime id given");
+        let anime = match self.app_info.anime_store.get(&self.anime_id) {
+            Some(anime) => {
+                anime
+            },
+            None => {
+                return self;
+            }
+        };
 
         self.set_play_button_episode(None);
         let episode_options: Vec<String> = (0..=anime.num_episodes.max(1))
@@ -262,14 +267,18 @@ impl AnimePopup {
 
     pub fn set_anime(&mut self, anime_id: AnimeId) -> &Self {
         self.anime_id = anime_id;
+        let anime = match self.app_info.anime_store.get(&self.anime_id) {
+            Some(anime) => {
+                self.untogglable = false;
+                anime
+            },
+            None => {
+                self.untogglable = true;
+                return self;
+            }
+        };
+
         self.update_buttons();
-
-        let anime = self
-            .app_info
-            .anime_store
-            .get(&self.anime_id)
-            .expect("unexpected anime id given");
-
         if anime.num_released_episodes.is_none() {
             self.background_transmitter
                 .send(LocalEvent::ExtraInfo(anime))
@@ -283,7 +292,9 @@ impl AnimePopup {
     }
 
     pub fn open(&mut self) -> &Self {
-        self.toggled = true;
+        if !self.untogglable {
+            self.toggled = true;
+        }
         self
     }
 
@@ -394,7 +405,7 @@ impl AnimePopup {
                                     .app_info
                                     .anime_store
                                     .get(&self.anime_id)
-                                    .expect("unexpected anime id given");
+                                    .expect( "(Focus) unexpected anime id given");
 
                                 match index {
                                     0 => {
@@ -468,7 +479,7 @@ impl AnimePopup {
             .app_info
             .anime_store
             .get(&self.anime_id)
-            .expect("unexpected anime id given");
+            .expect("(render) unexpected anime id given");
 
         let area = frame.area();
 

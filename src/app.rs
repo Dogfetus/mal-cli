@@ -4,6 +4,7 @@ use crate::mal::models::anime::Anime;
 use crate::handlers::get_handlers;
 use crate::screens::ScreenManager;
 use crate::screens::screens::*;
+use crate::utils::get_app_dir;
 use crate::utils::store::Store;
 use crate::mal::MalClient;
 use crate::player;
@@ -141,11 +142,7 @@ impl App {
     }
 
     fn logg_watched_info(&self, anime: &Anime, details: &player::PlayResult) {
-        let app_dir = std::env::var("HOME").ok()
-            .map(|home| PathBuf::from(home)
-            .join(".local/share/mal-cli"))
-            .expect("Failed to get app directory");
-
+        let app_dir = get_app_dir();
         let now: DateTime<Local> = Local::now();
         let timestamp = now.format("%Y-%m-%d %H:%M:%S");
         let log_file = app_dir.join("watch_history");

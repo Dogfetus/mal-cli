@@ -48,12 +48,13 @@ impl<T: Storable> Store<T> {
     }
 
     pub fn add(&mut self, data: T) {
-        self.data.borrow_mut().insert(data.get_id(), data);
+        self.data.borrow_mut().entry(data.get_id()).or_insert(data);
     }
 
     pub fn add_bulk(&mut self, data: Vec<T>) {
+        let mut store = self.data.borrow_mut();
         for item in data {
-            self.data.borrow_mut().insert(item.get_id(), item);
+            store.entry(item.get_id()).or_insert(item);
         }
     }
 
