@@ -22,11 +22,7 @@ use crate::{
 };
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
-    Frame,
-    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
-    style::{Color, Style, Stylize},
-    symbols::{self, border},
-    widgets::{Block, Borders, Clear, Padding, Paragraph, Wrap},
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect}, style::{Color, Style, Stylize}, symbols::{self, border}, widgets::{Block, Borders, Clear, Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap}, Frame
 };
 use std::cmp::min;
 use tui_widgets::big_text::{BigText, PixelSize};
@@ -68,14 +64,16 @@ pub struct AnimePopup {
     focus: Focus,
     background_transmitter: Sender<LocalEvent>,
     app_info: ExtraInfo,
+    synopsis_scroll: u16,
 }
 
 impl AnimePopup {
     pub fn new(info: ExtraInfo) -> Self {
         let buttons = vec![
             "Play".to_string(),
+            "Replay last episode".to_string(),
             "Play from start".to_string(),
-            "Share".to_string(),
+            "Open".to_string(),
         ];
         let image_manager = Arc::new(Mutex::new(ImageManager::new()));
         let (tx, rx) = std::sync::mpsc::channel::<LocalEvent>();
@@ -94,6 +92,7 @@ impl AnimePopup {
             buttons,
             focus: Focus::PlayButtons,
             background_transmitter: tx,
+            synopsis_scroll: 0,
         };
         popup.spawn_background(info, rx);
         popup
@@ -312,10 +311,8 @@ impl AnimePopup {
                 {
                     match key_event.code {
                         KeyCode::Char('j') | KeyCode::Up => {
-                            self.focus = Focus::StatusButtons;
                         }
                         KeyCode::Char('h') | KeyCode::Left => {
-                            self.focus = Focus::Synopsis;
                         }
                         _ => {}
                     }
@@ -327,13 +324,13 @@ impl AnimePopup {
                         self.button_nav.move_down();
                     }
                     KeyCode::Char('j') | KeyCode::Up => {
+                        if self.button_nav.get_selected_index() == 0 {
+                            self.focus = Focus::StatusButtons;
+                        }
                         self.button_nav.move_up();
                     }
-                    KeyCode::Char('l') | KeyCode::Right => {
-                        self.button_nav.move_right();
-                    }
                     KeyCode::Char('h') | KeyCode::Left => {
-                        self.button_nav.move_left();
+                        self.focus = Focus::Synopsis;
                     }
                     KeyCode::Char('q') => {
                         self.close();
@@ -342,7 +339,44 @@ impl AnimePopup {
                         let button = self.button_nav.get_selected_index();
                         match button {
                             0 => {
+                                // play normally
                                 return Some(Action::PlayAnime(self.anime_id));
+                            }
+                            1 => {
+                                // replay last episode
+                                let anime = self
+                                    .app_info
+                                    .anime_store
+                                    .get(&self.anime_id)
+                                    .expect("(Focus) unexpected anime id given");
+
+                                let episode = anime.my_list_status.num_episodes_watched;
+                                if episode == 0 {
+                                    return Some(Action::ShowError(
+                                        "No episodes watched yet".to_string(),
+                                    ));
+                                }
+                                return Some(Action::PlayEpisode(self.anime_id, episode));
+                            }
+
+                            2 => {
+                                // play from start
+                                return Some(Action::PlayEpisode(self.anime_id, 1));
+                            }
+                            3 => {
+                                // open the anime page in the browser
+                                match open::that(format!(
+                                    "https://myanimelist.net/anime/{}",
+                                    self.anime_id
+                                )) {
+                                    Ok(_) => {}
+                                    Err(e) => {
+                                        return Some(Action::ShowError(format!(
+                                            "Failed to open anime page: {}",
+                                            e
+                                        )));
+                                    }
+                                }
                             }
                             _ => {}
                         }
@@ -351,37 +385,6 @@ impl AnimePopup {
                 }
             }
             Focus::StatusButtons => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('l')
-                        | KeyCode::Right
-                        | KeyCode::Char('k')
-                        | KeyCode::Down => {
-                            self.focus = Focus::PlayButtons;
-                            if let Some(button) = self
-                                .status_nav
-                                .get_selected_item_mut(&mut self.status_buttons)
-                            {
-                                button.close();
-                            }
-                        }
-                        KeyCode::Char('h') | KeyCode::Left => {
-                            self.focus = Focus::Synopsis;
-                            if let Some(button) = self
-                                .status_nav
-                                .get_selected_item_mut(&mut self.status_buttons)
-                            {
-                                button.close();
-                            }
-                        }
-                        _ => {}
-                    }
-                    return None;
-                }
-
                 if let Some((dropdown, index)) = self
                     .status_nav
                     .get_selected_item_mut_and_index(&mut self.status_buttons)
@@ -392,12 +395,24 @@ impl AnimePopup {
                             return None;
                         }
                         (false, KeyCode::Char('h') | KeyCode::Left) => {
+                            if self.status_nav.get_selected_index() == 0 {
+                                self.focus = Focus::Synopsis;
+                            }
                             self.status_nav.move_left();
                             return None;
                         }
                         (false, KeyCode::Char('q')) => {
                             self.close();
                             return None;
+                        }
+                        (false, KeyCode::Char('k') | KeyCode::Down) => {
+                            self.focus = Focus::PlayButtons;
+                            if let Some(button) = self
+                                .status_nav
+                                .get_selected_item_mut(&mut self.status_buttons)
+                            {
+                                button.close();
+                            }
                         }
                         _ => {
                             if let Some(selection) = dropdown.handle_input(key_event) {
@@ -449,23 +464,28 @@ impl AnimePopup {
             }
 
             Focus::Synopsis => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('l') | KeyCode::Right => {
-                            self.focus = Focus::PlayButtons;
-                        }
-                        KeyCode::Char('j') | KeyCode::Up => {
-                            self.focus = Focus::StatusButtons;
-                        }
-                        KeyCode::Char('q') => {
-                            self.close();
-                        }
-                        _ => {}
+
+                match key_event.code {
+                    KeyCode::Char('k') | KeyCode::Down => {
+                        self.synopsis_scroll = min(
+                            self.synopsis_scroll + 1,
+                            self.app_info.anime_store.get(&self.anime_id).unwrap().synopsis.len()
+                                as u16,
+                        );
                     }
-                    return None;
+                    KeyCode::Char('j') | KeyCode::Up => {
+                        self.synopsis_scroll = self.synopsis_scroll.saturating_sub(1);
+                    }
+                    KeyCode::Char('l') | KeyCode::Right => {
+                        self.focus = Focus::PlayButtons;
+                    }
+                    KeyCode::Char('h') | KeyCode::Left => {
+                        self.focus = Focus::StatusButtons;
+                    }
+                    KeyCode::Char('q') => {
+                        self.close();
+                    }
+                    _ => {}
                 }
             }
         }
@@ -595,24 +615,34 @@ impl AnimePopup {
             height: info_area.height.saturating_sub(buttons_area.height),
         };
 
-        let title = if anime.alternative_titles.en.is_empty() {
-            anime.title.clone()
-        } else {
-            anime.alternative_titles.en.clone()
-        };
+        // let title = if anime.alternative_titles.en.is_empty() {
+        //     anime.title.clone()
+        // } else {
+        //     anime.alternative_titles.en.clone()
+        // };
+        let title = format!("{} | {} | {}", anime.title.clone(), anime.alternative_titles.en.clone(), 
+            anime.alternative_titles.ja.clone());
         let title_text = Paragraph::new(title)
             .alignment(Alignment::Center)
             .style(Style::default().fg(SECONDARY_COLOR).bold());
 
         frame.render_widget(title_text, title_area.inner(Margin::new(0, 1)));
 
+
         //synopsis
+        // FIXME: this needs fixing
         let synopsis_area = Rect {
             x: left.x + 1,
             y: bottom_area.y,
             width: left.width.saturating_sub(1),
             height: bottom_area.height.saturating_sub(1),
         };
+
+        // Calculate the content height for scrollbar
+        let content_height = anime.synopsis.lines().count() as u16;
+        let visible_height = synopsis_area.height.saturating_sub(2); // Account for borders
+
+        // Create the paragraph widget
         let synopsis_text = Paragraph::new(anime.synopsis.clone())
             .block(
                 Block::default()
@@ -627,34 +657,64 @@ impl AnimePopup {
             )
             .alignment(Alignment::Left)
             .wrap(Wrap { trim: true })
-            .style(Style::default().fg(PRIMARY_COLOR));
+            .style(Style::default().fg(PRIMARY_COLOR))
+            .scroll((self.synopsis_scroll, 0));
+
+        // Render the paragraph
         frame.render_widget(synopsis_text, synopsis_area);
+        // FIXME: above this needs fixing
 
-        // score text
-        let big_text = BigText::builder()
-            .pixel_size(PixelSize::Sextant)
-            .lines(vec![anime.mean.to_string().into()])
-            .build();
-        let [_, big_area_vertical] = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Length(3), Constraint::Fill(1)])
-            .areas(popup_area);
-        let [_, big_text_area] = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Fill(1), Constraint::Length(20)])
-            .areas(big_area_vertical);
-        frame.render_widget(big_text, big_text_area);
+        // Create and render scrollbar if content is longer than visible area
+        if content_height > visible_height {
+            let scrollbar = Scrollbar::default()
+                .orientation(ScrollbarOrientation::VerticalRight)
+                .begin_symbol(Some("↑"))
+                .end_symbol(Some("↓"))
+                .track_symbol(Some("│"))
+                .thumb_symbol("█")
+                .style(Style::default().fg(if self.focus == Focus::Synopsis {
+                    HIGHLIGHT_COLOR
+                } else {
+                    PRIMARY_COLOR
+                }));
 
-        // info area
+            let mut scrollbar_state = ScrollbarState::new(content_height as usize)
+                .position(self.synopsis_scroll as usize);
+
+            frame.render_stateful_widget(
+                scrollbar,
+                synopsis_area.inner(Margin { vertical: 1, horizontal: 0 }), // Position scrollbar inside borders
+                &mut scrollbar_state,
+            );
+        }
+
+
+        // right side next to image and above buttons
         let [_score, info_area, _buttons] = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),
+                Constraint::Length(0),
                 Constraint::Fill(1),
                 Constraint::Length(3),
             ])
             .areas(info_area);
 
+        // score text
+        let big_text = BigText::builder()
+            .style(Style::default().fg(Color::White))
+            .pixel_size(PixelSize::Sextant)
+            .lines(vec![anime.mean.to_string().into()])
+            .build();
+        let [_, big_area_vertical] = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Fill(1), Constraint::Length(5)])
+            .areas(info_area);
+        let [_, big_text_area] = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Fill(1), Constraint::Length(20)])
+            .areas(big_area_vertical);
+
+        // info area
         let [_, info_area_one, _, info_area_two] = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -670,7 +730,9 @@ impl AnimePopup {
             .border_set(border::ROUNDED)
             .title("Anime Info")
             .style(Style::default().fg(PRIMARY_COLOR));
+
         frame.render_widget(block, info_area);
+        frame.render_widget(big_text, big_text_area);
 
         let startseason = DisplayString::new()
             .add(anime.start_season.to_string())

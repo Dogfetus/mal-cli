@@ -1,28 +1,27 @@
-use crate::mal::models::anime::AnimeId;
-use crate::screens::BackgroundUpdate;
-use crate::mal::models::anime::Anime;
 use crate::handlers::get_handlers;
+use crate::mal::MalClient;
+use crate::mal::models::anime::Anime;
+use crate::mal::models::anime::AnimeId;
+use crate::player;
+use crate::screens::BackgroundUpdate;
 use crate::screens::ScreenManager;
 use crate::screens::screens::*;
 use crate::utils::get_app_dir;
 use crate::utils::store::Store;
-use crate::mal::MalClient;
-use crate::player;
 
-use std::sync::atomic::AtomicBool;
-use crossterm::event::KeyCode;
-use ratatui::DefaultTerminal;
-use std::thread::JoinHandle;
-use std::fs::OpenOptions;
-use image::DynamicImage;
-use std::path::PathBuf;
 use chrono::DateTime;
-use std::sync::mpsc;
+use chrono::Local;
+use crossterm::event::KeyCode;
+use image::DynamicImage;
+use ratatui::DefaultTerminal;
+use std::fs::OpenOptions;
+use std::io;
 use std::io::Write;
 use std::sync::Arc;
-use chrono::Local;
+use std::sync::atomic::AtomicBool;
+use std::sync::mpsc;
 use std::thread;
-use std::io;
+use std::thread::JoinHandle;
 
 #[derive(Debug, Clone)]
 pub struct ExtraInfo {
@@ -33,6 +32,7 @@ pub struct ExtraInfo {
 
 pub enum Action {
     PlayAnime(AnimeId),
+    PlayEpisode(AnimeId, u32),
     SwitchScreen(&'static str),
     ShowOverlay(AnimeId),
     NavbarSelect(bool),
@@ -127,10 +127,12 @@ impl App {
 
                         self.screen_manager.update_screen(update);
                     }
-                    Event::StorageUpdate(anime, updater ) => {
-                        self.shared_info.anime_store.update(anime, |anime_to_update| {
-                            updater(anime_to_update);
-                        });
+                    Event::StorageUpdate(anime, updater) => {
+                        self.shared_info
+                            .anime_store
+                            .update(anime, |anime_to_update| {
+                                updater(anime_to_update);
+                            });
                         self.screen_manager.refresh();
                     }
                     _ => {}
@@ -163,34 +165,50 @@ impl App {
             .append(true)
             .open(log_file)
             .expect("Failed to open log file");
-    
+
         file.write_all(log_entry.as_bytes()).ok();
     }
 
-    fn play_anime(&mut self, anime_id: AnimeId) -> Option<()> {
+    fn play_anime(&mut self, anime_id: AnimeId, episode: u32) -> Option<()> {
         let anime = self.shared_info.anime_store.get(&anime_id)?;
 
-        match self.anime_player.play_anime(&anime) {
-            Ok(details) => {
+        let next_episode = if episode == 0 {
+            std::cmp::min(
+                anime.my_list_status.num_episodes_watched + 1,
+                anime.num_episodes,
+            )
+        } else {
+            episode
+        };
 
+        match self.anime_player.play_episode(&anime, next_episode) {
+            Ok(details) => {
                 // update teh status to now watching
-                self.shared_info.anime_store.update(anime.id, |anime_to_update| {
-                    anime_to_update.my_list_status.status = "watching".to_string();
-                });
+                self.shared_info
+                    .anime_store
+                    .update(anime.id, |anime_to_update| {
+                        anime_to_update.my_list_status.status = "watching".to_string();
+                    });
 
                 if details.completed {
                     // update the store <-
-                    self.shared_info.anime_store.update(anime.id, |anime_to_update| {
-                        if anime_to_update.my_list_status.num_episodes_watched < anime_to_update.num_episodes {
-                            anime_to_update.my_list_status.num_episodes_watched += 1;
-                        } else {
-                            anime_to_update.my_list_status.status = "completed".to_string();
-                        }
-                    });
-                } 
+                    self.shared_info
+                        .anime_store
+                        .update(anime.id, |anime_to_update| {
+                            if anime_to_update.my_list_status.num_episodes_watched
+                                < anime_to_update.num_episodes
+                            {
+                                anime_to_update.my_list_status.num_episodes_watched += 1;
+                            } else {
+                                anime_to_update.my_list_status.status = "completed".to_string();
+                            }
+                        });
+                }
                 // get the anime again to make sure the details are up to date with the update above
                 let updated = self.shared_info.anime_store.get(&anime.id)?;
-                self.shared_info.mal_client.update_user_list_async((*updated).clone());
+                self.shared_info
+                    .mal_client
+                    .update_user_list_async((*updated).clone());
                 self.screen_manager.refresh();
                 self.logg_watched_info(&anime, &details);
             }
@@ -221,7 +239,10 @@ impl App {
                     self.screen_manager.toggle_navbar(selected);
                 }
                 Action::PlayAnime(anime_id) => {
-                    self.play_anime(anime_id);
+                    self.play_anime(anime_id, 0);
+                }
+                Action::PlayEpisode(anime_id, episode) => {
+                    self.play_anime(anime_id, episode);
                 }
                 Action::ShowError(message) => {
                     self.screen_manager.show_error(message);
@@ -245,7 +266,6 @@ impl App {
                 _ => return,
             }
         }
-
     }
 
     fn spawn_background(&mut self) {
@@ -265,4 +285,3 @@ impl Drop for App {
         ratatui::restore();
     }
 }
-
