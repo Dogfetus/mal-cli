@@ -58,7 +58,7 @@ impl MalClient {
 
             // get the file path and folder
             let app_dir = get_app_dir();
-            let mal_dir = app_dir.join(".mal");
+            let mal_dir = app_dir.join(CLIENT_FOLDER);
             if !mal_dir.exists() {
                 fs::create_dir_all(&mal_dir).expect("Failed to create app directory");
             }
@@ -73,11 +73,11 @@ impl MalClient {
     //TODO: add a check for token validity
     pub fn login_from_file(&self) -> bool {
         let app_dir = get_app_dir();
-        if !app_dir.exists() || !app_dir.join(".mal/client").exists() {
+        if !app_dir.exists() || !app_dir.join(format!("{}/{}", CLIENT_FOLDER, CLIENT_FILE)).exists() {
             return false;
         }
 
-        if let Ok(client_file) = fs::read_to_string(app_dir.join(".mal/client")) {
+        if let Ok(client_file) = fs::read_to_string(app_dir.join(format!("{}/{}", CLIENT_FOLDER, CLIENT_FILE))) {
             let mut identity = self.identity.write().unwrap();
             for line in client_file.lines() {
                 if line.starts_with("mal_access_token") {
@@ -99,15 +99,15 @@ impl MalClient {
 
     pub fn log_out() {
         let app_dir = get_app_dir();
-        if !app_dir.exists() || !app_dir.join(".mal/client").exists() {
+        if !app_dir.exists() || !app_dir.join(format!("{}/{}", CLIENT_FOLDER, CLIENT_FILE)).exists() {
             return;
         }
-        fs::remove_file(app_dir.join(".mal/client")).expect("Failed to remove client file");
+        fs::remove_file(app_dir.join(format!("{}/{}", CLIENT_FOLDER, CLIENT_FILE))).expect("Failed to remove client file");
     }
 
     pub fn user_is_logged_in() -> bool {
         let app_dir = get_app_dir();
-        let client_file = app_dir.join(".mal/client");
+        let client_file = app_dir.join(format!("{}/{}", CLIENT_FOLDER, CLIENT_FILE));
 
         if !client_file.exists() {
             return false;
@@ -118,11 +118,6 @@ impl MalClient {
         }
 
         false
-    }
-
-    pub fn get_current_season(&self, offset: usize, limit: usize) -> Option<Vec<Anime>> {
-        let (year, season) = Self::current_season();
-        self.get_seasonal_anime(year, season, offset, limit)
     }
 
     pub fn current_season() -> (u16, String) {

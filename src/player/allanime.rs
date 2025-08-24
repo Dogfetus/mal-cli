@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use serde::Deserialize;
 
 //
@@ -102,6 +103,7 @@ pub struct SourceUrl {
     pub streamer_id: Option<String>,
     pub sandbox: Option<String>,
     pub downloads: Option<Downloads>,
+    pub extra_values: Option<Link>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -111,4 +113,30 @@ pub struct Downloads {
     #[serde(rename = "downloadUrl")]
     pub download_url: Option<String>,
 }
+
+// 
+// 4) Links for a source: { links: [{ link, hls/mp4, resolutionStr, fromCache, (src) }] } 
+//
+
+#[derive(Debug, Deserialize)]
+pub struct LinksSearch {
+    pub links: Vec<Link>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Link {
+    #[serde(default)]
+    pub link: String,
+    #[serde(default)]
+    pub src: String,
+    #[serde(default)]
+    pub hls: bool,
+    #[serde(default)]
+    pub mp4: bool,
+    #[serde(rename = "resolutionStr")]
+    pub resolution_str: Option<String>,
+    #[serde(rename = "fromCache")]
+    pub from_cache: Option<String>,
+}
+
 

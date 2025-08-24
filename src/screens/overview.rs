@@ -23,6 +23,7 @@ use ratatui::{
     style::{Color, Style},
     widgets::{Block, Borders, Clear},
 };
+use tokio::sync::watch;
 use tui_widgets::big_text::{BigText, PixelSize};
 
 
@@ -150,7 +151,7 @@ impl Screen for OverviewScreen {
 
                 // lett the user know nothin gis there yet if the list is empty
                 if list.items.is_empty() {
-                    let text = "No here yet!";
+                    let text = "Nothing here yet!";
                     let paragraph = Paragraph::new(text)
                         .style(Style::default().fg(Color::Red))
                         .wrap(Wrap { trim: true });
@@ -174,14 +175,7 @@ impl Screen for OverviewScreen {
                                 }),
                                 inner_highlighted && highlighted && self.focus == Focus::Content,
                             )
-                        } else {
-                            let text = format!("Anime with ID {} not found", anime_id);
-                            let paragraph = Paragraph::new(text)
-                                .block(Block::default().borders(Borders::ALL))
-                                .style(Style::default().fg(Color::Red))
-                                .wrap(Wrap { trim: true });
-                            frame.render_widget(paragraph, inner_area);
-                        }
+                        } 
                     },
                 );
             });
@@ -244,7 +238,6 @@ impl Screen for OverviewScreen {
     }
 
     fn background(&mut self) -> Option<JoinHandle<()>> {
-
         let already_loaded = self.bg_loaded;
         ImageManager::init_with_threads(&self.image_manager, self.app_info.app_sx.clone());
         let info = self.app_info.clone();
@@ -257,7 +250,25 @@ impl Screen for OverviewScreen {
             let anime_generator = StreamableRunner::new()
                 .stop_at(1);
 
+            let mut cached_ids: Vec<AnimeId> = Vec::new();
+
             if let Ok(file) = OpenOptions::new().read(true).open(log_file) {
+                // then we fetch the animes data from the mal api (this is just the users list as
+                // the watchd animes will allways be in the users list after a watch)
+                // this information will just be handled by the app and the store, and will not be
+                // retrieved in this local apply_update
+
+                // this is the users list of animes
+                for animes in anime_generator.run(|offset, limit| {
+                    info.mal_client
+                        .get_anime_list(None, offset, limit)
+                }) {
+                    cached_ids.extend(animes.iter().map(|a| a.id.clone()));
+                    let update = BackgroundUpdate::new(id.clone())
+                        .set("animes", animes);
+                    info.app_sx.send(Event::BackgroundNotice(update)).ok();
+                }
+
                 // this is first to fetch the file where the recent watched animes are
                 let content = BufReader::new(file);
                 let entries: Vec<String> = content.lines().filter_map(|line| line.ok()).collect();
@@ -282,6 +293,10 @@ impl Screen for OverviewScreen {
                     );
 
                     // save each individual anime id to the set
+                    if !cached_ids.contains(&anime_id) {
+                        // if the anime is not in the users list, skip it cus they removed it
+                        continue;
+                    }
                     animes.insert(anime_id);
                 }
 
@@ -291,21 +306,6 @@ impl Screen for OverviewScreen {
 
                 if already_loaded {
                     return;
-                }
-
-                // then we fetch the animes data from the mal api (this is just the users list as
-                // the watchd animes will allways be in the users list after a watch)
-                // this information will just be handled by the app and the store, and will not be
-                // retrieved in this local apply_update
-
-                // this is the users list of animes
-                for animes in anime_generator.run(|offset, limit| {
-                    info.mal_client
-                        .get_anime_list(None, offset, limit)
-                }) {
-                    let update = BackgroundUpdate::new(id.clone())
-                        .set("animes", animes);
-                    info.app_sx.send(Event::BackgroundNotice(update)).ok();
                 }
 
             }

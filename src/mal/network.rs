@@ -1,4 +1,4 @@
-use super::models::anime::{AnimeId, AnimeResponse, FavoriteResponse};
+use super::models::anime::{AnimeResponse, FavoriteResponse};
 use super::models::user::User;
 use cached::proc_macro::cached;
 use std::fmt::Debug;
@@ -17,8 +17,8 @@ macro_rules! params {
 }
 
 // this proxy url is just used to access a local cache server, for debugging and development
-// pub const PROXY: &str = "http://localhost:1111/proxy?url=";
-pub const PROXY: &str = "";
+pub const PROXY: &str = "http://localhost:1111/proxy?url=";
+// pub const PROXY: &str = "";
 const MAX_RETRIES: u32 = 5;
 static AGENT: OnceLock<Agent> = OnceLock::new();
 fn get_agent() -> &'static Agent {
@@ -237,6 +237,71 @@ where
 
     Err("All retry attempts failed".into())
 }
+
+pub fn send_request_expect_text(
+    method: &str,
+    url: String,
+    parameters: Vec<(String, String)>,
+    headers: Vec<(String, String)>,
+    body: Option<&str>,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let final_url = build_url(&url, &parameters)
+        .map_err(|e| format!("Failed to build proxied URL: {}", e))?;
+
+    let agent = get_agent();
+
+    for attempt in 0..MAX_RETRIES {
+        let result = match method {
+            "GET" => {
+                let mut req = agent.get(&final_url);
+                for (k, v) in &headers { req = req.header(k, v); }
+                req.call()
+            }
+            "PATCH" => {
+                let mut req = agent.patch(&final_url);
+                for (k, v) in &headers { req = req.header(k, v); }
+                req.send(body.unwrap_or(""))
+            }
+            "PUT" => {
+                let mut req = agent.put(&final_url);
+                for (k, v) in &headers { req = req.header(k, v); }
+                req.send(body.unwrap_or(""))
+            }
+            "POST" => {
+                let mut req = agent.post(&final_url);
+                for (k, v) in &headers { req = req.header(k, v); }
+                req.send(body.unwrap_or(""))
+            }
+            "DELETE" => {
+                let mut req = agent.delete(&final_url);
+                for (k, v) in &headers { req = req.header(k, v); }
+                req.call()
+            }
+            _ => return Err(format!("Unsupported HTTP method: {}", method).into()),
+        };
+
+        match result {
+            Ok(mut resp) => return Ok(resp.body_mut().read_to_string()?),
+            Err(ureq::Error::StatusCode(status)) => {
+                return Err(format!("HTTP error: {}", status).into());
+            }
+            Err(e) => {
+                let em = e.to_string().to_lowercase();
+                let is_timeout = em.contains("timeout") || em.contains("timed out");
+                if !is_timeout {
+                    return Err(format!("Request failed: {}", e).into());
+                }
+                if attempt >= MAX_RETRIES - 1 {
+                    return Err(format!("max retries exceeded: {}, {}", MAX_RETRIES, e).into());
+                }
+                thread::sleep(Duration::from_millis(2000 * (attempt + 1) as u64));
+            }
+        }
+    }
+
+    Err("All retry attempts failed".into())
+}
+
 
 pub trait Fetchable: Sized {
     type Response;

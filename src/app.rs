@@ -181,7 +181,7 @@ impl App {
             episode
         };
 
-        match self.anime_player.play_episode(&anime, next_episode) {
+        match self.anime_player.play_episode_manually(&anime, next_episode) {
             Ok(details) => {
                 // update teh status to now watching
                 self.shared_info
