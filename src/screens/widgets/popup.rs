@@ -8,15 +8,14 @@ use std::{
 
 use crate::{
     app::{Action, Event},
-    config::{ERROR_COLOR, HIGHLIGHT_COLOR, PRIMARY_COLOR, SECONDARY_COLOR, anime_list_colors},
+    config::{anime_list_colors, ERROR_COLOR, HIGHLIGHT_COLOR, PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR},
     mal::{
-        MalClient,
-        models::anime::{Anime, AnimeId, DeleteOrUpdate, MyListStatus, status_is_known},
+        models::anime::{status_is_known, Anime, AnimeId, DeleteOrUpdate, MyListStatus}, MalClient
     },
     screens::{BackgroundUpdate, ExtraInfo},
     utils::{
         imageManager::ImageManager,
-        stringManipulation::{DisplayString, format_date},
+        stringManipulation::{format_date, DisplayString},
         terminalCapabilities::TERMINAL_RATIO,
     },
 };
@@ -615,13 +614,12 @@ impl AnimePopup {
             height: info_area.height.saturating_sub(buttons_area.height),
         };
 
-        // let title = if anime.alternative_titles.en.is_empty() {
-        //     anime.title.clone()
-        // } else {
-        //     anime.alternative_titles.en.clone()
-        // };
-        let title = format!("{} | {} | {}", anime.title.clone(), anime.alternative_titles.en.clone(), 
-            anime.alternative_titles.ja.clone());
+        let title = if anime.alternative_titles.en.is_empty() {
+            anime.title.clone()
+        } else {
+            anime.alternative_titles.en.clone()
+        };
+
         let title_text = Paragraph::new(title)
             .alignment(Alignment::Center)
             .style(Style::default().fg(SECONDARY_COLOR).bold());
@@ -657,7 +655,7 @@ impl AnimePopup {
             )
             .alignment(Alignment::Left)
             .wrap(Wrap { trim: true })
-            .style(Style::default().fg(PRIMARY_COLOR))
+            .style(Style::default().fg(TEXT_COLOR))
             .scroll((self.synopsis_scroll, 0));
 
         // Render the paragraph

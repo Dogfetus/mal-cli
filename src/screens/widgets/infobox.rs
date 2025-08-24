@@ -1,5 +1,7 @@
 use ratatui::{layout::{Alignment, Constraint, Direction, Layout, Margin, Rect}, style::{Color, Style}, widgets::Paragraph, Frame};
 
+use crate::config::{SECONDARY_COLOR, SECOND_TEXT_COLOR, TEXT_COLOR};
+
 #[derive(Clone)]
 struct InfoItem {
     label: String,
@@ -62,7 +64,7 @@ impl InfoBox {
 
         // Calculate required height (2 units per row)
         let required_height = self.rows.len() as u16 * 2;
-        
+
         // Create our own layout within the given area
         let [info_section, remaining] = Layout::default()
             .direction(Direction::Vertical)
@@ -129,10 +131,10 @@ fn render_info_row(
         } else {
             item.value.clone()
         };
-        
+
         let value_paragraph = Paragraph::new(formatted_value)
             .alignment(Alignment::Center)
-            .style(Style::default().fg(Color::White));
+            .style(Style::default().fg(SECOND_TEXT_COLOR));
         frame.render_widget(value_paragraph, right);
     }
 }

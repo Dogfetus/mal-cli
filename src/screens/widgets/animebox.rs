@@ -9,11 +9,11 @@ use ratatui::{
 };
 
 use crate::{
-    config::{HIGHLIGHT_COLOR, PRIMARY_COLOR, anime_list_colors},
+    config::{anime_list_colors, HIGHLIGHT_COLOR, PRIMARY_COLOR, TEXT_COLOR},
     mal::models::anime::Anime,
     utils::{
         imageManager::ImageManager,
-        stringManipulation::{DisplayString, format_date},
+        stringManipulation::{format_date, DisplayString},
     },
 };
 
@@ -50,10 +50,16 @@ impl AnimeBox {
             HIGHLIGHT_COLOR
         } else {
             if anime.my_list_status.status.is_empty() {
-                PRIMARY_COLOR
+                TEXT_COLOR
             } else {
                 anime_list_colors(&anime.my_list_status.status)
             }
+        };
+
+        let block_color = if highlight {
+            HIGHLIGHT_COLOR
+        } else {
+            anime_list_colors(&anime.my_list_status.status)
         };
 
         let has_en_title = !anime.alternative_titles.en.is_empty();
@@ -66,7 +72,7 @@ impl AnimeBox {
         frame.render_widget(
             Block::new()
                 .borders(Borders::ALL)
-                .border_style(color)
+                .border_style(block_color)
                 .border_set(symbols::border::ROUNDED),
             area,
         );
@@ -206,6 +212,11 @@ impl LongAnimeBox {
         let color = if highlight {
             HIGHLIGHT_COLOR
         } else {
+            TEXT_COLOR 
+        };
+        let block_color = if highlight {
+            HIGHLIGHT_COLOR
+        } else {
             PRIMARY_COLOR
         };
 
@@ -219,7 +230,7 @@ impl LongAnimeBox {
         frame.render_widget(
             Block::new()
                 .borders(Borders::ALL)
-                .border_style(color)
+                .border_style(block_color)
                 .border_set(symbols::border::ROUNDED),
             area,
         );

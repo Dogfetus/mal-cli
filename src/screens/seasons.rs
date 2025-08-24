@@ -3,12 +3,13 @@ use super::widgets::navigatable::Navigatable;
 use super::widgets::popup::SeasonPopup;
 use super::{BackgroundUpdate, Screen};
 use crate::add_screen_caching;
+use crate::config::TEXT_COLOR;
 use crate::mal::models::anime::AnimeId;
 use crate::{
-    config::{HIGHLIGHT_COLOR, PRIMARY_COLOR},
-    screens::widgets::animebox::AnimeBox,
     app::{Action, Event},
+    config::{HIGHLIGHT_COLOR, PRIMARY_COLOR},
     mal::{MalClient, models::anime::Anime},
+    screens::widgets::animebox::AnimeBox,
     utils::{
         functionStreaming::StreamableRunner, imageManager::ImageManager,
         stringManipulation::DisplayString,
@@ -44,7 +45,6 @@ enum Focus {
     AnimeList,
     AnimeDetails,
 }
-
 
 #[derive(Clone)]
 pub struct SeasonsScreen {
@@ -105,7 +105,7 @@ impl SeasonsScreen {
         }
     }
 
-    // apperently the animes gotten include previous seasons that has not yet finished 
+    // apperently the animes gotten include previous seasons that has not yet finished
     fn filter_animes(animes: Vec<Anime>, target_year: u16, target_season: &String) -> Vec<Anime> {
         animes
             .iter()
@@ -117,14 +117,20 @@ impl SeasonsScreen {
             .collect()
     }
 
-    fn fetch_anime_season(year: u16, season: String, app_sx: &Sender<Event>, mal_client: &Arc<MalClient>, id: String) {
+    fn fetch_anime_season(
+        year: u16,
+        season: String,
+        app_sx: &Sender<Event>,
+        mal_client: &Arc<MalClient>,
+        id: String,
+    ) {
         let anime_batches = StreamableRunner::new()
             .change_batch_size_at(500, 1)
             .stop_early();
 
-        for batch in anime_batches.run(|offset, limit| {
-            mal_client.get_seasonal_anime(year, season.clone(), offset, limit)
-        }){
+        for batch in anime_batches
+            .run(|offset, limit| mal_client.get_seasonal_anime(year, season.clone(), offset, limit))
+        {
             let animes = Self::filter_animes(batch, year, &season);
             let anime_ids = animes.iter().map(|a| a.id).collect::<Vec<_>>();
 
@@ -199,7 +205,7 @@ impl Screen for SeasonsScreen {
         let (blt_set, blt_border) = (
             symbols::border::Set {
                 top_left: symbols::line::ROUNDED_TOP_LEFT,
-                bottom_left: symbols::line::NORMAL.vertical_right,
+                bottom_left: symbols::line::ROUNDED_BOTTOM_LEFT,
                 top_right: symbols::line::NORMAL.horizontal_down,
                 bottom_right: symbols::line::NORMAL.vertical_left,
                 ..symbols::border::PLAIN
@@ -209,11 +215,11 @@ impl Screen for SeasonsScreen {
 
         let (blb_set, blb_border) = (
             symbols::border::Set {
-                bottom_left: symbols::line::ROUNDED_BOTTOM_LEFT,
-                bottom_right: symbols::line::NORMAL.horizontal_up,
+                horizontal_bottom: " ".into(),
+                bottom_right: symbols::line::ROUNDED_BOTTOM_LEFT,
                 ..symbols::border::PLAIN
             },
-            Borders::LEFT | Borders::BOTTOM | Borders::RIGHT,
+            Borders::RIGHT | Borders::BOTTOM,
         );
 
         let color = Style::default().fg(PRIMARY_COLOR);
@@ -244,7 +250,7 @@ impl Screen for SeasonsScreen {
         let season_color = if self.focus == Focus::SeasonSelection {
             HIGHLIGHT_COLOR
         } else {
-            PRIMARY_COLOR
+           TEXT_COLOR 
         };
         let title = Paragraph::new(
             DisplayString::new()
@@ -257,7 +263,6 @@ impl Screen for SeasonsScreen {
         .centered()
         .style(Style::default().fg(season_color));
         frame.render_widget(title, bl_top.inner(Margin::new(5, 1)));
-
 
         /* then create grid for animes:
          *  margin to keep grid from ruining area:
@@ -289,10 +294,10 @@ impl Screen for SeasonsScreen {
             );
         } else {
             let area = Rect::new(
-                bl_bottom.x + 1,
+                bl_bottom.x,
                 bl_bottom.y,
                 bl_bottom.width.saturating_sub(2),
-                bl_bottom.height.saturating_sub(1),
+                bl_bottom.height,
             );
             self.navigatable
                 .construct(&self.animes, area, |anime_id, area, highlight| {
@@ -338,11 +343,13 @@ impl Screen for SeasonsScreen {
                 "English:\n{}\n\nJapanese:\n{}",
                 anime.alternative_titles.en, anime.title
             ))
+            .style(Style::default().fg(TEXT_COLOR))
         } else {
             Paragraph::new(format!(
                 "English:\n{}\n\nJapanese:\n{}",
                 anime.title, anime.alternative_titles.ja
             ))
+            .style(Style::default().fg(TEXT_COLOR))
         }
         .block(Block::default().padding(Padding::new(1, 1, 1, 1)));
         let genres_string = anime
@@ -395,19 +402,27 @@ impl Screen for SeasonsScreen {
             let (left_details, right_details) = details.split_at(split);
             let block_style = Block::default()
                 .borders(Borders::TOP)
+                .border_style(Style::default().fg(PRIMARY_COLOR))
                 .padding(Padding::new(1, 2, 1, 1));
             let details_left =
-                Paragraph::new(create_details_text(left_details)).block(block_style.clone());
+                Paragraph::new(create_details_text(left_details))
+                .style(Style::default().fg(TEXT_COLOR))
+                .block(block_style.clone());
 
             let details_right =
-                Paragraph::new(create_details_text(right_details)).block(block_style);
+                Paragraph::new(create_details_text(right_details))
+                .style(Style::default().fg(TEXT_COLOR))
+                .block(block_style);
 
             frame.render_widget(details_left, left);
             frame.render_widget(details_right, right);
         } else {
-            let details_paragraph = Paragraph::new(create_details_text(&details)).block(
+            let details_paragraph = Paragraph::new(create_details_text(&details))
+                .style(Style::default().fg(TEXT_COLOR))
+                .block(
                 Block::default()
                     .borders(Borders::TOP)
+                    .border_style(Style::default().fg(PRIMARY_COLOR))
                     .padding(Padding::new(1, 2, 1, 1)),
             );
             frame.render_widget(details_paragraph, middle);
@@ -415,12 +430,14 @@ impl Screen for SeasonsScreen {
 
         let desc_title = Paragraph::new("\n Description:");
         let description = Paragraph::new(anime.synopsis)
+            .style(Style::default().fg(TEXT_COLOR))
             .wrap(Wrap { trim: true })
             .scroll((self.detail_scroll_y, 0))
             .block(
                 Block::default()
                     .padding(Padding::new(1, 1, 0, 0))
                     .borders(Borders::TOP)
+                    .border_style(Style::default().fg(PRIMARY_COLOR))
                     .padding(Padding::new(1, 2, 1, 1)),
             );
 
@@ -445,9 +462,8 @@ impl Screen for SeasonsScreen {
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
         match self.focus {
-
             // this focus is used just to not highligh anything in the screen
-            // and when the navbar gets deselcted this handle_input will run once right after 
+            // and when the navbar gets deselcted this handle_input will run once right after
             // whcih will set its focus back to the seasonselection
             Focus::Navbar => {
                 self.focus = Focus::SeasonSelection;
@@ -603,7 +619,13 @@ impl Screen for SeasonsScreen {
                     LocalEvent::AnimeSelected => break,
                     LocalEvent::Stop => return,
                     LocalEvent::SeasonSwitch(year, season) => {
-                        Self::fetch_anime_season(year, season, &info.app_sx, &info.mal_client, id.clone());
+                        Self::fetch_anime_season(
+                            year,
+                            season,
+                            &info.app_sx,
+                            &info.mal_client,
+                            id.clone(),
+                        );
                     }
                 }
             }

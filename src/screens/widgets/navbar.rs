@@ -7,7 +7,7 @@ use ratatui::{
     widgets::{Block, Borders}, 
     Frame
 };
-use crate::{app::Action, config::{HIGHLIGHT_COLOR, PRIMARY_COLOR, SECOND_HIGHLIGHT_COLOR}, screens::{name_to_screen, screen_to_name}};
+use crate::{app::Action, config::{HIGHLIGHT_COLOR, PRIMARY_COLOR, SECOND_HIGHLIGHT_COLOR, TEXT_COLOR}, screens::{name_to_screen, screen_to_name}};
 
 
 #[derive(Clone)]
@@ -145,7 +145,7 @@ impl NavBar {
             } else if i == self.old_button {
                 Style::default().fg(HIGHLIGHT_COLOR)
             } else{
-                Style::default().fg(PRIMARY_COLOR)
+                Style::default().fg(TEXT_COLOR)
             };
 
             frame.render_widget(

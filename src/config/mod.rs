@@ -3,9 +3,11 @@ use ratatui::style::Color;
 // Configuration for colors used in the application
 pub const PRIMARY_COLOR: Color = Color::DarkGray; 
 pub const SECONDARY_COLOR: Color = Color::White;
-pub const HIGHLIGHT_COLOR: Color = Color::Cyan;
+pub const HIGHLIGHT_COLOR: Color = Color::LightCyan;
 pub const SECOND_HIGHLIGHT_COLOR: Color = Color::LightYellow;
 pub const ERROR_COLOR: Color = Color::Red;
+pub const TEXT_COLOR: Color = Color::White; 
+pub const SECOND_TEXT_COLOR: Color = Color::White; 
 
 // Anime List Colors
 pub const WATCHING_COLOR: Color = Color::Rgb(64, 201, 255);
@@ -23,6 +25,6 @@ pub fn anime_list_colors(status: impl AsRef<str>) -> Color {
         "on hold" | "on-hold" => ON_HOLD_COLOR,
         "dropped" => DROPPED_COLOR,
         "plan to watch" => PLAN_TO_WATCH_COLOR,
-        _ => Color::DarkGray,
+        _ => PRIMARY_COLOR,
     }
 }
