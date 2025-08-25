@@ -3,14 +3,12 @@
 A Rust-based CLI/TUI for interacting with MyAnimeList integrated with ani-cli for streaming anime episodes.  
 Inspired by [ani-cli](https://github.com/pystardust/ani-cli), but written in Rust.
 
----
 
 # Overview
 
 `mal-cli` allows you to log in with your MyAnimeList account, browse seasonal anime, search titles, view your lists, and play episodes directly in `mpv`, which will automatically update your animelist when you decide to watch something.
 It combines **MAL integration** with **ani-cli-style playback** in a single lightweight terminal application.
 
----
 
 # Showcase
 
@@ -32,7 +30,6 @@ It combines **MAL integration** with **ani-cli-style playback** in a single ligh
 ### Profile
 ![Profile](docs/6.png)
 
----
 
 # Download
 
@@ -70,7 +67,6 @@ Run with:
 
 </details>
 
----
 
 # Features
 
@@ -82,14 +78,12 @@ Run with:
 * **Profile** — view your MAL profile info
 * **Episode Playback** — stream anime in `mpv` with automatic list update in MyAnimeList
 
----
 
 ## Disclaimer
 
 `mal-cli` is designed to work best in [kitty](https://sw.kovidgoyal.net/kitty/) but should also work in any terminal that supports the **kitty graphics protocol** (for inline images and enhanced rendering).  
 Other terminals will work for basic functionality, but screenshots, covers, and some UI features may not display correctly.
 
----
 
 # Credits
 
