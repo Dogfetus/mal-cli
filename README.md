@@ -1,7 +1,7 @@
 # mal-cli
 
 A Rust-based CLI/TUI for interacting with MyAnimeList integrated with ani-cli for streaming anime episodes.  
-Inspired by [ani-cli](https://github.com/pystardust/ani-cli), but written in Rust.
+Inspired by [ani-cli](https://github.com/pystardust/ani-cli).
 
 
 # Overview
