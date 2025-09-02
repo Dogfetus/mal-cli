@@ -9,8 +9,25 @@ mod player;
 use crate::app::App;
 use anyhow::Result;
 
+fn parse_cli() -> bool {
+
+    for arg in std::env::args().skip(1) {
+        match arg.as_str() {
+            "-v" | "--version" => return true,
+            _ => {}
+        }
+    }
+
+    false
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    let show_version = parse_cli(); 
+    if show_version {
+        println!("{}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
 
     let terminal = ratatui::init();
 
@@ -22,30 +39,4 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
