@@ -8,6 +8,7 @@ use crate::screens::ScreenManager;
 use crate::screens::screens::*;
 use crate::utils::get_app_dir;
 use crate::utils::store::Store;
+use crate::utils::errorBus;
 
 use chrono::DateTime;
 use chrono::Local;
@@ -30,6 +31,8 @@ pub struct ExtraInfo {
     pub anime_store: Store<Anime>,
 }
 
+// these are retured when a screen handles an input
+#[derive(Debug, Clone)]
 pub enum Action {
     PlayAnime(AnimeId),
     PlayEpisode(AnimeId, u32),
@@ -47,6 +50,7 @@ pub enum CurrentInfo {
     Manga,
 }
 
+// these are sent over the chanel at any time
 #[allow(dead_code)]
 pub enum Event {
     KeyPress(crossterm::event::KeyEvent),
@@ -55,7 +59,45 @@ pub enum Event {
     BackgroundNotice(BackgroundUpdate),
     ImageCached(usize, DynamicImage),
     StorageUpdate(AnimeId, Box<dyn FnOnce(&mut Anime) + Send>),
+    ShowError(String),
     Rerender,
+}
+
+impl std::fmt::Debug for Event {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Event::KeyPress(key_event) => f
+                .debug_struct("KeyPress")
+                .field("code", &key_event.code)
+                .field("modifiers", &key_event.modifiers)
+                .finish(),
+            Event::MouseClick(mouse_event) => f
+                .debug_struct("MouseClick")
+                .field("kind", &mouse_event.kind)
+                .field("column", &mouse_event.column)
+                .field("row", &mouse_event.row)
+                .finish(),
+            Event::Resize(width, height) => f
+                .debug_struct("Resize")
+                .field("width", width)
+                .field("height", height)
+                .finish(),
+            Event::BackgroundNotice(_) => f.debug_struct("BackgroundNotice").finish(),
+            Event::ImageCached(index, _) => f
+                .debug_struct("ImageCached")
+                .field("index", index)
+                .finish(),
+            Event::StorageUpdate(anime_id, _) => f
+                .debug_struct("StorageUpdate")
+                .field("anime_id", anime_id)
+                .finish(),
+            Event::ShowError(message) => f
+                .debug_struct("ShowError")
+                .field("message", message)
+                .finish(),
+            Event::Rerender => f.debug_struct("Rerender").finish()    
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -83,6 +125,8 @@ impl App {
             mal_client: mal_client.clone(),
             anime_store: Store::new(),
         };
+
+        errorBus::init(sx.clone());
 
         App {
             mal_client: mal_client.clone(),
@@ -134,6 +178,9 @@ impl App {
                                 updater(anime_to_update);
                             });
                         self.screen_manager.refresh();
+                    }
+                    Event::ShowError(message) => {
+                        self.screen_manager.show_error(message);
                     }
                     _ => {}
                 }

@@ -35,10 +35,7 @@ use super::customThreadProtocol::{
     CustomResizeRequest, CustomResizeResponse, CustomThreadProtocol,
 };
 use crate::{
-    app::Event,
-    mal::{models::anime::Anime, network::fetch_image},
-    screens::BackgroundUpdate,
-    utils::terminalCapabilities::get_picker,
+    app::Event, mal::{models::anime::Anime, network::fetch_image}, screens::BackgroundUpdate, send_error, utils::terminalCapabilities::get_picker
 };
 use ratatui::layout::Rect;
 use ratatui_image::errors::Errors;
@@ -220,7 +217,7 @@ impl ImageManager {
 
                     let _ = app_sx2.send(Event::Rerender);
                 } else {
-                    eprintln!("Failed to fetch image for anime ID {}", anime_id);
+                    send_error!("Failed to fetch image for anime ID {}", anime_id);
                 }
             }
         });
@@ -294,7 +291,7 @@ impl ImageManager {
                         .load_image(anime.id, thread_protocol);
                 }
                 Err(e) => {
-                    eprintln!("Failed to fetch image: {}", e);
+                    send_error!("Failed to fetch image: {}", e);
                     return;
                 }
             }
@@ -359,7 +356,7 @@ impl ImageManager {
                     let _ = app_sx.send(Event::Rerender);
                 }
                 Err(e) => {
-                    eprintln!("Failed to fetch image: {}", e);
+                    send_error!("Failed to fetch image: {}", e);
                 }
             });
         }
@@ -417,7 +414,7 @@ impl ImageManager {
             let (id, url) = match item.get_displayable_image() {
                 Some((id, url)) => (id, url),
                 None => {
-                    eprintln!("Item does not have a displayable image");
+                    send_error!("Item does not have a displayable image");
                     return;
                 }
             };
@@ -431,10 +428,10 @@ impl ImageManager {
             if let Some(sender) = instance.fetcher_tx.clone() {
                 instance.load_empy_image(id);
                 if let Err(e) = sender.send(FetchRequest { id, url }) {
-                    eprintln!("Failed to send anime to fetcher thread: {}", e);
+                    send_error!("Failed to send anime to fetcher thread: {}", e);
                 }
             } else {
-                eprintln!("Fetcher thread is not initialized (ImageManager has not been initialized properly");
+                send_error!("Fetcher thread is not initialized (ImageManager has not been initialized properly");
             }
         }
     }
@@ -458,7 +455,7 @@ impl ImageManager {
     /// ```
     pub fn load_image(&mut self, id: usize, protocol: CustomThreadProtocol) {
         if self.app_sx.is_none() {
-            eprintln!("App sender is not initialized");
+            send_error!("App sender is not initialized");
             return;
         }
         self.protocols.insert(id, protocol);
@@ -475,7 +472,7 @@ impl ImageManager {
     /// * `id` - The unique ID to create a placeholder for
     pub fn load_empy_image(&mut self, id: usize) {
         if self.app_sx.is_none() {
-            eprintln!("App sender is not initialized");
+            send_error!("App sender is not initialized");
             return;
         }
 
@@ -559,7 +556,7 @@ impl ImageManager {
         let (id, url) = match item.get_displayable_image() {
             Some((id, url)) => (id, url),
             None => {
-                eprintln!("Item does not have a displayable image");
+                send_error!("Item does not have a displayable image");
                 return;
             }
         };
@@ -577,10 +574,10 @@ impl ImageManager {
                 if let Some(sender) = self_lock.fetcher_tx.clone() {
                     self_lock.load_empy_image(id);
                     if let Err(e) = sender.send(FetchRequest { id, url }) {
-                        eprintln!("Failed to send anime to fetcher thread: {}", e);
+                        send_error!("Failed to send anime to fetcher thread: {}", e);
                     }
                 } else {
-                    eprintln!("Fetcher thread is not initialized (ImageManager has not been initialized properly");
+                    send_error!("Fetcher thread is not initialized (ImageManager has not been initialized properly");
                 }
             }
         }
@@ -613,7 +610,7 @@ impl ImageManager {
     /// // Usually called internally by the resize thread, but can be used manually
     /// let success = image_manager.update_image(image_id, resize_result);
     /// if !success {
-    ///     eprintln!("Failed to update image");
+    ///     send_error!("Failed to update image");
     /// }
     /// ```
     pub fn update_image(
@@ -625,12 +622,12 @@ impl ImageManager {
             match response {
                 Ok(completed) => protocol.update_resized_protocol(completed),
                 Err(e) => {
-                    eprintln!("failed to update image {}: error: {}", id, e);
+                    send_error!("failed to update image {}: error: {}", id, e);
                     false
                 }
             }
         } else {
-            eprintln!("Image with ID {} not found", id);
+            send_error!("Image with ID {} not found", id);
             false
         }
     }

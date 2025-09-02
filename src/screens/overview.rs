@@ -23,7 +23,6 @@ use ratatui::{
     style::{Color, Style},
     widgets::{Block, Borders, Clear},
 };
-use tokio::sync::watch;
 use tui_widgets::big_text::{BigText, PixelSize};
 
 
