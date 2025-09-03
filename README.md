@@ -79,6 +79,15 @@ Run with:
 * **Episode Playback** — stream anime in `mpv` with automatic list update in MyAnimeList
 
 
+## Keybindings
+Configs are coming soon. 
+
+For now, controls are hardcoded to h, j, k, l ( j and k are flipped compared to normal Vim) or the arrow keys.  
+Ctrl + (key) → move to other parts of the same screen  
+q → quit popup  
+Enter / Space → select items  
+Ctrl + c → quit  
+
 ## Disclaimer
 
 `mal-cli` is designed to work best in [kitty](https://sw.kovidgoyal.net/kitty/) but should also work in any terminal that supports the **kitty graphics protocol** (for inline images and enhanced rendering).  
@@ -87,6 +96,6 @@ Other terminals will work for basic functionality, but screenshots, covers, and 
 
 # Credits
 
-* [ani-cli](https://github.com/pystardust/ani-cli)
-* [jikan](https://github.com/jikan-me/jikan)
+* [ani-cli](https://github.com/pystardust/ani-cli) - for fetching the episodes
+* [jikan](https://github.com/jikan-me/jikan) - for extra info not provided by the regular api
 
