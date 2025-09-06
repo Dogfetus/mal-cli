@@ -50,9 +50,10 @@ pub enum CurrentInfo {
     Manga,
 }
 
-// these are sent over the chanel at any time
+// these are sent over the channel at any time
 #[allow(dead_code)]
 pub enum Event {
+    InputEvent(crossterm::event::Event),
     KeyPress(crossterm::event::KeyEvent),
     MouseClick(crossterm::event::MouseEvent),
     Resize(u16, u16),
@@ -95,7 +96,8 @@ impl std::fmt::Debug for Event {
                 .debug_struct("ShowError")
                 .field("message", message)
                 .finish(),
-            Event::Rerender => f.debug_struct("Rerender").finish()    
+            Event::Rerender => f.debug_struct("Rerender").finish(),   
+            _ => f.debug_struct("OtherEvent").finish(),
         }
     }
 }
@@ -163,7 +165,9 @@ impl App {
 
             for event in events {
                 match event {
-                    Event::KeyPress(key_event) => self.handle_input(key_event),
+                    Event::InputEvent(input_event) => {
+                        self.handle_input(input_event);
+                    }
                     Event::BackgroundNotice(mut update) => {
                         if let Some(animes) = update.take::<Vec<Anime>>("animes") {
                             self.shared_info.anime_store.add_bulk(animes);
@@ -268,12 +272,18 @@ impl App {
         None
     }
 
-    fn handle_input(&mut self, key_event: crossterm::event::KeyEvent) {
-        if key_event.kind != crossterm::event::KeyEventKind::Press {
-            return;
+    fn handle_input(&mut self, event: crossterm::event::Event) {
+        // quit the app on ctrl+c
+        if let crossterm::event::Event::Key(key_event) = event {
+            if key_event.kind == crossterm::event::KeyEventKind::Press &&
+            key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) &&
+            key_event.code == crossterm::event::KeyCode::Char('c')
+            {
+                self.is_running = false;
+            }
         }
 
-        let result = self.screen_manager.handle_input(key_event);
+        let result = self.screen_manager.handle_input(event);
         if let Some(action) = result {
             match action {
                 Action::SwitchScreen(screen_name) => {
@@ -297,20 +307,6 @@ impl App {
                 Action::Quit => {
                     self.is_running = false;
                 }
-            }
-        }
-        if key_event
-            .modifiers
-            .contains(crossterm::event::KeyModifiers::CONTROL)
-        {
-            match key_event.code {
-                KeyCode::Char('c') => self.is_running = false,
-                KeyCode::Char('f') => self.screen_manager.change_screen(SEARCH),
-                KeyCode::Char('o') => self.screen_manager.change_screen(OVERVIEW),
-                KeyCode::Char('s') => self.screen_manager.change_screen(SEASONS),
-                KeyCode::Char('i') => self.screen_manager.change_screen(LIST),
-                KeyCode::Char('p') => self.screen_manager.change_screen(PROFILE),
-                _ => return,
             }
         }
     }

@@ -8,6 +8,7 @@ mod player;
 
 use crate::app::App;
 use anyhow::Result;
+use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 
 fn parse_cli() -> bool {
 
@@ -31,11 +32,17 @@ async fn main() -> Result<()> {
 
     let terminal = ratatui::init();
 
+    // enable mouse capture
+    crossterm::execute!(std::io::stderr(), EnableMouseCapture)?;
+
     // start the app
     let mut app = App::new(terminal);
     app.run()?;
 
     ratatui::restore();
+
+    // disable mouse capture
+    crossterm::execute!(std::io::stderr(), DisableMouseCapture)?;
 
     Ok(())
 }

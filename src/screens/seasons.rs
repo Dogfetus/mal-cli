@@ -460,7 +460,7 @@ impl Screen for SeasonsScreen {
         self.season_popup.render(frame, bl_top);
     }
 
-    fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
+    fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
         match self.focus {
             // this focus is used just to not highligh anything in the screen
             // and when the navbar gets deselcted this handle_input will run once right after

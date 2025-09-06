@@ -6,7 +6,6 @@ use std::thread::{self, JoinHandle};
 use super::widgets::animebox::AnimeBox;
 use super::widgets::navigatable::Navigatable;
 use super::{BackgroundUpdate, ExtraInfo, Screen};
-use crate::add_screen_caching;
 use crate::app::{Action, Event};
 use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
 use crate::mal::models::anime::AnimeId;
@@ -37,13 +36,13 @@ struct List {
     title: String,
     navigatable: Navigatable,
     items: Vec<AnimeId>,
+    image_manager: Arc<Mutex<ImageManager>>,
 }
 
 #[derive(Clone)]
 pub struct OverviewScreen {
     bg_loaded: bool,
     app_info: ExtraInfo,
-    image_manager: Arc<Mutex<ImageManager>>,
 
     navigation: Navigatable,
     lists: Vec<List>,
@@ -55,23 +54,25 @@ impl OverviewScreen {
         Self {
             app_info: info,
             bg_loaded: false,
-            image_manager: Arc::new(Mutex::new(ImageManager::new())),
             navigation: Navigatable::new((3, 1)),
             lists: vec![
                 List {
                     title: "Recently Watched".to_string(),
                     navigatable: Navigatable::new((1, 5)),
                     items: vec![],
+                    image_manager: Arc::new(Mutex::new(ImageManager::new())),
                 },
                 List {
                     title: "Suggested Animes".to_string(),
                     navigatable: Navigatable::new((1, 5)),
                     items: vec![],
+                    image_manager: Arc::new(Mutex::new(ImageManager::new())),
                 },
                 List {
                     title: "Most Popular".to_string(),
                     navigatable: Navigatable::new((1, 5)),
                     items: vec![],
+                    image_manager: Arc::new(Mutex::new(ImageManager::new())),
                 },
             ],
             focus: Focus::Content,
@@ -80,7 +81,7 @@ impl OverviewScreen {
 }
 
 impl Screen for OverviewScreen {
-    add_screen_caching!();
+    // add_screen_caching!();
 
     fn draw(&mut self, frame: &mut Frame) {
         let area = frame.area();
@@ -166,7 +167,7 @@ impl Screen for OverviewScreen {
                         if let Some(anime) = &self.app_info.anime_store.get(anime_id) {
                             AnimeBox::render(
                                 anime,
-                                &self.image_manager,
+                                &list.image_manager,
                                 frame,
                                 inner_area.inner(Margin {
                                     vertical: 0,
@@ -180,7 +181,7 @@ impl Screen for OverviewScreen {
             });
     }
 
-    fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
+    fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
         match self.focus {
             Focus::NavBar => {
                 self.focus = Focus::Content;
@@ -238,7 +239,9 @@ impl Screen for OverviewScreen {
 
     fn background(&mut self) -> Option<JoinHandle<()>> {
         let already_loaded = self.bg_loaded;
-        ImageManager::init_with_threads(&self.image_manager, self.app_info.app_sx.clone());
+        for item in self.lists.iter_mut() {
+            ImageManager::init_with_threads(&item.image_manager, self.app_info.app_sx.clone());
+        }
         let info = self.app_info.clone();
         let id = self.get_name();
         let sender = info.app_sx.clone();

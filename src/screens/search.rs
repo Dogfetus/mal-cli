@@ -228,7 +228,7 @@ impl Screen for SearchScreen {
             .render(frame, filter_area, self.focus == Focus::Filter);
     }
 
-    fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
+    fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
         match self.focus {
             Focus::Filter => {
                 if key_event

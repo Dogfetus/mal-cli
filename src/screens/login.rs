@@ -26,7 +26,7 @@ impl LoginScreen {
         Self {
             selected_button: 0,
             buttons: vec![
-                "Copy",
+                "nothing yet",
                 "Back",
             ],
             login_url: String::new(),
@@ -117,7 +117,7 @@ impl Screen for LoginScreen {
 
     }
 
-    fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
+    fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
         match key_event.code {
             KeyCode::Up | KeyCode::Char('j') => {
                 if self.selected_button > 0 {

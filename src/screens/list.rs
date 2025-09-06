@@ -449,7 +449,7 @@ impl Screen for ListScreen {
 
 
 
-    fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
+    fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
         match self.focus {
             Focus::Search => {
                 if key_event

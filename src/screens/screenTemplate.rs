@@ -64,8 +64,8 @@ impl Screen for TempScreen {
     }
 
 
-    // returns an actiion based on the input that the app will act upon
-    fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
+    // returns an action based on the keyboard event that the app will act upon
+    fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
         todo!("Handle input for ListScreen");
         // code to handle inputs from user
         // ...

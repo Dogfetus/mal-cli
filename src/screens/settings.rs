@@ -72,7 +72,7 @@ impl Screen for SettingsScreen {
 
     }
 
-    fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
+    fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
         match key_event.code {
             KeyCode::Up | KeyCode::Char('j') => {
                 if self.selected_button > 0 {

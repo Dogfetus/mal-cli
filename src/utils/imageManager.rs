@@ -1,4 +1,6 @@
 #![allow(unused)]
+//! WARNING: these docs/comments are generated using claude: 
+//!
 //! Image management utilities for terminal-based anime applications.
 //!
 //! This module provides the `ImageManager` struct which handles concurrent image downloading,
@@ -201,23 +203,23 @@ impl ImageManager {
 
         std::thread::spawn(move || {
             while let Ok(req) = fetcher_rx.recv() {
-                let anime_id = req.id;
+                let image_id = req.id;
                 if let Ok(dyn_img) = fetch_image(req.url) {
                     let picker = get_picker();
                     let protocol = picker.new_resize_protocol(dyn_img);
                     let thread_protocol =
-                        CustomThreadProtocol::new(anime_id, image_tx.clone(), Some(protocol));
+                        CustomThreadProtocol::new(image_id, image_tx.clone(), Some(protocol));
 
                     {
                         instance_clone_1
                             .lock()
                             .unwrap()
-                            .load_image(anime_id, thread_protocol);
+                            .load_image(image_id, thread_protocol);
                     }
 
                     let _ = app_sx2.send(Event::Rerender);
                 } else {
-                    send_error!("Failed to fetch image for anime ID {}", anime_id);
+                    send_error!("Failed to image with ID {}", image_id);
                 }
             }
         });

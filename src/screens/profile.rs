@@ -313,7 +313,7 @@ impl Screen for ProfileScreen {
 
     // handle inut function
     // for this spcific screen bro
-    fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
+    fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
         match self.focus {
             Focus::NavBar => {
                 self.focus = Focus::Content;

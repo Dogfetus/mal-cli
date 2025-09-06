@@ -1,8 +1,5 @@
 use std::sync::mpsc;
 use crate::app::Event;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
-
 
 
 pub fn input_handler(sx: mpsc::Sender<Event>) {
@@ -10,7 +7,7 @@ pub fn input_handler(sx: mpsc::Sender<Event>) {
         if let Ok(event) = crossterm::event::read() {
             match event {
                 crossterm::event::Event::Key(key_event) => {
-                    if sx.send(Event::KeyPress(key_event)).is_err() {
+                    if sx.send(Event::InputEvent(event)).is_err() {
                         // this happens when the receiver is dropped
                         return;
                     }
@@ -20,20 +17,17 @@ pub fn input_handler(sx: mpsc::Sender<Event>) {
                         key_event.code == crossterm::event::KeyCode::Char('c') &&
                         key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
                     {
-                        break;
+                        return;
                     }
                 }
 
                 crossterm::event::Event::Mouse(mouse_event) => {
                     match mouse_event.kind {
-                        crossterm::event::MouseEventKind::Down(_) | 
-                        crossterm::event::MouseEventKind::Up(_) |
-                        crossterm::event::MouseEventKind::Drag(_) => {
-                            if sx.send(Event::MouseClick(mouse_event)).is_err(){
+                        crossterm::event::MouseEventKind::Down(_) => {
+                            if sx.send(Event::InputEvent(event)).is_err() {
                                 return;
-                            };
-                            // sx.send(Event::MousePosition(x, y, mouse_event.kind)).unwrap();??
-                        }
+                            }
+                        } 
                         _ => {}
                     }
                 }

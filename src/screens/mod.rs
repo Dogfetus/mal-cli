@@ -120,7 +120,10 @@ define_screens! {
 #[allow(dead_code, unused_variables)]
 pub trait Screen {
     fn draw(&mut self, frame: &mut Frame);
-    fn handle_input(&mut self, key_event: crossterm::event::KeyEvent) -> Option<Action> {
+    fn handle_keyboard(&mut self, key_event: crossterm::event::KeyEvent) -> Option<Action> {
+        None
+    }
+    fn handle_mouse(&mut self, mouse_event: crossterm::event::MouseEvent) -> Option<Action> {
         None
     }
     fn get_name(&self) -> String {
@@ -217,24 +220,51 @@ impl ScreenManager {
         self.error_overlay.open();
     }
 
-    pub fn handle_input(&mut self, key_event: crossterm::event::KeyEvent) -> Option<Action> {
-        if self.error_overlay.is_open() {
-            return self.error_overlay.handle_input(key_event);
+    pub fn handle_input(&mut self, event: crossterm::event::Event) -> Option<Action> {
+        match event {
+            crossterm::event::Event::Key(key_event) => {
+                if self.error_overlay.is_open() {
+                    return self.error_overlay.handle_input(key_event);
+                }
+
+                if self.overlay.is_open() {
+                    return self.overlay.handle_input(key_event);
+                }
+
+                if self.navbar.is_selected() {
+                return self.navbar.handle_input(key_event)
+                        .and_then(|action| match action {
+                        Action::NavbarSelect(_) => self.current_screen.handle_keyboard(key_event),
+                        other => Some(other),
+                    });
+                }
+
+                self.current_screen.handle_keyboard(key_event)
+            }
+
+            // crossterm::event::Event::Mouse(mouse_event) => {
+            //     if self.error_overlay.is_open() {
+            //         return self.error_overlay.handle_mouse(mouse_event);
+            //     }
+            //
+            //     if self.overlay.is_open() {
+            //         return self.overlay.handle_mouse(mouse_event);
+            //     }
+            //
+            //     if self.navbar.is_selected() {
+            //         return self.navbar.handle_mouse(mouse_event)
+            //             .and_then(|action| match action {
+            //                 Action::NavbarSelect(_) => self.current_screen.handle_mouse(mouse_event),
+            //                 other => Some(other),
+            //             });
+            //     }
+            //
+            //     self.current_screen.handle_mouse(mouse_event)
+            // }
+
+            _ => { None }
         }
 
-        if self.overlay.is_open() {
-            return self.overlay.handle_input(key_event);
-        }
-
-        if self.navbar.is_selected() {
-           return self.navbar.handle_input(key_event)
-                .and_then(|action| match action {
-                Action::NavbarSelect(_) => self.current_screen.handle_input(key_event),
-                other => Some(other),
-            });
-        }
-
-        self.current_screen.handle_input(key_event)
     }
 
     pub fn update_screen(&mut self, update: BackgroundUpdate) {
