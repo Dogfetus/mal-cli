@@ -128,7 +128,7 @@ impl MalClient {
                 }
             };
 
-            if expires_at <= Self::time_now() {
+            if true {
                 let token = match &identity.refresh_token {
                     Some(t) => t,
                     None => {
@@ -136,7 +136,10 @@ impl MalClient {
                         return false;
                     }
                 };
-                let _ = refresh_token(token);
+                match refresh_token(token){
+                    Ok(s) => println!("{}", s),
+                    Err(e) => println!("failure: {}", e),
+                }
             }
 
             return true;

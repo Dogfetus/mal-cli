@@ -3,20 +3,21 @@
 extern crate rouille;
 extern crate pkce;
 
-use ureq::Agent;
-use chrono::Local;
-use std::{collections::HashMap, env};
 use anyhow::Result;
+use base64::engine::general_purpose;
+use base64::{self, Engine};
+use chrono::Local;
 use oauth2::CsrfToken;
-use std::time::{Duration, Instant};
-use std::sync::{Arc, Mutex};
 use rand::Rng;
-use std::thread;
 use std::io::Write;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
+use std::{collections::HashMap, env};
+use ureq::Agent;
 
 const STATE_LIFETIME: u64 = 300; // 5 minutes
 const CLEANUP_INTERVAL: u64 = 30; // 30 seconds
-
 
 struct ExpectedBody {
     code: String,
@@ -51,18 +52,24 @@ impl MalAgent {
         let redirect_url = env::var("MAL_REDIRECT_URL").unwrap();
         let temp_storage = HashMap::new();
 
-        MalAgent { url, agent, client_id, client_secret, redirect_url, temp_storage }
+        MalAgent {
+            url,
+            agent,
+            client_id,
+            client_secret,
+            redirect_url,
+            temp_storage,
+        }
     }
 
     fn get_user_tokens(&self, data: &ExpectedBody) -> Result<String> {
-        let storage = match self.temp_storage.get(&data.state){
+        let storage = match self.temp_storage.get(&data.state) {
             Some(storage) => storage,
             None => {
                 println!("No data found for state: {}", data.state);
                 return Err(anyhow::anyhow!("No data found for state"));
             }
         };
-
 
         let body = [
             ("client_id", self.client_id.as_str()),
@@ -73,8 +80,9 @@ impl MalAgent {
             ("code_verifier", storage.code_challenge.as_str()),
         ];
 
-
-        let response: String = self.agent.post(&self.url)
+        let response: String = self
+            .agent
+            .post(&self.url)
             .send_form(body)?
             .body_mut()
             .read_to_string()?;
@@ -82,19 +90,28 @@ impl MalAgent {
         Ok(response)
     }
 
-    fn refresh_user_tokens(&self, refresh_token: String) -> Result<String>{
+    fn refresh_user_tokens(&self, refresh_token: String) -> Result<String> {
         const URL: &str = "https://myanimelist.net/v1/oauth2/token";
 
-        body = [
+        let body = [
             ("grant_type", "refresh_token"),
-            ("refresh_token", refresh_token)
+            ("refresh_token", refresh_token.as_str()),
         ];
 
+        let basic =
+            general_purpose::STANDARD.encode(
+                format!("{}:{}",
+                    self.client_id,
+                    self.client_secret)
+            );
+
         let response: String = self.agent
-        .post(URL)
-        .send_form(&body)?
-        .body_mut()
-        .read_to_string()?;
+            .post(URL)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Authorization", &format!("Basic {}", basic))
+            .send_form(body)?
+            .body_mut()
+            .read_to_string()?;
 
         Ok(response)
     }
@@ -109,7 +126,8 @@ impl MalAgent {
         let code_verify = pkce::code_verifier(n);
         let code_challenge = pkce::code_challenge(&code_verify);
 
-        let url = format!("{}?\
+        let url = format!(
+            "{}?\
                 response_type=code\
                 &client_id={}\
                 &state={}\
@@ -117,11 +135,7 @@ impl MalAgent {
                 &code_challenge_method=plain\
                 &redirect_uri={}
             ",
-            URL,
-            self.client_id,
-            state,
-            code_challenge,
-            self.redirect_url
+            URL, self.client_id, state, code_challenge, self.redirect_url
         );
 
         Ok((url, state, code_challenge))
@@ -129,7 +143,7 @@ impl MalAgent {
 
     fn save_data(&mut self, state: String, code_challenge: String, port: u16) {
         let data = Data {
-            code_challenge, 
+            code_challenge,
             port,
             timestamp: Instant::now(),
         };
@@ -143,7 +157,8 @@ impl MalAgent {
 
     fn cleanup_expired_data(&mut self, max_age: Duration) -> usize {
         let now = Instant::now();
-        let expired_keys: Vec<String> = self.temp_storage
+        let expired_keys: Vec<String> = self
+            .temp_storage
             .iter()
             .filter(|(_, data)| now.duration_since(data.timestamp) > max_age)
             .map(|(key, _)| key.clone())
@@ -156,68 +171,61 @@ impl MalAgent {
         count
     }
 
-    fn handle_token_response(&mut self, result: Result<String>, data: &ExpectedBody) -> (String, u16) {
+    fn handle_token_response(
+        &mut self,
+        result: Result<String>,
+        data: &ExpectedBody,
+    ) -> (String, u16) {
         match result {
             Ok(response) => {
                 let port = self.temp_storage[&data.state].port;
                 let local_url = format!("http://localhost:{}/callback", port);
                 let json: serde_json::Value = match serde_json::from_str(&response) {
                     Ok(json) => json,
-                    Err(_) => {
-                        return ("Invalid JSON response".to_string(), 500) 
-                    }
+                    Err(_) => return ("Invalid JSON response".to_string(), 500),
                 };
                 let token = match json["access_token"].as_str() {
                     Some(token) => token,
-                    None => {
-                        return ("Missing access_token".to_string(), 500) 
-                    }
+                    None => return ("Missing access_token".to_string(), 500),
                 };
                 let refresh_token = match json["refresh_token"].as_str() {
                     Some(token) => token,
-                    None => {
-                        return ("Missing refresh_token".to_string(), 500) 
-                    }
+                    None => return ("Missing refresh_token".to_string(), 500),
                 };
                 let expires_in = match json["expires_in"].as_u64() {
                     Some(token) => token,
-                    None => {
-                        return ("Missing expires_in".to_string(), 500) 
-                    }
+                    None => return ("Missing expires_in".to_string(), 500),
                 };
-
 
                 self.remove_data(&data.state);
 
                 // hmmmm>
                 let mut html_content = match std::fs::read_to_string("templates/success.html") {
                     Ok(content) => content,
-                    Err(_) => return ("Failed to read template".to_string(), 400) 
+                    Err(_) => return ("Failed to read template".to_string(), 400),
                 };
-                html_content = html_content.replace("{{redirect_url}}", &local_url)
-                                        .replace("{{access_token}}", &token)
-                                        .replace("{{refresh_token}}", &refresh_token)
-                                        .replace("{{expires_in}}", &expires_in.to_string());
+                html_content = html_content
+                    .replace("{{redirect_url}}", &local_url)
+                    .replace("{{access_token}}", &token)
+                    .replace("{{refresh_token}}", &refresh_token)
+                    .replace("{{expires_in}}", &expires_in.to_string());
 
-                return (html_content, 200)
+                return (html_content, 200);
             }
 
-
-            //ERROR: s  
+            //ERROR: s
             Err(e) => {
                 let mut html_content = match std::fs::read_to_string("templates/error.html") {
                     Ok(content) => content,
-                    Err(_) => return ("Failed to read template".to_string(), 400)
+                    Err(_) => return ("Failed to read template".to_string(), 400),
                 };
 
                 html_content = html_content.replace("{{error}}", &e.to_string());
-                return (html_content, 500)
+                return (html_content, 500);
             }
         }
     }
 }
-
-
 
 // TODO: check for different errors (unexpected input)
 fn main() {
@@ -227,7 +235,6 @@ fn main() {
     let mal_agent = Arc::new(Mutex::new(MalAgent::new(mal_url)));
     let cleanup_agent = Arc::clone(&mal_agent);
 
-
     // cleanup thread
     thread::spawn(move || {
         let max_age = Duration::from_secs(STATE_LIFETIME);
@@ -236,16 +243,16 @@ fn main() {
             if let Ok(mut guard) = cleanup_agent.lock() {
                 let removed = guard.cleanup_expired_data(max_age);
                 let now = Local::now().format("%Y-%m-%d %H:%M:%S");
-                println!("[{}] Cleaned up {} expired states, {} states remaining",
+                println!(
+                    "[{}] Cleaned up {} expired states, {} states remaining",
                     now,
-                    removed, 
+                    removed,
                     guard.temp_storage.len()
                 );
                 std::io::stdout().flush().unwrap();
             }
         }
     });
-
 
     // server
     println!("Now listening on localhost:8000");
@@ -272,14 +279,17 @@ fn main() {
 
             (POST) (/refresh_token) => {
                 let data = try_or_400!(post_input!(request, {
-                    refresh_token: u16,
+                    refresh_token: String,
                 }));
 
-                let mut guard = mal_agent.lock().unwrap();
-                let result = guard.refresh_user_tokens(refresh_token);
+                let guard = mal_agent.lock().unwrap();
+                let result = guard.refresh_user_tokens(data.refresh_token);
 
-                rouille::Response::text(result)
-            }
+                match &result {
+                    Ok(response) => rouille::Response::text(response).with_status_code(200),
+                    Err(e) => rouille::Response::text(e.to_string()).with_status_code(500),
+                }
+            },
 
 
 
@@ -305,7 +315,6 @@ fn main() {
             },
 
             _ => rouille::Response::text("Nothing here...").with_status_code(404)
-        // 
         )
     });
 }

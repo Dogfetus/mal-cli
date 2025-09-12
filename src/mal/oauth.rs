@@ -12,6 +12,7 @@ use ureq;
 
 const MAX_RETRIES: u16 = 10;
 const BACKEND_URL: &str = "https://mal-cli.dogfetus.no";
+// const BACKEND_URL: &str = "http://localhost:8000";
 
 pub fn oauth_login<F>(callback: F) -> (String, JoinHandle<()>)
 where
