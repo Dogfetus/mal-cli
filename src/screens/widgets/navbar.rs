@@ -1,4 +1,4 @@
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, MouseEvent};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect}, 
     style::Style, 
@@ -48,7 +48,7 @@ impl NavBar {
         self
     }
 
-    pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
+    pub fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
         if (key_event.code == KeyCode::Char('k') || key_event.code == KeyCode::Down)
             && key_event
                 .modifiers
@@ -78,6 +78,10 @@ impl NavBar {
             },
             _ => {},
         }
+        None
+    }
+
+    pub fn handle_mouse(&mut self, mouse_event: MouseEvent) -> Option<Action> {
         None
     }
 

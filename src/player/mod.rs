@@ -267,7 +267,7 @@ impl AnimePlayer {
             "No shows found".to_string(),
         ))?;
 
-        println!("Playing \"{}\" ({})", show.name, show.id);
+        println!("Playing \"{}\" ({}) episode: {}", show.name, show.id, anime.my_list_status.num_episodes_watched + 1);
 
         Ok(show.id.clone())
     }

@@ -82,7 +82,7 @@ pub fn fetch_anime(
         url,
         parameters,
         vec![("Authorization".to_string(), format!("Bearer {}", token))],
-         None
+        None,
     )
 }
 
@@ -100,7 +100,7 @@ pub fn fetch_user(
         url,
         parameters,
         vec![("Authorization".to_string(), format!("Bearer {}", token))],
-         None
+        None,
     )
 }
 
@@ -118,10 +118,9 @@ pub fn fetch_favorited_anime(
         url,
         parameters,
         vec![("Authorization".to_string(), format!("Bearer {}", token))],
-         None
+        None,
     )
 }
-
 
 fn build_url(
     base_url: &str,
@@ -148,8 +147,8 @@ pub fn send_request<T>(
 where
     T: serde::de::DeserializeOwned + Debug,
 {
-    let final_url = build_url(&url, &parameters)
-        .map_err(|e| format!("Failed to build proxied URL: {}", e))?;
+    let final_url =
+        build_url(&url, &parameters).map_err(|e| format!("Failed to build proxied URL: {}", e))?;
 
     let agent = get_agent();
 
@@ -157,36 +156,32 @@ where
         // create request
         let result = match method {
             "GET" => {
-                let mut request = agent
-                .get(&final_url);
+                let mut request = agent.get(&final_url);
                 for (key, value) in &headers {
                     request = request.header(key, value);
                 }
                 request.call()
-            },
+            }
 
             "PATCH" => {
-                let mut request = agent
-                .patch(&final_url);
+                let mut request = agent.patch(&final_url);
                 for (key, value) in &headers {
                     request = request.header(key, value);
                 }
                 request.send(body.unwrap_or(""))
-            },
+            }
 
             "PUT" => {
-                let mut request = agent
-                .put(&final_url);
+                let mut request = agent.put(&final_url);
                 // .header("Content-type", "application/x-www-form-urlencoded")
                 for (key, value) in &headers {
                     request = request.header(key, value);
                 }
                 request.send(body.unwrap_or(""))
-            },
+            }
 
             "POST" => {
-                let mut request = agent
-                .post(&final_url);
+                let mut request = agent.post(&final_url);
                 for (key, value) in &headers {
                     request = request.header(key, value);
                 }
@@ -194,9 +189,8 @@ where
             }
 
             "DELETE" => {
-                let mut request = agent
-                .delete(&final_url);
-                            for (key, value) in &headers {
+                let mut request = agent.delete(&final_url);
+                for (key, value) in &headers {
                     request = request.header(key, value);
                 }
                 request.call()
@@ -245,8 +239,8 @@ pub fn send_request_expect_text(
     headers: Vec<(String, String)>,
     body: Option<&str>,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let final_url = build_url(&url, &parameters)
-        .map_err(|e| format!("Failed to build proxied URL: {}", e))?;
+    let final_url =
+        build_url(&url, &parameters).map_err(|e| format!("Failed to build proxied URL: {}", e))?;
 
     let agent = get_agent();
 
@@ -254,27 +248,37 @@ pub fn send_request_expect_text(
         let result = match method {
             "GET" => {
                 let mut req = agent.get(&final_url);
-                for (k, v) in &headers { req = req.header(k, v); }
+                for (k, v) in &headers {
+                    req = req.header(k, v);
+                }
                 req.call()
             }
             "PATCH" => {
                 let mut req = agent.patch(&final_url);
-                for (k, v) in &headers { req = req.header(k, v); }
+                for (k, v) in &headers {
+                    req = req.header(k, v);
+                }
                 req.send(body.unwrap_or(""))
             }
             "PUT" => {
                 let mut req = agent.put(&final_url);
-                for (k, v) in &headers { req = req.header(k, v); }
+                for (k, v) in &headers {
+                    req = req.header(k, v);
+                }
                 req.send(body.unwrap_or(""))
             }
             "POST" => {
                 let mut req = agent.post(&final_url);
-                for (k, v) in &headers { req = req.header(k, v); }
+                for (k, v) in &headers {
+                    req = req.header(k, v);
+                }
                 req.send(body.unwrap_or(""))
             }
             "DELETE" => {
                 let mut req = agent.delete(&final_url);
-                for (k, v) in &headers { req = req.header(k, v); }
+                for (k, v) in &headers {
+                    req = req.header(k, v);
+                }
                 req.call()
             }
             _ => return Err(format!("Unsupported HTTP method: {}", method).into()),
@@ -302,7 +306,6 @@ pub fn send_request_expect_text(
     Err("All retry attempts failed".into())
 }
 
-
 pub trait Fetchable: Sized {
     type Response;
     type Output;
@@ -326,10 +329,14 @@ pub trait Update: Sized {
     fn get_id(&self) -> usize;
     fn get_belonging_list(&self) -> String;
 
-     fn update(&self, token: String, endpoint: String) -> Result<(usize, Self::Response), Box<dyn std::error::Error>> {
+    fn update(
+        &self,
+        token: String,
+        endpoint: String,
+    ) -> Result<(usize, Self::Response), Box<dyn std::error::Error>> {
         let update = send_request::<Self::Response>(
             self.get_method(),
-            endpoint, 
+            endpoint,
             self.get_parameters(),
             self.get_headers(token),
             self.get_body().as_deref(),

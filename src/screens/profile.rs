@@ -19,10 +19,9 @@ use crate::utils::terminalCapabilities::TERMINAL_RATIO;
 use super::BackgroundUpdate;
 use super::ExtraInfo;
 use super::Screen;
-use super::screens::*;
-use super::widgets::navbar::NavBar;
 use super::widgets::navigatable::Navigatable;
 
+use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use ratatui::widgets::Gauge;
 use ratatui::Frame;
@@ -34,13 +33,11 @@ use ratatui::layout::Margin;
 use ratatui::layout::Rect;
 use ratatui::style;
 use ratatui::style::Style;
-use ratatui::style::Stylize;
 use ratatui::symbols;
 use ratatui::widgets;
 use ratatui::widgets::Block;
 use ratatui::widgets::Borders;
 use ratatui::widgets::Paragraph;
-use ureq::http::header::TE;
 
 const PICTURE_RATIO: f32 = 225.0 / 320.0;
 const PFP_RATIO: f32 = 225.0 / 280.0;
@@ -125,7 +122,7 @@ impl Screen for ProfileScreen {
             &self.user.favorited_animes,
             fav_area.inner(Margin::new(1, 1)),
             |anime, area, selected| {
-                if selected {
+                if selected && self.focus == Focus::Content {
                     frame.render_widget(
                         Block::default()
                             .border_set(symbols::border::ROUNDED)
@@ -221,7 +218,7 @@ impl Screen for ProfileScreen {
             self.user.anime_statistics.num_items_plan_to_watch,
         ];
 
-        let [percentage_area, right_middle_side, right_right_side] = Layout::default()
+        let [percentage_area, _right_middle_side, _right_right_side] = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Percentage(33),
@@ -314,16 +311,44 @@ impl Screen for ProfileScreen {
     // handle inut function
     // for this spcific screen bro
     fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
+
         match self.focus {
             Focus::NavBar => {
                 self.focus = Focus::Content;
             }
-            Focus::Content => match key_event.code {
-                _ => {
-                    self.focus = Focus::NavBar;
-                    return Some(Action::NavbarSelect(true));
+            Focus::Content => {
+                if key_event
+                    .modifiers
+                    .contains(crossterm::event::KeyModifiers::CONTROL)
+                {
+                    if matches!(key_event.code, KeyCode::Char('j') | KeyCode::Up) {
+                        self.focus = Focus::NavBar;
+                        return Some(Action::NavbarSelect(true));
+                    }
                 }
-            },
+
+                match key_event.code {
+                    KeyCode::Char('k') | KeyCode::Down => {
+                        self.navigation_fav.move_down();
+                    }
+                    KeyCode::Char('j') | KeyCode::Up => {
+                        self.navigation_fav.move_up();
+                    }
+                    KeyCode::Char('h') | KeyCode::Left => {
+                        self.navigation_fav.move_left();
+                    }
+                    KeyCode::Char('l') | KeyCode::Right => {
+                        self.navigation_fav.move_right();
+                    }
+                    // KeyCode::Enter => {
+                    //     if let Some(anime) = self.navigation_fav.get_selected_item_mut(&mut self.user.favorited_animes) {
+                    //         return Some(Action::ShowOverlay(anime.id));
+                    //     }
+                    // }
+
+                    _ => {}
+                }
+            }
         }
 
         None

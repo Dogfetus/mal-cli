@@ -136,7 +136,7 @@ impl Screen for SearchScreen {
         let area = frame.area();
         frame.render_widget(Clear, area);
 
-        let [top, bottom] = Layout::default()
+        let [_top, bottom] = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(3), Constraint::Percentage(100)])
             .areas(area);

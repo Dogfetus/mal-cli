@@ -1,19 +1,17 @@
+use chrono::{DateTime, NaiveDate};
 use std::fmt::Display;
 
-
-pub struct DisplayString{
-    text: Vec<String>, 
+pub struct DisplayString {
+    text: Vec<String>,
 }
 
 #[allow(dead_code)]
-impl DisplayString{
-    pub fn new() -> Self{
-        DisplayString {
-            text: Vec::new(),
-        }
+impl DisplayString {
+    pub fn new() -> Self {
+        DisplayString { text: Vec::new() }
     }
 
-    pub fn add<T: Display>(mut self, text: T) -> Self{
+    pub fn add<T: Display>(mut self, text: T) -> Self {
         self.text.push(text.to_string());
         self
     }
@@ -30,7 +28,10 @@ impl DisplayString{
                 let mut chars: Vec<char> = word.chars().collect();
 
                 if pos_in_word < chars.len() {
-                    chars[pos_in_word] = chars[pos_in_word].to_uppercase().next().unwrap_or(chars[pos_in_word]);
+                    chars[pos_in_word] = chars[pos_in_word]
+                        .to_uppercase()
+                        .next()
+                        .unwrap_or(chars[pos_in_word]);
                     *word = chars.into_iter().collect();
                 }
                 break;
@@ -51,22 +52,20 @@ impl DisplayString{
         }
         self
     }
-    
+
     pub fn build(self, format_str: &str) -> String {
         let mut result = format_str.to_string();
-        
+
         for (i, value) in self.text.iter().enumerate() {
             let placeholder = format!("{{{}}}", i);
             result = result.replace(&placeholder, value);
         }
-        
+
         result
     }
 }
 
-
 pub fn format_date(date_str: &str) -> String {
-    use chrono::{DateTime, NaiveDate, Utc};
     // Try parsing as RFC3339 (2025-07-06T15:08:00Z)
     if let Ok(dt) = DateTime::parse_from_rfc3339(date_str) {
         return dt.format("%B %d, %Y at %I:%M %p").to_string();

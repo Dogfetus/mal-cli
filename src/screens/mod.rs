@@ -1,12 +1,10 @@
 use crate::app::{Action, Event, ExtraInfo};
-use crate::mal;
-use crate::mal::models::anime::{Anime, AnimeId};
+use crate::mal::models::anime::AnimeId;
 use ratatui::Frame;
 use ratatui::layout::Layout;
 use screens::*;
 use std::any::Any;
 use std::collections::HashMap;
-use std::sync::{Arc, mpsc};
 use std::thread::JoinHandle;
 use widgets::{navbar, popup};
 
@@ -124,7 +122,7 @@ pub trait Screen {
         None
     }
     fn handle_mouse(&mut self, mouse_event: crossterm::event::MouseEvent) -> Option<Action> {
-        None
+        Some(Action::ShowError("Mouse input not supported on this screen".into()))
     }
     fn get_name(&self) -> String {
         let name = std::any::type_name::<Self>();
@@ -224,15 +222,15 @@ impl ScreenManager {
         match event {
             crossterm::event::Event::Key(key_event) => {
                 if self.error_overlay.is_open() {
-                    return self.error_overlay.handle_input(key_event);
+                    return self.error_overlay.handle_keyboard(key_event);
                 }
 
                 if self.overlay.is_open() {
-                    return self.overlay.handle_input(key_event);
+                    return self.overlay.handle_keyboard(key_event);
                 }
 
                 if self.navbar.is_selected() {
-                return self.navbar.handle_input(key_event)
+                return self.navbar.handle_keyboard(key_event)
                         .and_then(|action| match action {
                         Action::NavbarSelect(_) => self.current_screen.handle_keyboard(key_event),
                         other => Some(other),
@@ -242,25 +240,25 @@ impl ScreenManager {
                 self.current_screen.handle_keyboard(key_event)
             }
 
-            // crossterm::event::Event::Mouse(mouse_event) => {
-            //     if self.error_overlay.is_open() {
-            //         return self.error_overlay.handle_mouse(mouse_event);
-            //     }
-            //
-            //     if self.overlay.is_open() {
-            //         return self.overlay.handle_mouse(mouse_event);
-            //     }
-            //
-            //     if self.navbar.is_selected() {
-            //         return self.navbar.handle_mouse(mouse_event)
-            //             .and_then(|action| match action {
-            //                 Action::NavbarSelect(_) => self.current_screen.handle_mouse(mouse_event),
-            //                 other => Some(other),
-            //             });
-            //     }
-            //
-            //     self.current_screen.handle_mouse(mouse_event)
-            // }
+            crossterm::event::Event::Mouse(mouse_event) => {
+                if self.error_overlay.is_open() {
+                    return self.error_overlay.handle_mouse(mouse_event);
+                }
+
+                if self.overlay.is_open() {
+                    return self.overlay.handle_mouse(mouse_event);
+                }
+
+                if self.navbar.is_selected() {
+                    return self.navbar.handle_mouse(mouse_event)
+                        .and_then(|action| match action {
+                            Action::NavbarSelect(_) => self.current_screen.handle_mouse(mouse_event),
+                            other => Some(other),
+                        });
+                }
+
+                self.current_screen.handle_mouse(mouse_event)
+            }
 
             _ => { None }
         }

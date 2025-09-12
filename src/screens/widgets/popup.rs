@@ -19,7 +19,7 @@ use crate::{
         terminalCapabilities::TERMINAL_RATIO,
     },
 };
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, MouseEvent, MouseEventKind};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect}, style::{Color, Style, Stylize}, symbols::{self, border}, widgets::{Block, Borders, Clear, Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap}, Frame
 };
@@ -27,7 +27,7 @@ use std::cmp::min;
 use tui_widgets::big_text::{BigText, PixelSize};
 
 use super::{
-    infobox::{self, InfoBox},
+    infobox::InfoBox,
     navigatable::Navigatable,
 };
 
@@ -70,7 +70,7 @@ impl AnimePopup {
     pub fn new(info: ExtraInfo) -> Self {
         let buttons = vec![
             "Play".to_string(),
-            "Replay last episode".to_string(),
+            "Play episode".to_string(),
             "Play from start".to_string(),
             "Open".to_string(),
         ];
@@ -301,7 +301,7 @@ impl AnimePopup {
         self
     }
 
-    pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
+    pub fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
         match self.focus {
             Focus::PlayButtons => {
                 if key_event
@@ -342,20 +342,7 @@ impl AnimePopup {
                                 return Some(Action::PlayAnime(self.anime_id));
                             }
                             1 => {
-                                // replay last episode
-                                let anime = self
-                                    .app_info
-                                    .anime_store
-                                    .get(&self.anime_id)
-                                    .expect("(Focus) unexpected anime id given");
-
-                                let episode = anime.my_list_status.num_episodes_watched;
-                                if episode == 0 {
-                                    return Some(Action::ShowError(
-                                        "No episodes watched yet".to_string(),
-                                    ));
-                                }
-                                return Some(Action::PlayEpisode(self.anime_id, episode));
+                                // play a specific episode
                             }
 
                             2 => {
@@ -489,6 +476,10 @@ impl AnimePopup {
             }
         }
 
+        None
+    }
+
+    pub fn handle_mouse(&mut self, mouse_event: MouseEvent) -> Option<Action> {
         None
     }
 
@@ -1276,7 +1267,7 @@ impl SelectionPopup {
         frame.render_widget(filter, area);
 
         if self.is_open {
-            let terminal_height = frame.size().height;
+            let terminal_height = frame.area().height;
             let available_space_below = terminal_height.saturating_sub(area.y + area.height);
             let needed_height = self.options.len() as u16 + 2;
             let popup_height = std::cmp::min(needed_height, available_space_below);
@@ -1409,12 +1400,6 @@ impl ErrorPopup {
         }
     }
 
-    pub fn toggle(mut self, message: String) -> Self {
-        self.toggled = !self.toggled;
-        self.error_message = message;
-        self
-    }
-
     pub fn is_open(&self) -> bool {
         self.toggled
     }
@@ -1442,12 +1427,26 @@ impl ErrorPopup {
         self
     }
 
-    pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<Action> {
+    pub fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
         if !self.toggled {
             return None;
         }
         match key_event.code {
             KeyCode::Char('q') | KeyCode::Esc => {
+                self.toggled = false;
+                self.error_message.clear();
+                None
+            }
+            _ => None,
+        }
+    }
+
+    pub fn handle_mouse(&mut self, mouse_event: MouseEvent) -> Option<Action> {
+        if !self.toggled {
+            return None;
+        }
+        match mouse_event.kind {
+            MouseEventKind::Down(_) => {
                 self.toggled = false;
                 self.error_message.clear();
                 None

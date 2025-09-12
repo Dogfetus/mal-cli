@@ -34,8 +34,6 @@ use std::thread;
 #[derive(Debug, Clone)]
 enum LocalEvent {
     SeasonSwitch(u16, String),
-    AnimeSelected,
-    Stop,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -616,8 +614,6 @@ impl Screen for SeasonsScreen {
 
             while let Ok(event) = receiver.recv() {
                 match event {
-                    LocalEvent::AnimeSelected => break,
-                    LocalEvent::Stop => return,
                     LocalEvent::SeasonSwitch(year, season) => {
                         Self::fetch_anime_season(
                             year,

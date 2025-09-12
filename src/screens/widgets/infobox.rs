@@ -1,6 +1,6 @@
 use ratatui::{layout::{Alignment, Constraint, Direction, Layout, Margin, Rect}, style::{Color, Style}, widgets::Paragraph, Frame};
 
-use crate::config::{SECONDARY_COLOR, SECOND_TEXT_COLOR, TEXT_COLOR};
+use crate::config::SECOND_TEXT_COLOR;
 
 #[derive(Clone)]
 struct InfoItem {

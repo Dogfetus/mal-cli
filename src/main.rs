@@ -1,20 +1,35 @@
 mod app;
-mod screens;
-mod mal;
-mod handlers;
-mod utils;
 mod config;
+mod handlers;
+mod mal;
 mod player;
+mod screens;
+mod utils;
 
 use crate::app::App;
 use anyhow::Result;
 use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 
 fn parse_cli() -> bool {
-
     for arg in std::env::args().skip(1) {
         match arg.as_str() {
-            "-v" | "--version" => return true,
+            "-v" | "--version" => {
+                println!("{}", env!("CARGO_PKG_VERSION"));
+                return true;
+            }
+            "-e" | "--edit" => {
+                config::open_in_editor();
+                return true;
+            }
+            "-h" | "--help" => {
+                println!("Usage: anime-tui [OPTIONS]");
+                println!();
+                println!("Options:");
+                println!("  -h, --help       Show this help message");
+                println!("  -v, --version    Show version information");
+                println!("  -e, --edit       Edit the configuration file");
+                return true;
+            }
             _ => {}
         }
     }
@@ -24,13 +39,14 @@ fn parse_cli() -> bool {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let show_version = parse_cli(); 
-    if show_version {
-        println!("{}", env!("CARGO_PKG_VERSION"));
+
+    let run_command = parse_cli();
+    if run_command {
         return Ok(());
     }
 
     let terminal = ratatui::init();
+    let config = config::read_from_file();
 
     // enable mouse capture
     crossterm::execute!(std::io::stderr(), EnableMouseCapture)?;
@@ -46,4 +62,3 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
-

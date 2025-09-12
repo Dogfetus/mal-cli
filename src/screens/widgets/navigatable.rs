@@ -1,4 +1,6 @@
+#![allow(dead_code)]
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
+
 #[derive(Debug, Clone)]
 pub struct Navigatable {
     rows: u16,

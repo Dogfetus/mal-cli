@@ -2,7 +2,7 @@ use super::{screens::*, ExtraInfo, Screen};
 use crate::screens::widgets::button::Button;
 use crate::app::Action;
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect}, style::{Color, Modifier, Style}, text::{Line, Span, Text}, widgets::{ Block, Borders, Clear, Paragraph, Wrap}, Frame 
+    layout::{Constraint, Direction, Layout }, widgets::{ Block, Borders, Clear}, Frame 
 };
 use crossterm::event::{KeyCode, KeyEvent};
 

@@ -8,9 +8,9 @@ use super::widgets::navigatable::Navigatable;
 use super::{BackgroundUpdate, ExtraInfo, Screen};
 use crate::app::{Action, Event};
 use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
+use crate::config::get_app_dir;
 use crate::mal::models::anime::AnimeId;
 use crate::utils::functionStreaming::StreamableRunner;
-use crate::utils::get_app_dir;
 use crate::utils::imageManager::ImageManager;
 use crossterm::event::{KeyCode, KeyEvent};
 use indexmap::IndexSet;
@@ -284,7 +284,7 @@ impl Screen for OverviewScreen {
                     }
 
                     // idk what to do with this inforamiton yet but here it is.
-                    let (timestamp, anime_id, title, episode, watched_time, percentage, completed) = (
+                    let (_timestamp, anime_id, _title, _episode, _watched_time, _percentage, _completed) = (
                         parts[0].to_string(),
                         parts[1].parse::<AnimeId>().expect("Failed to read history"),
                         parts[2].to_string(),

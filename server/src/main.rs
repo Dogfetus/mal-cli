@@ -82,6 +82,23 @@ impl MalAgent {
         Ok(response)
     }
 
+    fn refresh_user_tokens(&self, refresh_token: String) -> Result<String>{
+        const URL: &str = "https://myanimelist.net/v1/oauth2/token";
+
+        body = [
+            ("grant_type", "refresh_token"),
+            ("refresh_token", refresh_token)
+        ];
+
+        let response: String = self.agent
+        .post(URL)
+        .send_form(&body)?
+        .body_mut()
+        .read_to_string()?;
+
+        Ok(response)
+    }
+
     fn get_oauth_url(&self) -> Result<(String, String, String)> {
         const URL: &str = "https://myanimelist.net/v1/oauth2/authorize";
 
@@ -253,6 +270,19 @@ fn main() {
 
 
 
+            (POST) (/refresh_token) => {
+                let data = try_or_400!(post_input!(request, {
+                    refresh_token: u16,
+                }));
+
+                let mut guard = mal_agent.lock().unwrap();
+                let result = guard.refresh_user_tokens(refresh_token);
+
+                rouille::Response::text(result)
+            }
+
+
+
             (GET) (/callback) => {
                 let mut guard = mal_agent.lock().unwrap();
                 let code = match request.get_param("code") {
@@ -266,7 +296,7 @@ fn main() {
                 let info = ExpectedBody { code, state };
                 let result = guard.get_user_tokens(&info);
                 let (html, status_code) = guard.handle_token_response(result, &info);
-                
+
                 if status_code == 200 {
                     println!("Successfull login");
                 }

@@ -2,29 +2,32 @@ pub mod models;
 pub mod network;
 mod oauth;
 
+use crate::config::get_app_dir;
 use crate::mal::network::Fetchable;
-use crate::params;
-use crate::utils::get_app_dir;
+use crate::{params, send_error};
 use chrono::{Datelike, Local};
 use models::anime::{Anime, AnimeId, FavoriteAnime, fields};
 use models::user::User;
 use network::Update;
+use oauth::refresh_token;
 use regex::Regex;
 use std::any::type_name;
 use std::sync::{Arc, RwLock};
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::{fs, thread::JoinHandle};
 
 const BASE_URL: &str = "https://api.myanimelist.net/v2";
 const EXTRA_URL: &str = "https://api.jikan.moe/v4";
 const CLIENT_FOLDER: &str = ".mal";
 const CLIENT_FILE: &str = "client";
+const SECONDS_IN_A_DAY: u64 = 86400;
 
 //TODO: encrypt the tokens
 #[derive(Debug, Clone)]
 pub struct Identity {
     access_token: Option<String>,
     refresh_token: Option<String>,
-    expires_in: Option<String>,
+    expires_at: Option<u64>,
 }
 
 #[derive(Debug, Clone)]
@@ -39,7 +42,7 @@ impl MalClient {
             identity: Arc::new(RwLock::new(Identity {
                 access_token: None,
                 refresh_token: None,
-                expires_in: None,
+                expires_at: None,
             })),
             re: Regex::new(r"\(([0-9,]+)/([0-9,]+|Unknown)\)").unwrap(),
         };
@@ -48,19 +51,35 @@ impl MalClient {
         client
     }
 
+    pub fn time_now() -> u64 {
+        match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(n) => n.as_secs(),
+            Err(_) => {
+                send_error!("SystemTime failed");
+                0
+            }
+        }
+    }
+
     pub fn init_oauth() -> (String, JoinHandle<()>) {
         oauth::oauth_login(|at, rt, ei| {
+            let expires = Self::time_now() + ei.parse::<u64>().unwrap_or(0);
+
             // format the tokens and expiration time
             let data = format!(
                 "mal_access_token = \"{}\"\nmal_refresh_token = \"{}\"\nmal_token_expires_at = \"{}\"",
-                at, rt, ei
+                at, rt, expires
             );
 
             // get the file path and folder
             let app_dir = get_app_dir();
             let mal_dir = app_dir.join(CLIENT_FOLDER);
             if !mal_dir.exists() {
-                fs::create_dir_all(&mal_dir).expect("Failed to create app directory");
+                fs::create_dir_all(&mal_dir)
+                    .map_err(|_| {
+                        send_error!("Failed to create directory: {:?}", mal_dir);
+                    })
+                    .ok();
             }
 
             // write the data to the client file
@@ -70,24 +89,56 @@ impl MalClient {
         })
     }
 
-    //TODO: add a check for token validity
     pub fn login_from_file(&self) -> bool {
         let app_dir = get_app_dir();
-        if !app_dir.exists() || !app_dir.join(format!("{}/{}", CLIENT_FOLDER, CLIENT_FILE)).exists() {
+        if !app_dir.exists()
+            || !app_dir
+                .join(format!("{}/{}", CLIENT_FOLDER, CLIENT_FILE))
+                .exists()
+        {
             return false;
         }
 
-        if let Ok(client_file) = fs::read_to_string(app_dir.join(format!("{}/{}", CLIENT_FOLDER, CLIENT_FILE))) {
+        if let Ok(client_file) =
+            fs::read_to_string(app_dir.join(format!("{}/{}", CLIENT_FOLDER, CLIENT_FILE)))
+        {
             let mut identity = self.identity.write().unwrap();
             for line in client_file.lines() {
-                if line.starts_with("mal_access_token") {
-                    identity.access_token = line.split("\"").nth(1).map(String::from);
-                } else if line.starts_with("mal_refresh_token") {
-                    identity.refresh_token = line.split("\"").nth(1).map(String::from);
-                } else if line.starts_with("mal_token_expires_at") {
-                    identity.expires_in = line.split("\"").nth(1).map(String::from);
+                match line {
+                    l if l.starts_with("mal_access_token") => {
+                        identity.access_token = l.split("\"").nth(1).map(String::from)
+                    }
+                    l if l.starts_with("mal_refresh_token") => {
+                        identity.refresh_token = l.split("\"").nth(1).map(String::from)
+                    }
+                    l if l.starts_with("mal_token_expires_at") => {
+                        identity.expires_at =
+                            l.split("\"").nth(1).map(|s| s.parse::<u64>().unwrap_or(0))
+                    }
+                    _ => {}
                 }
             }
+
+            // refresh token if it has expired
+            let expires_at = match identity.expires_at {
+                Some(v) => v,
+                None => {
+                    send_error!("No expiration time found. Try logging in again.");
+                    return false;
+                }
+            };
+
+            if expires_at <= Self::time_now() {
+                let token = match &identity.refresh_token {
+                    Some(t) => t,
+                    None => {
+                        send_error!("No refresh token found. Try logging in again.");
+                        return false;
+                    }
+                };
+                let _ = refresh_token(token);
+            }
+
             return true;
         }
         false
@@ -99,10 +150,18 @@ impl MalClient {
 
     pub fn log_out() {
         let app_dir = get_app_dir();
-        if !app_dir.exists() || !app_dir.join(format!("{}/{}", CLIENT_FOLDER, CLIENT_FILE)).exists() {
+        if !app_dir.exists()
+            || !app_dir
+                .join(format!("{}/{}", CLIENT_FOLDER, CLIENT_FILE))
+                .exists()
+        {
             return;
         }
-        fs::remove_file(app_dir.join(format!("{}/{}", CLIENT_FOLDER, CLIENT_FILE))).expect("Failed to remove client file");
+        fs::remove_file(app_dir.join(format!("{}/{}", CLIENT_FOLDER, CLIENT_FILE)))
+            .map_err(|_| {
+                send_error!("Failed to remove client file");
+            })
+            .ok();
     }
 
     pub fn user_is_logged_in() -> bool {

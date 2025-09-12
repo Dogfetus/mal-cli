@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
-    style::{Modifier, Style, Stylize},
+    style::{Style, Stylize},
     symbols,
     widgets::{Block, Borders, Padding, Paragraph, Wrap},
 };

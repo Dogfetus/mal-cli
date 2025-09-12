@@ -5,14 +5,12 @@ use crate::mal::models::anime::AnimeId;
 use crate::player;
 use crate::screens::BackgroundUpdate;
 use crate::screens::ScreenManager;
-use crate::screens::screens::*;
-use crate::utils::get_app_dir;
+use crate::config::get_app_dir;
 use crate::utils::store::Store;
 use crate::utils::errorBus;
 
 use chrono::DateTime;
 use chrono::Local;
-use crossterm::event::KeyCode;
 use image::DynamicImage;
 use ratatui::DefaultTerminal;
 use std::fs::OpenOptions;

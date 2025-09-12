@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     Frame,
