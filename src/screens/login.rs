@@ -145,10 +145,6 @@ impl Screen for LoginScreen {
     }
 
     fn background(&mut self) -> Option<JoinHandle<()>> {
-        //TODO: the thread should receive a new transmitter / sender for each screen. to
-        //communicate with events instead of polling ( might not be necessary for this login though )
-
-        //TODO: this might run twice causing wierd behaviour?
         if MalClient::user_is_logged_in() {
             return None;
         }

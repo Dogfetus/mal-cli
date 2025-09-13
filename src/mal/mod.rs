@@ -9,7 +9,7 @@ use chrono::{Datelike, Local};
 use models::anime::{Anime, AnimeId, FavoriteAnime, fields};
 use models::user::User;
 use network::Update;
-use oauth::refresh_token;
+use oauth::{refresh_token, Identity};
 use regex::Regex;
 use std::any::type_name;
 use std::sync::{Arc, RwLock};
@@ -24,31 +24,44 @@ const SECONDS_IN_A_DAY: u64 = 86400;
 
 //TODO: encrypt the tokens
 #[derive(Debug, Clone)]
-pub struct Identity {
-    access_token: Option<String>,
-    refresh_token: Option<String>,
-    expires_at: Option<u64>,
-}
-
-#[derive(Debug, Clone)]
 pub struct MalClient {
-    identity: Arc<RwLock<Identity>>,
+    identity: Arc<RwLock<Option<Identity>>>,
     re: Regex,
 }
 
 impl MalClient {
     pub fn new() -> Self {
         let client = Self {
-            identity: Arc::new(RwLock::new(Identity {
-                access_token: None,
-                refresh_token: None,
-                expires_at: None,
-            })),
+            identity: Arc::new(RwLock::new(None)),
             re: Regex::new(r"\(([0-9,]+)/([0-9,]+|Unknown)\)").unwrap(),
         };
 
         client.login_from_file();
         client
+    }
+
+    fn save_to_file(identity: &Identity) {
+        let app_dir = get_app_dir();
+        let mal_dir = app_dir.join(CLIENT_FOLDER);
+        if !mal_dir.exists() {
+            fs::create_dir_all(&mal_dir)
+                .map_err(|_| {
+                    send_error!("Failed to create directory: {:?}", mal_dir);
+                })
+                .ok();
+        }
+
+        // refreshes token a week before it actually expires
+        let expires_at = Self::time_now() + identity.expires_in - (SECONDS_IN_A_DAY*7);
+        let data = format!(
+            "mal_access_token = \"{}\"\nmal_refresh_token = \"{}\"\nmal_token_expires_at = \"{}\"",
+            identity.access_token, identity.refresh_token, expires_at 
+        );
+
+        let client_file = mal_dir.join("client");
+        fs::write(client_file, data).map_err(|_| {
+            send_error!("Failed to write client file");
+        }).ok();
     }
 
     pub fn time_now() -> u64 {
@@ -62,29 +75,8 @@ impl MalClient {
     }
 
     pub fn init_oauth() -> (String, JoinHandle<()>) {
-        oauth::oauth_login(|at, rt, ei| {
-            let expires = Self::time_now() + ei.parse::<u64>().unwrap_or(0);
-
-            // format the tokens and expiration time
-            let data = format!(
-                "mal_access_token = \"{}\"\nmal_refresh_token = \"{}\"\nmal_token_expires_at = \"{}\"",
-                at, rt, expires
-            );
-
-            // get the file path and folder
-            let app_dir = get_app_dir();
-            let mal_dir = app_dir.join(CLIENT_FOLDER);
-            if !mal_dir.exists() {
-                fs::create_dir_all(&mal_dir)
-                    .map_err(|_| {
-                        send_error!("Failed to create directory: {:?}", mal_dir);
-                    })
-                    .ok();
-            }
-
-            // write the data to the client file
-            let client_file = mal_dir.join("client");
-            fs::write(client_file, data)?;
+        oauth::oauth_login(|identity| {
+            Self::save_to_file(&identity);
             Ok(())
         })
     }
@@ -102,45 +94,50 @@ impl MalClient {
         if let Ok(client_file) =
             fs::read_to_string(app_dir.join(format!("{}/{}", CLIENT_FOLDER, CLIENT_FILE)))
         {
-            let mut identity = self.identity.write().unwrap();
+
+            let mut at = String::new();
+            let mut rt = String::new();
+            let mut ea = 0;
+
             for line in client_file.lines() {
                 match line {
                     l if l.starts_with("mal_access_token") => {
-                        identity.access_token = l.split("\"").nth(1).map(String::from)
+                        at = l.split("\"").nth(1).unwrap_or("").to_string()
                     }
                     l if l.starts_with("mal_refresh_token") => {
-                        identity.refresh_token = l.split("\"").nth(1).map(String::from)
+                        rt = l.split("\"").nth(1).unwrap_or("").to_string()
                     }
                     l if l.starts_with("mal_token_expires_at") => {
-                        identity.expires_at =
-                            l.split("\"").nth(1).map(|s| s.parse::<u64>().unwrap_or(0))
+                        ea = l.split("\"").nth(1).map(|s| s.parse::<u64>().unwrap_or(0)).unwrap_or(0)
                     }
                     _ => {}
                 }
             }
 
             // refresh token if it has expired
-            let expires_at = match identity.expires_at {
-                Some(v) => v,
-                None => {
-                    send_error!("No expiration time found. Try logging in again.");
-                    return false;
-                }
-            };
 
             if true {
-                let token = match &identity.refresh_token {
-                    Some(t) => t,
-                    None => {
-                        send_error!("No refresh token found. Try logging in again.");
+                match refresh_token(rt.clone(), |identity| {
+                    Self::save_to_file(&identity);
+                    at = identity.access_token;
+                    rt = identity.refresh_token;
+                    ea = identity.expires_in;
+                    Ok(())
+                }){
+                    Ok(_) => {},
+                    Err(err) => {
+                        send_error!("Token expired! please login again: {}", err);
                         return false;
-                    }
+                    },
                 };
-                match refresh_token(token){
-                    Ok(s) => println!("{}", s),
-                    Err(e) => println!("failure: {}", e),
-                }
             }
+
+            let mut identity = self.identity.write().unwrap();
+            *identity = Some(Identity {
+                access_token: at,
+                refresh_token: rt,
+                expires_in: ea,
+            });
 
             return true;
         }
@@ -314,14 +311,20 @@ impl MalClient {
         &self,
         element: T,
     ) -> Result<(usize, T::Response), Box<(dyn std::error::Error + 'static)>> {
-        let token = self.identity.read().unwrap().access_token.clone();
-        if token.is_none() {
-            eprintln!("User is not logged in. Cannot send request.");
-            return Err("not logged in".into());
-        }
+        let token = self.identity
+            .read()
+            .unwrap()
+            .as_ref()
+            .map(|id| id.access_token.clone())
+            .ok_or_else(|| send_error!("no identity/token"));
+
+        let token = match token {
+            Ok(t) => t,
+            Err(_) => return Err("token error".into()),
+        };
 
         element.update(
-            token.unwrap(),
+            token,
             format!(
                 "{}/{}/{}/my_list_status",
                 BASE_URL,
@@ -377,13 +380,14 @@ impl MalClient {
     where
         T: Fetchable,
     {
-        let token = self.identity.read().unwrap().access_token.clone();
-        if token.is_none() {
-            eprintln!("User is not logged in. Cannot send request.");
-            return None;
-        }
+        let token = self.identity
+            .read()
+            .unwrap()
+            .as_ref()
+            .map(|id| id.access_token.clone())
+            .ok_or_else(|| send_error!("no identity/token")).ok()?;
 
-        let response = T::fetch(token.unwrap(), url, parameters);
+        let response = T::fetch(token, url, parameters);
         let response = match response {
             Ok(response) => response,
             Err(e) => {

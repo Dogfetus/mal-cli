@@ -119,6 +119,9 @@ pub struct App {
 impl App {
     pub fn new(terminal: DefaultTerminal) -> App {
         let (sx, rx) = mpsc::channel::<Event>();
+
+        errorBus::init(sx.clone());
+
         let mal_client = Arc::new(MalClient::new());
         let universal_info = ExtraInfo {
             app_sx: sx.clone(),
@@ -126,7 +129,6 @@ impl App {
             anime_store: Store::new(),
         };
 
-        errorBus::init(sx.clone());
 
         App {
             mal_client: mal_client.clone(),
