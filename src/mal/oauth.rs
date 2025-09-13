@@ -4,6 +4,7 @@ use open;
 use rouille::post_input;
 use rouille::router;
 use rouille::try_or_400;
+use serde::Deserialize;
 use std::sync::mpsc::{self};
 use std::thread;
 use std::thread::JoinHandle;
@@ -11,12 +12,19 @@ use std::time::Duration;
 use ureq;
 
 const MAX_RETRIES: u16 = 10;
-const BACKEND_URL: &str = "https://mal-cli.dogfetus.no";
-// const BACKEND_URL: &str = "http://localhost:8000";
+// const BACKEND_URL: &str =at "https://mal-cli.dogfetus.no";
+const BACKEND_URL: &str = "http://localhost:8000";
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Identity {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub expires_in: u64,
+}
 
 pub fn oauth_login<F>(callback: F) -> (String, JoinHandle<()>)
 where
-    F: FnOnce(String, String, String) -> Result<()> + Send + Sync + 'static + Copy,
+    F: FnOnce(Identity) -> Result<()> + Send + Sync + 'static + Copy,
 {
     if let Some((port, joinable)) = start_callback_server(callback) {
         let url = get_oauth_url(port).expect("Can't connect to backend");
@@ -26,14 +34,17 @@ where
     }
 }
 
-pub fn refresh_token<T: Into<String>>(refresh_token: T) -> Result<String> {
+pub fn refresh_token<T: Into<String>, F>(refresh_token: T, callback: F) -> Result<()>
+where
+    F: FnOnce(Identity) -> Result<()> + Send + Sync
+{
     let full_url = format!("{}/refresh_token", BACKEND_URL);
     let body = [("refresh_token", refresh_token.into())];
-    let new_token: String = ureq::post(full_url)
+    let new_token = ureq::post(full_url)
         .send_form(body)?
         .body_mut()
-        .read_to_string()?;
-    Ok(new_token)
+        .read_json::<Identity>()?;
+    callback(new_token)
 }
 
 fn get_oauth_url(port: u16) -> Result<String> {
@@ -44,7 +55,6 @@ fn get_oauth_url(port: u16) -> Result<String> {
         .body_mut()
         .read_to_string()?;
     open::that(&url).expect("Failed to open browser");
-    // println!("if the browser didn't open, visit this url: {}", url);
     Ok(url)
 }
 
@@ -56,7 +66,7 @@ fn get_oauth_url(port: u16) -> Result<String> {
 * */
 fn start_callback_server<F>(callback: F) -> Option<(u16, thread::JoinHandle<()>)>
 where
-    F: FnOnce(String, String, String) -> Result<()> + Send + Sync + 'static + Copy,
+    F: FnOnce(Identity) -> Result<()> + Send + Sync + 'static + Copy,
 {
     let mut port: u16 = 53400;
     let (tx, rx) = mpsc::channel::<()>();
@@ -70,14 +80,20 @@ where
                     let data = try_or_400!(post_input!(request, {
                         access_token: String,
                         refresh_token: String,
-                        expires_in: String,
+                        expires_in: u64,
                     }));
+
+                    let identity = Identity {
+                        access_token: data.access_token,
+                        refresh_token: data.refresh_token,
+                        expires_in: data.expires_in, 
+                    };
 
 
                     // read the template file
                     let html_content = include_str!("../templates/success.html");
 
-                    match callback(data.access_token, data.refresh_token, data.expires_in) {
+                    match callback(identity) {
                         Ok(_) => {},
                         Err(err) => {
                             return rouille::Response::text(format!("Callback failed, error: {}", err));
