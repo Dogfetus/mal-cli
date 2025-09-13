@@ -52,7 +52,7 @@ impl MalClient {
         }
 
         // refreshes token a week before it actually expires
-        let expires_at = Self::time_now() + identity.expires_in - (SECONDS_IN_A_DAY*7);
+        let expires_at = Self::time_now() + identity.expires_in;
         let data = format!(
             "mal_access_token = \"{}\"\nmal_refresh_token = \"{}\"\nmal_token_expires_at = \"{}\"",
             identity.access_token, identity.refresh_token, expires_at 
@@ -114,9 +114,8 @@ impl MalClient {
                 }
             }
 
-            // refresh token if it has expired
-
-            if true {
+            // refresh token before it has expired
+            if ea < Self::time_now() + (7 * SECONDS_IN_A_DAY) {
                 match refresh_token(rt.clone(), |identity| {
                     Self::save_to_file(&identity);
                     at = identity.access_token;

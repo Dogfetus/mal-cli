@@ -12,8 +12,8 @@ use std::time::Duration;
 use ureq;
 
 const MAX_RETRIES: u16 = 10;
-// const BACKEND_URL: &str =at "https://mal-cli.dogfetus.no";
-const BACKEND_URL: &str = "http://localhost:8000";
+const BACKEND_URL: &str = "https://mal-cli.dogfetus.no";
+// const BACKEND_URL: &str = "http://localhost:8000";
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Identity {
