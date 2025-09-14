@@ -1,5 +1,6 @@
 #![allow(dead_code)]
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use crossterm::event::MouseEvent;
+use ratatui::layout::{Constraint, Direction, Layout, Position, Rect};
 
 #[derive(Debug, Clone)]
 pub struct Navigatable {
@@ -11,6 +12,9 @@ pub struct Navigatable {
 
     selected: usize,
     scroll: usize,
+
+    area: Option<Rect>,
+    grid: Option<Vec<Vec<Rect>>>,
 }
 
 impl Navigatable{
@@ -24,7 +28,39 @@ impl Navigatable{
             cols: size.1,
             selected: 0,
             scroll: 0,
+            area: None,
+            grid: None,
         }
+    }
+    pub fn get_clicked_index(&self, me: MouseEvent) -> Option<usize> {
+
+        let area = self.area?;
+        let click_pos = Position::new(me.column, me.row);
+        if !area.contains(click_pos) {
+            return None;
+        }
+
+        let grid = self.create_grid(area);
+        for (row_idx, row) in grid.iter().enumerate() {
+            for (col_idx, cell) in row.iter().enumerate() {
+                if cell.contains(click_pos) {
+                    let visible_idx = row_idx * self.cols as usize + col_idx;
+                    let absolute_idx = self.scroll + visible_idx;
+                    if absolute_idx < self.total_items {
+                        return Some(absolute_idx);
+                    } else {
+                        return None;
+                    }
+                }
+            }
+        }
+
+        None 
+    }
+
+    pub fn get_clicked_item<'a, T>(&self, items: &'a [T], me: MouseEvent) -> Option<&'a T> {
+        let index = self.get_clicked_index(me)?;
+        items.get(index)
     }
 
     pub fn back_to_start(&mut self) {
@@ -126,6 +162,12 @@ impl Navigatable{
     }
 
     fn create_grid(&self, area: Rect) -> Vec<Vec<Rect>> {
+        if let (Some(cached_area), Some(cached_grid)) = (self.area, &self.grid) {
+            if cached_area == area {
+                return cached_grid.clone();
+            }
+        }
+
         let row_constraints = self.create_balanced_constraints(self.rows);
         let col_constraints = self.create_balanced_constraints(self.cols);
 
@@ -187,6 +229,11 @@ impl Navigatable{
         self.selected
     }
 
+    pub fn set_selected_index(&mut self, index: usize) {
+        self.selected = index;
+        self.update_scroll();
+    }
+
     pub fn construct<T, F>(&mut self, items: &[T], area: Rect, mut callback: F)
     where
         F: FnMut(&T, Rect, bool),
@@ -195,9 +242,12 @@ impl Navigatable{
             return;
         }
 
-        self.total_items = items.len();
-
         let grid = self.create_grid(area);
+
+        // cache
+        self.area = Some(area);
+        self.total_items = items.len();
+        self.grid = Some(grid.clone());
 
         if self.reverse {
             for (visible_idx, absolute_idx) in self.visible_indices().enumerate().rev() {
@@ -234,9 +284,12 @@ impl Navigatable{
             return;
         }
 
-        self.total_items = items.len();
-
         let grid = self.create_grid(area);
+
+        // cache
+        self.area = Some(area);
+        self.total_items = items.len();
+        self.grid = Some(grid.clone());
 
         if self.reverse {
             for (visible_idx, absolute_idx) in self.visible_indices().enumerate().rev() {

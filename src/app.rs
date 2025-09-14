@@ -11,6 +11,8 @@ use crate::utils::errorBus;
 
 use chrono::DateTime;
 use chrono::Local;
+use crossterm::event::DisableMouseCapture;
+use crossterm::event::EnableMouseCapture;
 use image::DynamicImage;
 use ratatui::DefaultTerminal;
 use std::fs::OpenOptions;
@@ -232,6 +234,8 @@ impl App {
             episode
         };
 
+        crossterm::execute!(std::io::stderr(), DisableMouseCapture);
+
         match self.anime_player.play_episode_manually(&anime, next_episode) {
             Ok(details) => {
                 // update teh status to now watching
@@ -268,6 +272,7 @@ impl App {
             }
         }
 
+        crossterm::execute!(std::io::stderr(), EnableMouseCapture);
         self.terminal = ratatui::init();
         None
     }
@@ -324,7 +329,8 @@ impl App {
 
 impl Drop for App {
     fn drop(&mut self) {
-        // restore terminal view
+        // restore terminal
         ratatui::restore();
+        crossterm::execute!(std::io::stderr(), DisableMouseCapture);
     }
 }

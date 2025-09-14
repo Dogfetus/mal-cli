@@ -122,7 +122,7 @@ pub trait Screen {
         None
     }
     fn handle_mouse(&mut self, mouse_event: crossterm::event::MouseEvent) -> Option<Action> {
-        Some(Action::ShowError("Mouse input not supported on this screen".into()))
+        None
     }
     fn get_name(&self) -> String {
         let name = std::any::type_name::<Self>();

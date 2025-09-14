@@ -589,6 +589,13 @@ impl Screen for SeasonsScreen {
         None
     }
 
+    fn handle_mouse(&mut self, mouse_event: crossterm::event::MouseEvent) -> Option<Action> {
+        if let Some(anime_id) = self.navigatable.get_clicked_item(&self.animes, mouse_event) {
+            return Some(Action::ShowOverlay(*anime_id));
+        }
+        None
+    }
+
     fn background(&mut self) -> Option<std::thread::JoinHandle<()>> {
         if self.bg_loaded {
             return None;
