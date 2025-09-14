@@ -215,7 +215,6 @@ impl Screen for OverviewScreen {
                             selected.navigatable.move_right();
                         }
                     }
-
                     KeyCode::Char('h') | KeyCode::Left => {
                         if let Some(selected) = self.navigation.get_selected_item_mut(&mut self.lists) {
                             selected.navigatable.move_left();
@@ -233,6 +232,31 @@ impl Screen for OverviewScreen {
 
             }
         }
+        None
+    }
+
+    fn handle_mouse(&mut self, mouse_event: crossterm::event::MouseEvent) -> Option<Action> {
+        if mouse_event.row < 3 {
+            self.focus = Focus::NavBar;
+            return Some(Action::NavbarSelect(true));
+        }
+
+        if let Some(index) = self.navigation.get_hovered_index(mouse_event) {
+            self.navigation.set_selected_index(index);
+            self.focus = Focus::Content;
+        };
+
+        if let Some(item) = self.navigation.get_selected_item_mut(&mut self.lists) {
+            if let Some(index) = item.navigatable.get_hovered_index(mouse_event) {
+                item.navigatable.set_selected_index(index);
+            }
+
+            if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
+                if let Some(anime_id) = item.navigatable.get_selected_item(&item.items) {
+                    return Some(Action::ShowOverlay(*anime_id));
+                }
+            }
+        };
 
         None
     }

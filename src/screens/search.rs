@@ -81,7 +81,7 @@ impl SearchScreen {
                 .add_option("popularity")
                 .add_option("favorite"),
             search_input: Input::new(),
-            focus: Focus::Search,
+            focus: Focus::NavBar,
             animes: Vec::new(),
             bg_loaded: false,
             bg_sender: None,
@@ -339,6 +339,16 @@ impl Screen for SearchScreen {
 
         None
     }
+
+    fn handle_mouse(&mut self, mouse_event: crossterm::event::MouseEvent) -> Option<Action> {
+        if mouse_event.row < 3 {
+            self.focus = Focus::NavBar;
+            return Some(Action::NavbarSelect(true));
+        }
+
+        None
+    }
+
 
     fn background(&mut self) -> Option<JoinHandle<()>> {
         if self.bg_loaded {

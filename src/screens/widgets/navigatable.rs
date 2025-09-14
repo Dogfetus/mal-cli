@@ -32,7 +32,7 @@ impl Navigatable{
             grid: None,
         }
     }
-    pub fn get_clicked_index(&self, me: MouseEvent) -> Option<usize> {
+    pub fn get_hovered_index(&self, me: MouseEvent) -> Option<usize> {
 
         let area = self.area?;
         let click_pos = Position::new(me.column, me.row);
@@ -58,8 +58,8 @@ impl Navigatable{
         None 
     }
 
-    pub fn get_clicked_item<'a, T>(&self, items: &'a [T], me: MouseEvent) -> Option<&'a T> {
-        let index = self.get_clicked_index(me)?;
+    pub fn get_hovered_item<'a, T>(&self, items: &'a [T], me: MouseEvent) -> Option<&'a T> {
+        let index = self.get_hovered_index(me)?;
         items.get(index)
     }
 

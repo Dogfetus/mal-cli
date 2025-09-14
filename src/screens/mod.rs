@@ -294,7 +294,6 @@ impl ScreenManager {
         if let Some(screen) = self.screen_storage.remove(screen_name) {
             self.current_screen = screen;
         } else {
-            self.navbar.deselect();
             self.current_screen = create_screen(screen_name, &self.passable_info);
         }
 

@@ -160,7 +160,7 @@ impl ListScreen {
             statistics: Statistics::new(),
             search_input: Input::new(),
             filters: Filters::new(),
-            focus: Focus::Content,
+            focus: Focus::NavBar,
             filtered_animes: Vec::new(),
             all_animes: Vec::new(),
             bg_startup: true,
@@ -345,15 +345,13 @@ impl Screen for ListScreen {
                 .style(style::Style::default().fg(PRIMARY_COLOR));
             frame.render_widget(loading_text, content);
         } else {
-
             let items = self.navigatable.get_visible_items(&self.filtered_animes);
-            let animes = self
-                .app_info
-                .anime_store
-                .get_bulk(items);
+            let animes = self.app_info.anime_store.get_bulk(items);
 
-            self.navigatable
-                .construct(&self.filtered_animes, content, |anime_id, area, highlight| {
+            self.navigatable.construct(
+                &self.filtered_animes,
+                content,
+                |anime_id, area, highlight| {
                     let anime = animes.iter().find(|a| a.id == *anime_id);
                     if let Some(anime) = anime {
                         AnimeBox::render(
@@ -364,7 +362,8 @@ impl Screen for ListScreen {
                             highlight && self.focus == Focus::Content,
                         );
                     }
-                });
+                },
+            );
         }
         self.dropdown_nav.as_reverse().construct(
             &self.dropdowns,
@@ -381,73 +380,6 @@ impl Screen for ListScreen {
             self.focus == Focus::Search,
         );
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
         match self.focus {
@@ -478,9 +410,9 @@ impl Screen for ListScreen {
                         let animes = self.app_info.anime_store.get_bulk(self.all_animes.clone());
                         sx.send(LocalEvent::Search(
                             animes.iter().map(|rc| (**rc).clone()).collect(),
-                            text
+                            text,
                         ))
-                            .ok();
+                        .ok();
                     }
                 }
             }
@@ -592,86 +524,14 @@ impl Screen for ListScreen {
         None
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    fn handle_mouse(&mut self, mouse_event: crossterm::event::MouseEvent) -> Option<Action> {
+        if mouse_event.row < 3 {
+            self.focus = Focus::NavBar;
+            return Some(Action::NavbarSelect(true));
+        }
+
+        None
+    }
 
     fn background(&mut self) -> Option<JoinHandle<()>> {
         if self.bg_loaded {
@@ -694,10 +554,9 @@ impl Screen for ListScreen {
                 .stop_early()
                 .stop_at(20);
 
-            for animes in anime_generator.run(|offset, limit| {
-                info.mal_client
-                    .get_anime_list(None, offset, limit)
-            }) {
+            for animes in anime_generator
+                .run(|offset, limit| info.mal_client.get_anime_list(None, offset, limit))
+            {
                 let anime_ids = animes.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
                 let update = BackgroundUpdate::new(id.clone())
                     .set("animes", animes)
@@ -752,13 +611,11 @@ impl Screen for ListScreen {
                         Self::search_animes(&mut latest_animes, latest_search);
 
                         // extract just the ids
-                        let searched_anime = latest_animes 
-                            .into_iter()
-                            .map(|a| a.id)
-                            .collect::<Vec<_>>();
+                        let searched_anime =
+                            latest_animes.into_iter().map(|a| a.id).collect::<Vec<_>>();
 
-                        let update =
-                            BackgroundUpdate::new(id.clone()).set("filtered_animes", searched_anime);
+                        let update = BackgroundUpdate::new(id.clone())
+                            .set("filtered_animes", searched_anime);
                         info.app_sx.send(Event::BackgroundNotice(update)).ok();
                     }
                 }

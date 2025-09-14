@@ -61,7 +61,7 @@ pub struct ProfileScreen {
 impl ProfileScreen {
     pub fn new(info: ExtraInfo) -> Self {
         Self {
-            focus: Focus::Content,
+            focus: Focus::NavBar,
             image_manager: Arc::new(Mutex::new(ImageManager::new())),
             bg_loaded: false,
             user: User::empty(),
@@ -349,6 +349,15 @@ impl Screen for ProfileScreen {
                     _ => {}
                 }
             }
+        }
+
+        None
+    }
+
+    fn handle_mouse(&mut self, mouse_event: crossterm::event::MouseEvent) -> Option<Action> {
+        if mouse_event.row < 3 {
+            self.focus = Focus::NavBar;
+            return Some(Action::NavbarSelect(true));
         }
 
         None

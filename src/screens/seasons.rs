@@ -73,7 +73,7 @@ impl SeasonsScreen {
         Self {
             animes: Vec::new(),
             season_popup: SeasonPopup::new(),
-            focus: Focus::AnimeList,
+            focus: Focus::Navbar,
             app_info: info,
 
             detail_scroll_x: 0,
@@ -248,7 +248,7 @@ impl Screen for SeasonsScreen {
         let season_color = if self.focus == Focus::SeasonSelection {
             HIGHLIGHT_COLOR
         } else {
-           TEXT_COLOR 
+            TEXT_COLOR
         };
         let title = Paragraph::new(
             DisplayString::new()
@@ -402,13 +402,11 @@ impl Screen for SeasonsScreen {
                 .borders(Borders::TOP)
                 .border_style(Style::default().fg(PRIMARY_COLOR))
                 .padding(Padding::new(1, 2, 1, 1));
-            let details_left =
-                Paragraph::new(create_details_text(left_details))
+            let details_left = Paragraph::new(create_details_text(left_details))
                 .style(Style::default().fg(TEXT_COLOR))
                 .block(block_style.clone());
 
-            let details_right =
-                Paragraph::new(create_details_text(right_details))
+            let details_right = Paragraph::new(create_details_text(right_details))
                 .style(Style::default().fg(TEXT_COLOR))
                 .block(block_style);
 
@@ -418,11 +416,11 @@ impl Screen for SeasonsScreen {
             let details_paragraph = Paragraph::new(create_details_text(&details))
                 .style(Style::default().fg(TEXT_COLOR))
                 .block(
-                Block::default()
-                    .borders(Borders::TOP)
-                    .border_style(Style::default().fg(PRIMARY_COLOR))
-                    .padding(Padding::new(1, 2, 1, 1)),
-            );
+                    Block::default()
+                        .borders(Borders::TOP)
+                        .border_style(Style::default().fg(PRIMARY_COLOR))
+                        .padding(Padding::new(1, 2, 1, 1)),
+                );
             frame.render_widget(details_paragraph, middle);
         }
 
@@ -590,8 +588,20 @@ impl Screen for SeasonsScreen {
     }
 
     fn handle_mouse(&mut self, mouse_event: crossterm::event::MouseEvent) -> Option<Action> {
-        if let Some(anime_id) = self.navigatable.get_clicked_item(&self.animes, mouse_event) {
-            return Some(Action::ShowOverlay(*anime_id));
+        if mouse_event.row < 3 {
+            self.focus = Focus::Navbar;
+            return Some(Action::NavbarSelect(true));
+        }
+
+        if let Some(index) = self.navigatable.get_hovered_index(mouse_event) {
+            self.navigatable.set_selected_index(index);
+            self.focus = Focus::AnimeList;
+        }
+
+        if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
+            if let Some(anime_id) = self.navigatable.get_selected_item(&self.animes) {
+                return Some(Action::ShowOverlay(*anime_id));
+            }
         }
         None
     }

@@ -130,10 +130,15 @@ impl Screen for LaunchScreen {
     }
 
     fn handle_mouse(&mut self, mouse_event: MouseEvent) -> Option<Action> {
-        if let Some(index) = self.navigatable.get_clicked_index(mouse_event) {
+        if let Some(index) = self.navigatable.get_hovered_index(mouse_event) {
             self.navigatable.set_selected_index(index);
-            return self.activate_button(index);
         };
+
+        if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
+            let index = self.navigatable.get_selected_index();
+            return self.activate_button(index);
+        }
+
         None
     }
 

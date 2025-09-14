@@ -37,7 +37,7 @@ impl TempScreen {
 }
 
 impl Screen for TempScreen {
-    // this makes sure the screen is saved between screen switches
+    // this makes sure the screen state is saved between screen switches
     add_screen_caching!();
 
     // draws the screen
