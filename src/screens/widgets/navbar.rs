@@ -85,12 +85,12 @@ impl NavBar {
     }
 
     pub fn handle_mouse(&mut self, mouse_event: MouseEvent) -> Option<Action> {
-        if mouse_event.row > 3 {
+        if mouse_event.row > 2 {
             self.deselect();
             return None;
         }
 
-        if self.option_areas.len() == 0 {
+        if self.option_areas.is_empty() {
             return None;
         }
 

@@ -14,7 +14,7 @@ use crate::{app::Action, screens::Screen};
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use ratatui::Frame;
-use ratatui::layout::Direction;
+use ratatui::layout::{Direction, Position};
 use ratatui::layout::Layout;
 use ratatui::layout::{Alignment, Constraint, Margin, Rect};
 use ratatui::style;
@@ -108,6 +108,8 @@ pub struct ListScreen {
     app_info: ExtraInfo,
 
     search_input: Input,
+    search_area: Option<ratatui::layout::Rect>,
+
     navigatable: Navigatable,
     dropdowns: Vec<SelectionPopup>,
     dropdown_nav: Navigatable,
@@ -160,18 +162,19 @@ impl ListScreen {
             statistics: Statistics::new(),
             search_input: Input::new(),
             filters: Filters::new(),
-            focus: Focus::NavBar,
             filtered_animes: Vec::new(),
             all_animes: Vec::new(),
+            focus: Focus::NavBar,
+            search_area: None,
+            bg_fetching: true,
             bg_startup: true,
             bg_loaded: false,
-            bg_fetching: true,
             app_info: info,
             bg_sx: None,
         }
     }
 
-    fn sort_animes(animes: &mut Vec<Anime>, sort_by: &str, order: &str) {
+    fn sort_animes(animes: &mut [Anime], sort_by: &str, order: &str) {
         match sort_by {
             "by title" => {
                 animes.sort_by(|a, b| a.title.cmp(&b.title));
@@ -365,14 +368,15 @@ impl Screen for ListScreen {
                 },
             );
         }
-        self.dropdown_nav.as_reverse().construct(
-            &self.dropdowns,
+        self.dropdown_nav.as_reverse().construct_mut(
+            &mut self.dropdowns,
             dropdown_area,
             |dropdown, area, highlight| {
                 dropdown.render(frame, area, highlight && self.focus == Focus::Dropdown);
             },
         );
 
+        self.search_area = Some(search);
         self.search_input.render_cursor(
             frame,
             search.x + 1,
@@ -528,6 +532,34 @@ impl Screen for ListScreen {
         if mouse_event.row < 3 {
             self.focus = Focus::NavBar;
             return Some(Action::NavbarSelect(true));
+        }
+
+        if let Some(search_area) = self.search_area {
+            let pos = Position::new(mouse_event.column, mouse_event.row);
+            if search_area.contains(pos) {
+                self.focus = Focus::Search;
+                return None;
+            }
+        }
+
+        if let Some(index) = self.navigatable.get_hovered_index(mouse_event) {
+            self.navigatable.set_selected_index(index);
+            self.focus = Focus::Content;
+
+            if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
+                let anime_id = self.navigatable.get_selected_item(&self.filtered_animes)?;
+                return Some(Action::ShowOverlay(*anime_id));
+            }
+        }
+
+        if let Some(drop) = self.dropdown_nav.get_hovered_index(mouse_event) {
+            self.dropdown_nav.set_selected_index(drop);
+            self.focus = Focus::Dropdown;
+
+            if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
+                let dropdown = self.dropdown_nav.get_selected_item_mut(&mut self.dropdowns)?;
+                dropdown.handle_mouse(mouse_event);
+            }
         }
 
         None

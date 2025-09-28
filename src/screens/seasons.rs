@@ -104,7 +104,7 @@ impl SeasonsScreen {
     }
 
     // apperently the animes gotten include previous seasons that has not yet finished
-    fn filter_animes(animes: Vec<Anime>, target_year: u16, target_season: &String) -> Vec<Anime> {
+    fn filter_animes(animes: Vec<Anime>, target_year: u16, target_season: &str) -> Vec<Anime> {
         animes
             .iter()
             .filter(|anime| {
@@ -566,7 +566,7 @@ impl Screen for SeasonsScreen {
                     if self.season_popup.is_toggled() {
                         if let Some((year, season)) = self.season_popup.handle_input(key_event) {
                             if year == self.year && season == self.season {
-                                return None; // No change, do nothing
+                                return None;
                             }
                             self.year = year;
                             self.season = season;
@@ -593,16 +593,22 @@ impl Screen for SeasonsScreen {
             return Some(Action::NavbarSelect(true));
         }
 
+        if (mouse_event.row >= 3 && mouse_event.row < 6) || self.season_popup.is_toggled() {
+            self.focus = Focus::SeasonSelection;
+            self.season_popup.handle_mouse(mouse_event);
+            return None;
+        }
+
         if let Some(index) = self.navigatable.get_hovered_index(mouse_event) {
             self.navigatable.set_selected_index(index);
             self.focus = Focus::AnimeList;
-        }
 
-        if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
-            if let Some(anime_id) = self.navigatable.get_selected_item(&self.animes) {
+            if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
+                let anime_id = self.navigatable.get_selected_item(&self.animes)?;
                 return Some(Action::ShowOverlay(*anime_id));
             }
         }
+
         None
     }
 
@@ -624,7 +630,7 @@ impl Screen for SeasonsScreen {
         ImageManager::init_with_threads(&manager, info.app_sx.clone());
 
         Some(thread::spawn(move || {
-            if nr_of_animes <= 0 {
+            if nr_of_animes == 0 {
                 let (year, season) = MalClient::current_season();
                 Self::fetch_anime_season(year, season, &info.app_sx, &info.mal_client, id.clone());
             }

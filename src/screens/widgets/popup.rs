@@ -7,21 +7,17 @@ use std::{
 };
 
 use crate::{
-    app::{Action, Event},
-    config::{anime_list_colors, ERROR_COLOR, HIGHLIGHT_COLOR, PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR},
-    mal::{
+    app::{Action, Event}, config::{anime_list_colors, ERROR_COLOR, HIGHLIGHT_COLOR, PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR}, mal::{
         models::anime::{status_is_known, Anime, AnimeId, DeleteOrUpdate, MyListStatus}, MalClient
-    },
-    screens::{BackgroundUpdate, ExtraInfo},
-    utils::{
+    }, screens::{BackgroundUpdate, ExtraInfo}, utils::{
         imageManager::ImageManager,
         stringManipulation::{format_date, DisplayString},
         terminalCapabilities::TERMINAL_RATIO,
-    },
+    }
 };
 use crossterm::event::{KeyCode, KeyEvent, MouseEvent, MouseEventKind};
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect}, style::{Color, Style, Stylize}, symbols::{self, border}, widgets::{Block, Borders, Clear, Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap}, Frame
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Position, Rect}, style::{Color, Style, Stylize}, symbols::{self, border}, widgets::{Block, Borders, Clear, Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap}, Frame
 };
 use std::cmp::min;
 use tui_widgets::big_text::{BigText, PixelSize};
@@ -651,8 +647,8 @@ impl AnimePopup {
 
         // Render the paragraph
         frame.render_widget(synopsis_text, synopsis_area);
-        // FIXME: above this needs fixing
 
+        // FIXME: above this needs fixing
         // Create and render scrollbar if content is longer than visible area
         if content_height > visible_height {
             let scrollbar = Scrollbar::default()
@@ -741,7 +737,7 @@ impl AnimePopup {
                 "Episodes",
                 format!(
                     "{}/{}",
-                    anime.num_released_episodes.unwrap_or(0).to_string(),
+                    anime.num_released_episodes.unwrap_or(0),
                     if anime.episode_count_ready {
                         anime.num_episodes.to_string()
                     } else {
@@ -775,8 +771,8 @@ impl AnimePopup {
             height: 3,
         };
 
-        self.status_nav.construct(
-            &self.status_buttons,
+        self.status_nav.construct_mut(
+            &mut self.status_buttons,
             status_buttons_area,
             |dropdown, area, highlighted| {
                 dropdown.render(
@@ -798,6 +794,9 @@ pub struct SeasonPopup {
     available_years: Vec<String>,
     all_years: Vec<String>,
     entered_number: String,
+
+    //cache
+    activate_area: Option<Rect>,
 }
 impl SeasonPopup {
     pub fn new() -> Self {
@@ -817,6 +816,7 @@ impl SeasonPopup {
             all_years,
             year_selected: false,
             entered_number: String::new(),
+            activate_area: None,
         }
     }
 
@@ -888,10 +888,8 @@ impl SeasonPopup {
                     if self.year_scroll < (self.available_years.len().saturating_sub(1)) as u16 {
                         self.year_scroll += 1;
                     }
-                } else {
-                    if self.season_scroll < (AVAILABLE_SEASONS.len().saturating_sub(1)) as u16 {
-                        self.season_scroll += 1;
-                    }
+                } else if self.season_scroll < (AVAILABLE_SEASONS.len().saturating_sub(1)) as u16 {
+                    self.season_scroll += 1;
                 }
                 None
             }
@@ -920,7 +918,7 @@ impl SeasonPopup {
                 None
             }
             KeyCode::Char(c) => {
-                if c.is_digit(10) {
+                if c.is_ascii_digit() {
                     self.entered_number.push(c);
                     self.filter_years();
                 }
@@ -930,10 +928,25 @@ impl SeasonPopup {
         }
     }
 
-    pub fn render(&self, frame: &mut Frame, season_area: Rect) {
+    pub fn handle_mouse(&mut self, mouse_event: MouseEvent) -> Option<(u16, String)> {
+        let activate_area = self.activate_area?;
+        let mouse_pos = Position::new(mouse_event.column, mouse_event.row);
+        if activate_area.contains(mouse_pos) {
+            if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
+                self.toggled = !self.toggled;
+            }
+        }
+
+        None
+    }
+
+    pub fn render(&mut self, frame: &mut Frame, season_area: Rect) {
+        self.activate_area = Some(season_area);
+
         if !self.toggled {
             return;
         }
+
         let area = frame.area();
 
         let [height, width] = [min(8, area.height), season_area.width * 7 / 20];
@@ -1108,6 +1121,7 @@ pub struct SelectionPopup {
     longest_word: usize,
     displaying_format: String,
     color: Color,
+    area: Option<Rect>
 }
 
 impl SelectionPopup {
@@ -1121,6 +1135,7 @@ impl SelectionPopup {
             longest_word: 0,
             displaying_format: String::new(),
             color: PRIMARY_COLOR,
+            area: None,
         }
     }
 
@@ -1161,6 +1176,10 @@ impl SelectionPopup {
         self.color = color;
     }
 
+    pub fn get_area(&self) -> Option<Rect>{
+        self.area
+    }
+
     pub fn add_option(mut self, option: impl Into<String>) -> Self {
         let option = option.into();
         if option.len() > self.longest_word {
@@ -1186,6 +1205,10 @@ impl SelectionPopup {
         self
     }
 
+    pub fn toggle(&mut self) -> &Self {
+        self.is_open = !self.is_open;
+        self
+    }
     pub fn open(&mut self) -> &Self {
         self.is_open = true;
         self
@@ -1202,11 +1225,8 @@ impl SelectionPopup {
 
     pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<String> {
         if !self.is_open {
-            match key_event.code {
-                KeyCode::Enter => {
-                    self.open();
-                }
-                _ => {}
+            if key_event.code == KeyCode::Enter {
+                self.open();
             }
             None
         } else {
@@ -1240,7 +1260,21 @@ impl SelectionPopup {
         }
     }
 
-    pub fn render(&self, frame: &mut Frame, area: Rect, highlighted: bool) {
+    pub fn handle_mouse(&mut self, mouse_event: MouseEvent) -> Option<String> {
+        if let Some(box_area) = self.area{
+            let pos = Position::new(mouse_event.column, mouse_event.row);
+            if  box_area.contains(pos) && 
+                matches!(mouse_event.kind, crossterm::event::MouseEventKind::Down(_))
+            {
+                self.toggle();
+            }
+        }
+
+        None
+    }
+
+    pub fn render(&mut self, frame: &mut Frame, area: Rect, highlighted: bool) {
+        self.area = Some(area);
         let option = self
             .options
             .get(self.selected_index)

@@ -319,12 +319,11 @@ impl Screen for ProfileScreen {
             Focus::Content => {
                 if key_event
                     .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
+                    .contains(crossterm::event::KeyModifiers::CONTROL) &&
+                    matches!(key_event.code, KeyCode::Char('j') | KeyCode::Up) 
                 {
-                    if matches!(key_event.code, KeyCode::Char('j') | KeyCode::Up) {
-                        self.focus = Focus::NavBar;
-                        return Some(Action::NavbarSelect(true));
-                    }
+                    self.focus = Focus::NavBar;
+                    return Some(Action::NavbarSelect(true));
                 }
 
                 match key_event.code {
@@ -359,6 +358,17 @@ impl Screen for ProfileScreen {
             self.focus = Focus::NavBar;
             return Some(Action::NavbarSelect(true));
         }
+
+        if let Some(index) = self.navigation_fav.get_hovered_index(mouse_event) {
+            self.navigation_fav.set_selected_index(index);
+            self.focus = Focus::Content;
+
+            if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
+                let anime_id = self.navigation_fav.get_selected_item(&self.user.favorited_animes)?;
+                return Some(Action::ShowOverlay(anime_id.id));
+            }
+        }
+
 
         None
     }

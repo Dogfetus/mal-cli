@@ -234,7 +234,7 @@ impl App {
             episode
         };
 
-        crossterm::execute!(std::io::stderr(), DisableMouseCapture);
+        crossterm::execute!(std::io::stderr(), DisableMouseCapture).ok();
 
         match self.anime_player.play_episode_manually(&anime, next_episode) {
             Ok(details) => {
@@ -272,7 +272,7 @@ impl App {
             }
         }
 
-        crossterm::execute!(std::io::stderr(), EnableMouseCapture);
+        crossterm::execute!(std::io::stderr(), EnableMouseCapture).ok();
         self.terminal = ratatui::init();
         None
     }
@@ -331,6 +331,6 @@ impl Drop for App {
     fn drop(&mut self) {
         // restore terminal
         ratatui::restore();
-        crossterm::execute!(std::io::stderr(), DisableMouseCapture);
+        crossterm::execute!(std::io::stderr(), DisableMouseCapture).ok();
     }
 }

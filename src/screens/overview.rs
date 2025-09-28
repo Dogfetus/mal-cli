@@ -10,6 +10,7 @@ use crate::app::{Action, Event};
 use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
 use crate::config::get_app_dir;
 use crate::mal::models::anime::AnimeId;
+use crate::send_error;
 use crate::utils::functionStreaming::StreamableRunner;
 use crate::utils::imageManager::ImageManager;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -247,14 +248,13 @@ impl Screen for OverviewScreen {
         };
 
         if let Some(item) = self.navigation.get_selected_item_mut(&mut self.lists) {
-            if let Some(index) = item.navigatable.get_hovered_index(mouse_event) {
-                item.navigatable.set_selected_index(index);
-            }
+            let index = item.navigatable.get_hovered_index(mouse_event)?;
+            item.navigatable.set_selected_index(index);
 
+            // if clicked open anime
             if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
-                if let Some(anime_id) = item.navigatable.get_selected_item(&item.items) {
-                    return Some(Action::ShowOverlay(*anime_id));
-                }
+                let anime_id = item.navigatable.get_selected_item(&item.items)?;
+                return Some(Action::ShowOverlay(*anime_id));
             }
         };
 

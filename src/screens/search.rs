@@ -14,8 +14,9 @@ use crate::utils::input::Input;
 use crate::{app::Action, screens::Screen};
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
+use image::imageops::filter3x3;
 use ratatui::Frame;
-use ratatui::layout::Alignment;
+use ratatui::layout::{Alignment, Position};
 use ratatui::layout::Constraint;
 use ratatui::layout::Direction;
 use ratatui::layout::Layout;
@@ -58,6 +59,7 @@ pub struct SearchScreen {
 
     filter_popup: SelectionPopup,
     search_input: Input,
+    search_area: Option<ratatui::layout::Rect>,
 
     fetching: bool,
     bg_sender: Option<Sender<LocalEvent>>,
@@ -83,6 +85,7 @@ impl SearchScreen {
             search_input: Input::new(),
             focus: Focus::NavBar,
             animes: Vec::new(),
+            search_area: None,
             bg_loaded: false,
             bg_sender: None,
             fetching: false,
@@ -218,6 +221,7 @@ impl Screen for SearchScreen {
                     );
                 }
             });
+        self.search_area = Some(search_area);
         self.search_input.render_cursor(
             frame,
             search_area.x + 1,
@@ -251,15 +255,13 @@ impl Screen for SearchScreen {
                         }
                         _ => {}
                     }
-                } else {
-                    if let Some(mut filter_type) = self.filter_popup.handle_input(key_event) {
-                        self.fetching = true;
-                        if filter_type == "popularity" {
-                            filter_type = "bypopularity".to_string();
-                        }
-                        if let Some(sender) = &self.bg_sender {
-                            sender.send(LocalEvent::FilterSwitch(filter_type)).ok();
-                        }
+                } else if let Some(mut filter_type) = self.filter_popup.handle_input(key_event) {
+                    self.fetching = true;
+                    if filter_type == "popularity" {
+                        filter_type = "bypopularity".to_string();
+                    }
+                    if let Some(sender) = &self.bg_sender {
+                        sender.send(LocalEvent::FilterSwitch(filter_type)).ok();
                     }
                 }
             }
@@ -322,7 +324,7 @@ impl Screen for SearchScreen {
                         KeyCode::Enter => {
                             if let Some(anime_id) = self.navigatable.get_selected_item(&self.animes)
                             {
-                                if let Some(anime) = self.app_info.anime_store.get(&anime_id) {
+                                if let Some(anime) = self.app_info.anime_store.get(anime_id) {
                                     return Some(Action::ShowOverlay(anime.id));
                                 }
                             }
@@ -346,6 +348,33 @@ impl Screen for SearchScreen {
             return Some(Action::NavbarSelect(true));
         }
 
+        if let Some(search_area) = self.search_area {
+            let pos = Position::new(mouse_event.column, mouse_event.row);
+            if search_area.contains(pos) {
+                self.focus = Focus::Search;
+                return None;
+            }
+        }
+
+        if let Some(filter_area) = self.filter_popup.get_area(){
+            let pos = Position::new(mouse_event.column, mouse_event.row);
+            if filter_area.contains(pos) {
+                self.focus = Focus::Filter;
+            }
+            if let Some(filter) = self.filter_popup.handle_mouse(mouse_event){
+            }
+        }
+
+        if let Some(index) = self.navigatable.get_hovered_index(mouse_event) {
+            self.navigatable.set_selected_index(index);
+            self.focus = Focus::AnimeList;
+
+            if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
+                let anime_id = self.navigatable.get_selected_item(&self.animes)?;
+                return Some(Action::ShowOverlay(*anime_id));
+            }
+        }
+
         None
     }
 
@@ -367,7 +396,7 @@ impl Screen for SearchScreen {
         let app_sx = info.app_sx.clone();
 
         let handle = std::thread::spawn(move || {
-            if nr_of_animes <= 0 {
+            if nr_of_animes == 0 {
                 Self::fetch_and_send_animes(&app_sx, id.clone(), |offset, limit| {
                     mal_client.get_top_anime("all".to_string(), offset, limit)
                 });
