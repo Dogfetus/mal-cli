@@ -43,9 +43,9 @@ impl LoginScreen {
                     return None;
                 }
 
-                open::that(&self.full_url).map_err(|e|
-                    Some(Action::ShowError(e.to_string()))
-                ).ok(); 
+                if let Err(e) = open::that(&self.full_url) {
+                    return Some(Action::ShowError(e.to_string()));
+                }
 
                 None
             }

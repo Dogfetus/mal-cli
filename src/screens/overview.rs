@@ -293,7 +293,7 @@ impl Screen for OverviewScreen {
 
                 // this is first to fetch the file where the recent watched animes are
                 let content = BufReader::new(file);
-                let entries: Vec<String> = content.lines().map_while(|line| line.ok()).collect();
+                let entries: Vec<String> = content.lines().map_while(Result::ok).collect();
                 let mut animes = IndexSet::new();
 
                 for entry in entries.iter().rev() {

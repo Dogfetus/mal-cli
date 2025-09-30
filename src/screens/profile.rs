@@ -196,7 +196,12 @@ impl Screen for ProfileScreen {
 
         // anime watch percentages
         if self.user.anime_statistics.num_items == 0 {
-            let area = Rect::new(right_top.x, right_top.height / 2, right_top.width, 1);
+            let area = Rect::new(
+                right_top.x, 
+                right_top.y + right_top.height / 2,
+                right_top.width,
+                1
+            );
             let no_data_text =
                 Paragraph::new("No animes watched yet!").alignment(Alignment::Center);
             frame.render_widget(no_data_text, area);
@@ -297,12 +302,6 @@ impl Screen for ProfileScreen {
 
         frame.render_widget(total_animes_text, total_area);
         frame.render_widget(total_animes_value, total_area);
-
-        let imageurl = self.user.picture.clone();
-        let image_url = Paragraph::new(imageurl)
-            .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::NONE));
-        frame.render_widget(image_url, area);
     }
 
     // handle inut function
