@@ -152,7 +152,7 @@ impl App {
         // run any background threads
         self.spawn_background();
 
-        // WARNING: don't use just unwrap here
+        // WARNING: don't use just unwrap
         while self.is_running {
             self.terminal
                 .draw(|frame| self.screen_manager.render_screen(frame))?;

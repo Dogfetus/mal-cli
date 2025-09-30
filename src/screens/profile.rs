@@ -5,9 +5,9 @@ use std::thread::JoinHandle;
 use crate::add_screen_caching;
 use crate::app::Action;
 use crate::app::Event;
-use crate::config::anime_list_colors;
 use crate::config::HIGHLIGHT_COLOR;
 use crate::config::PRIMARY_COLOR;
+use crate::config::anime_list_colors;
 use crate::mal::models::anime::Anime;
 use crate::mal::models::anime::FavoriteAnime;
 use crate::mal::models::user::User;
@@ -23,7 +23,6 @@ use super::widgets::navigatable::Navigatable;
 
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
-use ratatui::widgets::Gauge;
 use ratatui::Frame;
 use ratatui::layout::Alignment;
 use ratatui::layout::Constraint;
@@ -37,11 +36,11 @@ use ratatui::symbols;
 use ratatui::widgets;
 use ratatui::widgets::Block;
 use ratatui::widgets::Borders;
+use ratatui::widgets::Gauge;
 use ratatui::widgets::Paragraph;
 
 const PICTURE_RATIO: f32 = 225.0 / 320.0;
 const PFP_RATIO: f32 = 225.0 / 280.0;
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Focus {
@@ -183,7 +182,7 @@ impl Screen for ProfileScreen {
             format!("Gender: {}", self.user.gender),
             format!("Birthday: {}", format_date(&self.user.birthday)),
             format!("Location: {}", self.user.location),
-            format!("Time Zone: {}", self.user.time_zone)
+            format!("Time Zone: {}", self.user.time_zone),
         ];
         for (i, line) in user_info_text.iter().enumerate() {
             let paragraph = Paragraph::new(line.clone())
@@ -195,17 +194,11 @@ impl Screen for ProfileScreen {
             );
         }
 
-
         // anime watch percentages
         if self.user.anime_statistics.num_items == 0 {
-            let area = Rect::new(
-                right_top.x,
-                right_top.height/2,
-                right_top.width,
-                1,
-            );
-            let no_data_text = Paragraph::new("No animes watched yet!")
-                .alignment(Alignment::Center);
+            let area = Rect::new(right_top.x, right_top.height / 2, right_top.width, 1);
+            let no_data_text =
+                Paragraph::new("No animes watched yet!").alignment(Alignment::Center);
             frame.render_widget(no_data_text, area);
             return;
         }
@@ -238,7 +231,8 @@ impl Screen for ProfileScreen {
         frame.render_widget(subtitle_text, subtitle);
 
         for (i, &count) in percentages.iter().enumerate() {
-            let percentage = (count as f32 / self.user.anime_statistics.num_items as f32 * 100.0) as u16;
+            let percentage =
+                (count as f32 / self.user.anime_statistics.num_items as f32 * 100.0) as u16;
             let label = match i {
                 0 => "Watching",
                 1 => "Completed",
@@ -249,14 +243,18 @@ impl Screen for ProfileScreen {
             };
 
             let area = Rect::new(
-                    percentage_area.x + 1,
-                    percentage_area.y + i as u16 * 3,
-                    percentage_area.width - 2,
-                    3
+                percentage_area.x + 1,
+                percentage_area.y + i as u16 * 3,
+                percentage_area.width - 2,
+                3,
             );
 
             let gauge = Gauge::default()
-                .gauge_style(Style::new().fg(anime_list_colors(label)).bg(style::Color::Black))
+                .gauge_style(
+                    Style::new()
+                        .fg(anime_list_colors(label))
+                        .bg(style::Color::Black),
+                )
                 .percent(percentage);
 
             let label_text = Paragraph::new(label)
@@ -266,28 +264,29 @@ impl Screen for ProfileScreen {
                 .alignment(Alignment::Right)
                 .block(Block::default().borders(Borders::NONE));
 
-            frame.render_widget( gauge, area.inner(Margin::new(0, 1)));
-            frame.render_widget( label_text, area);
-            frame.render_widget( label_value,area);
+            frame.render_widget(gauge, area.inner(Margin::new(0, 1)));
+            frame.render_widget(label_text, area);
+            frame.render_widget(label_value, area);
         }
 
-
         let total_animes_text = Paragraph::new(concat!(
-            "Total Animes:\n", 
-            "Total Episodes:\n", 
-            "Total Days Watched:\n", 
-            "Mean Score:\n", 
+            "Total Animes:\n",
+            "Total Episodes:\n",
+            "Total Days Watched:\n",
+            "Mean Score:\n",
             "Total Scores Given:"
-        )).alignment(Alignment::Left);
+        ))
+        .alignment(Alignment::Left);
 
-        let total_animes_value = Paragraph::new( format!(
+        let total_animes_value = Paragraph::new(format!(
             "{}\n{}\n{}\n{}\n{}",
             self.user.anime_statistics.num_items,
             self.user.anime_statistics.num_episodes,
             self.user.anime_statistics.num_days,
             self.user.anime_statistics.mean_score,
             self.user.user_stats.num_items_rated
-        )).alignment(Alignment::Right);
+        ))
+        .alignment(Alignment::Right);
 
         let total_area = Rect::new(
             percentage_area.x + 1,
@@ -299,19 +298,16 @@ impl Screen for ProfileScreen {
         frame.render_widget(total_animes_text, total_area);
         frame.render_widget(total_animes_value, total_area);
 
-        let imageurl = self.user.picture.clone(); 
+        let imageurl = self.user.picture.clone();
         let image_url = Paragraph::new(imageurl)
             .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::NONE));  
-        frame.render_widget(image_url, area); 
+            .block(Block::default().borders(Borders::NONE));
+        frame.render_widget(image_url, area);
     }
-
-
 
     // handle inut function
     // for this spcific screen bro
     fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
-
         match self.focus {
             Focus::NavBar => {
                 self.focus = Focus::Content;
@@ -319,8 +315,8 @@ impl Screen for ProfileScreen {
             Focus::Content => {
                 if key_event
                     .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL) &&
-                    matches!(key_event.code, KeyCode::Char('j') | KeyCode::Up) 
+                    .contains(crossterm::event::KeyModifiers::CONTROL)
+                    && matches!(key_event.code, KeyCode::Char('j') | KeyCode::Up)
                 {
                     self.focus = Focus::NavBar;
                     return Some(Action::NavbarSelect(true));
@@ -339,11 +335,14 @@ impl Screen for ProfileScreen {
                     KeyCode::Char('l') | KeyCode::Right => {
                         self.navigation_fav.move_right();
                     }
-                    // KeyCode::Enter => {
-                    //     if let Some(anime) = self.navigation_fav.get_selected_item_mut(&mut self.user.favorited_animes) {
-                    //         return Some(Action::ShowOverlay(anime.id));
-                    //     }
-                    // }
+                    KeyCode::Enter => {
+                        if let Some(anime) = self
+                            .navigation_fav
+                            .get_selected_item_mut(&mut self.user.favorited_animes)
+                        {
+                            return Some(Action::ShowOverlay(anime.id));
+                        }
+                    }
 
                     _ => {}
                 }
@@ -363,11 +362,12 @@ impl Screen for ProfileScreen {
             self.focus = Focus::Content;
 
             if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
-                let anime_id = self.navigation_fav.get_selected_item(&self.user.favorited_animes)?;
+                let anime_id = self
+                    .navigation_fav
+                    .get_selected_item(&self.user.favorited_animes)?;
                 return Some(Action::ShowOverlay(anime_id.id));
             }
         }
-
 
         None
     }
@@ -388,34 +388,34 @@ impl Screen for ProfileScreen {
             if let Some(user) = info.mal_client.get_user() {
                 let username = user.name.clone();
                 ImageManager::query_image_for_fetching(&image_manager, &user);
-                let update = BackgroundUpdate::new(id.clone())
-                    .set("user", user);
+                let update = BackgroundUpdate::new(id.clone()).set("user", user);
                 info.app_sx.send(Event::BackgroundNotice(update)).ok();
-
 
                 // get the users anime list
                 let anime_generator = StreamableRunner::new()
                     .with_batch_size(1000)
                     .stop_early()
-                    .stop_at(20); // just a limit incase (20 x batch size)
+                    .stop_at(20); // just a limit in case (20 x batch size)
 
-                for animes in anime_generator.run(|offset, limit| {
-                    info.mal_client
-                        .get_anime_list(None, offset, limit)
-                }) {
+                for animes in anime_generator
+                    .run(|offset, limit| info.mal_client.get_anime_list(None, offset, limit))
+                {
+                    // for the favorited animes to be clickable we need the anime details (now
+                    // most likely the favorite anime is in the user list so we just fetch that,
+                    // which we do anyways but now we just copy it with "animes", anime.clone())
                     let update = BackgroundUpdate::new(id.clone())
+                        .set("animes", animes.clone())
                         .set("listed_animes", animes);
                     info.app_sx.send(Event::BackgroundNotice(update)).ok();
                 }
-
 
                 // get the users favorited animes
                 if let Some(favorited_animes) = info.mal_client.get_favorited_anime(username) {
                     for anime in favorited_animes.clone() {
                         ImageManager::query_image_for_fetching(&image_manager, &anime);
                     }
-                    let update = BackgroundUpdate::new(id.clone())
-                        .set("favorited_animes", favorited_animes);
+                    let update =
+                        BackgroundUpdate::new(id.clone()).set("favorited_animes", favorited_animes);
                     info.app_sx.send(Event::BackgroundNotice(update)).ok();
                 }
             }
