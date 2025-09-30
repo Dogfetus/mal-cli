@@ -1,6 +1,5 @@
 #![allow(unreachable_code)]
 use anyhow::Result;
-use open;
 use rouille::post_input;
 use rouille::router;
 use rouille::try_or_400;
@@ -9,7 +8,7 @@ use std::sync::mpsc::{self};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
-use ureq;
+
 
 const MAX_RETRIES: u16 = 10;
 const BACKEND_URL: &str = "https://mal-cli.dogfetus.no";

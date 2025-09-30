@@ -44,19 +44,19 @@ impl LoginScreen {
                 }
 
                 open::that(&self.full_url).map_err(|e|
-                    return Some(Action::ShowError(e.to_string()))
+                    Some(Action::ShowError(e.to_string()))
                 ).ok(); 
 
-                return None;
+                None
             }
             1=> {
                 if MalClient::user_is_logged_in() {
                     self.login_url.clear();
                 }
-                return Some(Action::SwitchScreen(LAUNCH));
+                Some(Action::SwitchScreen(LAUNCH))
             }
             _ => {
-                return None;
+                None
             }
         }
     }
@@ -171,13 +171,10 @@ impl Screen for LoginScreen {
 
     fn handle_mouse(&mut self, mouse_event: crossterm::event::MouseEvent) -> Option<Action> {
         if let Some(index) = self.navigatable.get_hovered_index(mouse_event){
-            self.navigatable.set_selected_index(index);
+            if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
+                return self.activate_button(index);
+            }
         };
-
-        if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
-            let index = self.navigatable.get_selected_index();
-            return self.activate_button(index);
-        }
 
         None
     }

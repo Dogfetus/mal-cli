@@ -1,13 +1,13 @@
 use crate::app::{Action, Event, ExtraInfo};
 use crate::mal::models::anime::AnimeId;
-use crate::send_error;
-use ratatui::Frame;
-use ratatui::layout::Layout;
-use screens::*;
-use std::any::Any;
 use std::collections::HashMap;
+use ratatui::layout::Layout;
 use std::thread::JoinHandle;
-use widgets::{navbar, popup};
+use widgets::navbar;
+use widgets::popup;
+use ratatui::Frame;
+use std::any::Any;
+use screens::*;
 
 #[allow(non_snake_case)]
 mod screenTemplate;

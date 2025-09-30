@@ -10,7 +10,6 @@ use crate::app::{Action, Event};
 use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
 use crate::config::get_app_dir;
 use crate::mal::models::anime::AnimeId;
-use crate::send_error;
 use crate::utils::functionStreaming::StreamableRunner;
 use crate::utils::imageManager::ImageManager;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -242,21 +241,18 @@ impl Screen for OverviewScreen {
             return Some(Action::NavbarSelect(true));
         }
 
-        if let Some(index) = self.navigation.get_hovered_index(mouse_event) {
-            self.navigation.set_selected_index(index);
-            self.focus = Focus::Content;
-        };
+        // this happens only when the cursor is hovering over the overview content
+        let item = self.navigation.get_hovered_item_mut(&mut self.lists, mouse_event)?;
+        self.focus = Focus::Content;
 
-        if let Some(item) = self.navigation.get_selected_item_mut(&mut self.lists) {
-            let index = item.navigatable.get_hovered_index(mouse_event)?;
-            item.navigatable.set_selected_index(index);
+        // handle scrolling per list
+        item.navigatable.handle_scroll(mouse_event);
 
-            // if clicked open anime
-            if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
-                let anime_id = item.navigatable.get_selected_item(&item.items)?;
-                return Some(Action::ShowOverlay(*anime_id));
-            }
-        };
+        // retreive id of the anime being hovered when clicked
+        let anime_id = item.navigatable.get_hovered_item(&item.items, mouse_event)?;
+        if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
+            return Some(Action::ShowOverlay(*anime_id));
+        }
 
         None
     }
@@ -289,7 +285,7 @@ impl Screen for OverviewScreen {
                     info.mal_client
                         .get_anime_list(None, offset, limit)
                 }) {
-                    cached_ids.extend(animes.iter().map(|a| a.id.clone()));
+                    cached_ids.extend(animes.iter().map(|a| a.id));
                     let update = BackgroundUpdate::new(id.clone())
                         .set("animes", animes);
                     info.app_sx.send(Event::BackgroundNotice(update)).ok();
@@ -297,7 +293,7 @@ impl Screen for OverviewScreen {
 
                 // this is first to fetch the file where the recent watched animes are
                 let content = BufReader::new(file);
-                let entries: Vec<String> = content.lines().filter_map(|line| line.ok()).collect();
+                let entries: Vec<String> = content.lines().map_while(|line| line.ok()).collect();
                 let mut animes = IndexSet::new();
 
                 for entry in entries.iter().rev() {
@@ -341,7 +337,7 @@ impl Screen for OverviewScreen {
                 info.mal_client
                     .get_suggested_anime(offset, limit)
             }) {
-                let anime_ids = animes.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
+                let anime_ids = animes.iter().map(|a| a.id).collect::<Vec<_>>();
                 let update = BackgroundUpdate::new(id.clone())
                     .set("animes", animes)
                     .set("SuggestedAnime", anime_ids);
@@ -353,7 +349,7 @@ impl Screen for OverviewScreen {
                 info.mal_client
                     .get_top_anime("bypopularity".to_string(), offset, limit)
             }) {
-                let anime_ids = animes.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
+                let anime_ids = animes.iter().map(|a| a.id).collect::<Vec<_>>();
                 let update = BackgroundUpdate::new(id.clone())
                     .set("animes", animes)
                     .set("PopularAnime", anime_ids);

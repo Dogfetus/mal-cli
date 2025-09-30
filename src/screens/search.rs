@@ -14,7 +14,6 @@ use crate::utils::input::Input;
 use crate::{app::Action, screens::Screen};
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
-use image::imageops::filter3x3;
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Position};
 use ratatui::layout::Constraint;
@@ -348,6 +347,23 @@ impl Screen for SearchScreen {
             return Some(Action::NavbarSelect(true));
         }
 
+        if self.filter_popup.is_hovered(mouse_event) || self.filter_popup.is_open() {
+            self.focus = Focus::Filter;
+
+            // if a filter is selected:
+            let mut filter= self.filter_popup.handle_mouse(mouse_event)?;
+
+            self.fetching = true;
+            if filter == "popularity" {
+                filter = "bypopularity".to_string();
+            }
+
+            let sender = self.bg_sender.clone()?;
+            sender.send(LocalEvent::FilterSwitch(filter)).ok();
+
+            return None;
+        }
+
         if let Some(search_area) = self.search_area {
             let pos = Position::new(mouse_event.column, mouse_event.row);
             if search_area.contains(pos) {
@@ -356,20 +372,14 @@ impl Screen for SearchScreen {
             }
         }
 
-        if let Some(filter_area) = self.filter_popup.get_area(){
-            let pos = Position::new(mouse_event.column, mouse_event.row);
-            if filter_area.contains(pos) {
-                self.focus = Focus::Filter;
-            }
-            if let Some(filter) = self.filter_popup.handle_mouse(mouse_event){
-            }
+
+        if self.navigatable.is_hovered(mouse_event) {
+            self.focus = Focus::AnimeList;
+            self.navigatable.handle_scroll(mouse_event);
         }
 
-        if let Some(index) = self.navigatable.get_hovered_index(mouse_event) {
-            self.navigatable.set_selected_index(index);
-            self.focus = Focus::AnimeList;
-
-            if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
+        if self.navigatable.get_hovered_index(mouse_event).is_some() {
+            if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind  {
                 let anime_id = self.navigatable.get_selected_item(&self.animes)?;
                 return Some(Action::ShowOverlay(*anime_id));
             }

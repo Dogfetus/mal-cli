@@ -16,7 +16,7 @@ use crate::{
     },
 };
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::layout::{Alignment, Margin, Rect};
+use ratatui::layout::{Alignment, Margin, Position, Rect};
 use ratatui::widgets::{Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};
 use ratatui::{
     Frame,
@@ -63,6 +63,9 @@ pub struct SeasonsScreen {
 
     image_manager: Arc<Mutex<ImageManager>>,
     navigatable: Navigatable,
+
+    // render cache
+    details_area: Option<Rect>
 }
 
 impl SeasonsScreen {
@@ -88,6 +91,8 @@ impl SeasonsScreen {
 
             image_manager,
             navigatable: Navigatable::new((3, 3)),
+
+            details_area: None,
         }
     }
 
@@ -213,7 +218,7 @@ impl Screen for SeasonsScreen {
 
         let (blb_set, blb_border) = (
             symbols::border::Set {
-                horizontal_bottom: " ".into(),
+                horizontal_bottom: " ",
                 bottom_right: symbols::line::ROUNDED_BOTTOM_LEFT,
                 ..symbols::border::PLAIN
             },
@@ -324,6 +329,8 @@ impl Screen for SeasonsScreen {
             .direction(Direction::Horizontal)
             .constraints([Constraint::Fill(1), Constraint::Length(1)])
             .areas(bottom_right);
+
+        self.details_area = Some(bottom_right);
 
         let [top, middle, bottom] = Layout::default()
             .direction(Direction::Vertical)
@@ -543,7 +550,6 @@ impl Screen for SeasonsScreen {
             }
 
             Focus::SeasonSelection => {
-                // Handle season selection input here if needed
                 if key_event
                     .modifiers
                     .contains(crossterm::event::KeyModifiers::CONTROL)
@@ -562,24 +568,14 @@ impl Screen for SeasonsScreen {
                         _ => {}
                     }
                     self.season_popup.hide();
-                } else {
-                    if self.season_popup.is_toggled() {
-                        if let Some((year, season)) = self.season_popup.handle_input(key_event) {
-                            if year == self.year && season == self.season {
-                                return None;
-                            }
-                            self.year = year;
-                            self.season = season;
+                } else if let Some((year, season)) = self.season_popup.handle_keyboard(key_event) {
+                    if year == self.year && season == self.season {
+                        return None;
+                    }
 
-                            self.fetch_season();
-                        }
-                    }
-                    match key_event.code {
-                        KeyCode::Enter | KeyCode::Char(' ') => {
-                            self.season_popup.toggle(self.year);
-                        }
-                        _ => {}
-                    }
+                    self.year = year;
+                    self.season = season;
+                    self.fetch_season();
                 }
             }
         }
@@ -588,21 +584,52 @@ impl Screen for SeasonsScreen {
     }
 
     fn handle_mouse(&mut self, mouse_event: crossterm::event::MouseEvent) -> Option<Action> {
+        // navbar
         if mouse_event.row < 3 {
             self.focus = Focus::Navbar;
             return Some(Action::NavbarSelect(true));
         }
 
-        if (mouse_event.row >= 3 && mouse_event.row < 6) || self.season_popup.is_toggled() {
-            self.focus = Focus::SeasonSelection;
-            self.season_popup.handle_mouse(mouse_event);
+        // scrolling details area
+        let details_area = self.details_area?;
+
+        let pos = Position::new(mouse_event.column, mouse_event.row);
+        if details_area.contains(pos) {
+            self.focus = Focus::AnimeDetails;
+            match mouse_event.kind {
+                crossterm::event::MouseEventKind::ScrollUp => {
+                    self.detail_scroll_y = self.detail_scroll_y.saturating_sub(1);
+                }
+                crossterm::event::MouseEventKind::ScrollDown => {
+                    self.detail_scroll_y += 1;
+                }
+                _ => {}
+            }
             return None;
         }
 
-        if let Some(index) = self.navigatable.get_hovered_index(mouse_event) {
-            self.navigatable.set_selected_index(index);
-            self.focus = Focus::AnimeList;
+        // season selection
+        if (mouse_event.row >= 3 && mouse_event.row < 6) || self.season_popup.is_toggled() {
+            self.focus = Focus::SeasonSelection;
+            if let Some((year, season)) = self.season_popup.handle_mouse(mouse_event) {
+                if year == self.year && season == self.season {
+                    return None;
+                }
+                self.year = year;
+                self.season = season;
+                self.fetch_season();
+            }
+            return None;
+        }
 
+        // animes list scrolling
+        if self.navigatable.is_hovered(mouse_event) {
+            self.focus = Focus::AnimeList;
+            self.navigatable.handle_scroll(mouse_event);
+        }
+
+        // also anime list
+        if self.navigatable.get_hovered_index(mouse_event).is_some() {
             if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
                 let anime_id = self.navigatable.get_selected_item(&self.animes)?;
                 return Some(Action::ShowOverlay(*anime_id));

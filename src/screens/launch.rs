@@ -91,7 +91,7 @@ impl Screen for LaunchScreen {
             .constraints([Constraint::Fill(1), Constraint::Percentage(30)])
             .split(page_chunk[0]);
 
-        let header_text = vec![
+        let header_text = [
             " ███╗   ███╗ █████╗ ██╗                ██████╗██╗     ██╗ ",
             " ████╗ ████║██╔══██╗██║               ██╔════╝██║     ██║ ",
             " ██╔████╔██║███████║██║     ███████╗  ██║     ██║     ██║ ",
@@ -131,13 +131,10 @@ impl Screen for LaunchScreen {
 
     fn handle_mouse(&mut self, mouse_event: MouseEvent) -> Option<Action> {
         if let Some(index) = self.navigatable.get_hovered_index(mouse_event) {
-            self.navigatable.set_selected_index(index);
+            if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
+                return self.activate_button(index);
+            }
         };
-
-        if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
-            let index = self.navigatable.get_selected_index();
-            return self.activate_button(index);
-        }
 
         None
     }

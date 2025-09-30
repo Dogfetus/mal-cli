@@ -64,7 +64,7 @@ pub fn fetch_image(uri: String) -> Result<image::DynamicImage, String> {
                 .map_err(|_| "Invalid file URL".to_string())?;
             image::open(path).map_err(|e| e.to_string())
         }
-        _ => return Err("Unsupported URL scheme".to_string()),
+        _ => Err("Unsupported URL scheme".to_string()),
     }
 }
 

@@ -14,9 +14,9 @@ use crate::{app::Action, screens::Screen};
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use ratatui::Frame;
-use ratatui::layout::{Direction, Position};
 use ratatui::layout::Layout;
 use ratatui::layout::{Alignment, Constraint, Margin, Rect};
+use ratatui::layout::{Direction, Position};
 use ratatui::style;
 use ratatui::symbols::border;
 use ratatui::widgets::Block;
@@ -534,6 +534,36 @@ impl Screen for ListScreen {
             return Some(Action::NavbarSelect(true));
         }
 
+        // the dropdowns right side
+        // if a dropdown is open it takes priority
+        // otherwise check if hovering over any dropdown
+        let dropdown = match self
+            .dropdown_nav
+            .get_selected_item_mut(&mut self.dropdowns){
+            Some(d) if d.is_open() => Some(d),
+            _ => self.dropdown_nav.get_hovered_item_mut(&mut self.dropdowns, mouse_event)
+        };
+
+        if let Some(dropdown) = dropdown {
+            self.focus = Focus::Dropdown;
+
+            let selection = dropdown.handle_mouse(mouse_event)?;
+            let index = self.dropdown_nav.get_selected_index();
+            self.filters.update(index, selection);
+
+            let animes = self.app_info.anime_store.get_bulk(self.all_animes.clone());
+            if let Some(sx) = &self.bg_sx {
+                sx.send(LocalEvent::Dropdown(
+                    animes.iter().map(|rc| (**rc).clone()).collect(),
+                    self.filters.clone(),
+                ))
+                .ok();
+            }
+
+            return None;
+        }
+
+        // the search box
         if let Some(search_area) = self.search_area {
             let pos = Position::new(mouse_event.column, mouse_event.row);
             if search_area.contains(pos) {
@@ -542,23 +572,17 @@ impl Screen for ListScreen {
             }
         }
 
-        if let Some(index) = self.navigatable.get_hovered_index(mouse_event) {
-            self.navigatable.set_selected_index(index);
-            self.focus = Focus::Content;
 
+        // the animes list
+        if self.navigatable.is_hovered(mouse_event) {
+            self.focus = Focus::Content;
+            self.navigatable.handle_scroll(mouse_event);
+        }
+
+        if self.navigatable.get_hovered_index(mouse_event).is_some() {
             if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
                 let anime_id = self.navigatable.get_selected_item(&self.filtered_animes)?;
                 return Some(Action::ShowOverlay(*anime_id));
-            }
-        }
-
-        if let Some(drop) = self.dropdown_nav.get_hovered_index(mouse_event) {
-            self.dropdown_nav.set_selected_index(drop);
-            self.focus = Focus::Dropdown;
-
-            if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
-                let dropdown = self.dropdown_nav.get_selected_item_mut(&mut self.dropdowns)?;
-                dropdown.handle_mouse(mouse_event);
             }
         }
 
@@ -589,7 +613,7 @@ impl Screen for ListScreen {
             for animes in anime_generator
                 .run(|offset, limit| info.mal_client.get_anime_list(None, offset, limit))
             {
-                let anime_ids = animes.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
+                let anime_ids = animes.iter().map(|a| a.id).collect::<Vec<_>>();
                 let update = BackgroundUpdate::new(id.clone())
                     .set("animes", animes)
                     .set("anime_ids", anime_ids)

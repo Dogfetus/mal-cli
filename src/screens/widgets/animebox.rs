@@ -48,12 +48,10 @@ impl AnimeBox {
 
         let color = if highlight {
             HIGHLIGHT_COLOR
+        } else if anime.my_list_status.status.is_empty() {
+            TEXT_COLOR
         } else {
-            if anime.my_list_status.status.is_empty() {
-                TEXT_COLOR
-            } else {
-                anime_list_colors(&anime.my_list_status.status)
-            }
+            anime_list_colors(&anime.my_list_status.status)
         };
 
         let block_color = if highlight {
@@ -111,7 +109,7 @@ impl AnimeBox {
 
         let image_area = image_area.inner(Margin::new(1, 1));
         ImageManager::render_image(
-            &image_manager,
+            image_manager,
             anime,
             frame,
             image_area,
@@ -131,10 +129,7 @@ impl AnimeBox {
         );
 
         let airing_text = if anime.start_date == anime.end_date {
-            format!(
-                "{}",
-                format_date(&anime.start_date)
-            )
+            format_date(&anime.start_date).to_string()
         } else {
             format!(
                 "{}\n->\n{}",
@@ -143,7 +138,7 @@ impl AnimeBox {
             )
         };
 
-        let user_stats_value_text = format!("{}", anime.my_list_status.status,);
+        let user_stats_value_text = anime.my_list_status.status.to_string();
 
         let [info, value] = Layout::default()
             .direction(Direction::Horizontal)
@@ -269,7 +264,7 @@ impl LongAnimeBox {
 
         let image_area = image_area.inner(Margin::new(1, 1));
         ImageManager::render_image(
-            &image_manager,
+            image_manager,
             anime,
             frame,
             image_area,
@@ -283,7 +278,7 @@ impl LongAnimeBox {
             anime.mean, anime.media_type, anime.num_episodes, anime.status
         );
         let airing_text = format!("{} -> {}", anime.start_date, anime.end_date);
-        let user_stats_value_text = format!("{}", anime.my_list_status.status,);
+        let user_stats_value_text = anime.my_list_status.status.clone();
 
         let [info, value] = Layout::default()
             .direction(Direction::Horizontal)

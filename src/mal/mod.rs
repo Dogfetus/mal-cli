@@ -184,9 +184,9 @@ impl MalClient {
         let month = now.month();
 
         let season = match month {
-            1 | 2 | 3 => "winter",
-            4 | 5 | 6 => "spring",
-            7 | 8 | 9 => "summer",
+            1 ..= 3 => "winter",
+            4 ..= 6 => "spring",
+            7 ..= 9 => "summer",
             _ => "fall",
         };
 
@@ -390,7 +390,7 @@ impl MalClient {
         let response = match response {
             Ok(response) => response,
             Err(e) => {
-                eprintln!("Error fetching {}: {:?}", type_name::<T>(), e);
+                send_error!("Error fetching {}: {:?}", type_name::<T>(), e);
                 return None;
             }
         };

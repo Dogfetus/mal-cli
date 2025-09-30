@@ -177,7 +177,7 @@ impl Screen for ProfileScreen {
             .border_style(style::Style::default().fg(PRIMARY_COLOR));
         frame.render_widget(user_info_block, info);
 
-        let user_info_text = vec![
+        let user_info_text = [
             format!("Username: {}", self.user.name),
             format!("Joined: {}", format_date(&self.user.joined_at)),
             format!("Gender: {}", self.user.gender),
@@ -359,8 +359,7 @@ impl Screen for ProfileScreen {
             return Some(Action::NavbarSelect(true));
         }
 
-        if let Some(index) = self.navigation_fav.get_hovered_index(mouse_event) {
-            self.navigation_fav.set_selected_index(index);
+        if self.navigation_fav.get_hovered_index(mouse_event).is_some() {
             self.focus = Focus::Content;
 
             if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
@@ -419,8 +418,6 @@ impl Screen for ProfileScreen {
                         .set("favorited_animes", favorited_animes);
                     info.app_sx.send(Event::BackgroundNotice(update)).ok();
                 }
-
-                return;
             }
         }))
     }

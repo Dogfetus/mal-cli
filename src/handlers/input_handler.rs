@@ -26,6 +26,8 @@ pub fn input_handler(sx: mpsc::Sender<Event>) {
                         // as long as we only need some of the keyinputs:
                         crossterm::event::MouseEventKind::ScrollUp |
                         crossterm::event::MouseEventKind::ScrollDown |
+                        crossterm::event::MouseEventKind::ScrollRight |
+                        crossterm::event::MouseEventKind::ScrollLeft |
                         crossterm::event::MouseEventKind::Moved |
                         crossterm::event::MouseEventKind::Down(_) => {
                             if sx.send(Event::InputEvent(event)).is_err() {
