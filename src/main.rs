@@ -8,7 +8,7 @@ mod utils;
 
 use crate::app::App;
 use anyhow::Result;
-use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
+use crossterm::event::EnableMouseCapture;
 
 fn parse_cli() -> bool {
     for arg in std::env::args().skip(1) {
@@ -54,11 +54,6 @@ async fn main() -> Result<()> {
     // start the app
     let mut app = App::new(terminal);
     app.run()?;
-
-    ratatui::restore();
-
-    // disable mouse capture
-    crossterm::execute!(std::io::stderr(), DisableMouseCapture)?;
 
     Ok(())
 }

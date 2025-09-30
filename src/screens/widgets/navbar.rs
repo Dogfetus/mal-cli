@@ -1,21 +1,25 @@
+use crate::{
+    app::Action,
+    config::{HIGHLIGHT_COLOR, PRIMARY_COLOR, SECOND_HIGHLIGHT_COLOR, TEXT_COLOR},
+    screens::{name_to_screen, screen_to_name},
+};
 use crossterm::event::{KeyCode, KeyEvent, MouseEvent};
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect}, 
-    style::Style, 
-    symbols, 
-    text::Line, 
-    widgets::{Block, Borders}, 
-    Frame
+    Frame,
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Position, Rect},
+    style::Style,
+    symbols,
+    text::Line,
+    widgets::{Block, Borders},
 };
-use crate::{app::Action, config::{HIGHLIGHT_COLOR, PRIMARY_COLOR, SECOND_HIGHLIGHT_COLOR, TEXT_COLOR}, screens::{name_to_screen, screen_to_name}};
-
 
 #[derive(Clone)]
 pub struct NavBar {
     old_button: usize,
     selected_button: usize,
-    options: Vec<&'static str>,  
+    options: Vec<&'static str>,
     is_selected: bool,
+    option_areas: Vec<Rect>,
 }
 
 impl NavBar {
@@ -25,6 +29,7 @@ impl NavBar {
             old_button: 0,
             options: Vec::new(),
             is_selected: false,
+            option_areas: Vec::new(),
         }
     }
 
@@ -63,29 +68,50 @@ impl NavBar {
                 if self.selected_button > 0 {
                     self.selected_button = self.selected_button.saturating_sub(1);
                 }
-            },
+            }
             KeyCode::Right | KeyCode::Char('l') => {
                 if self.selected_button < self.options.len() - 1 {
                     self.selected_button += 1;
                 }
-            },
+            }
             KeyCode::Enter => {
-                if self.is_selected {
-                    self.old_button = self.selected_button;
-                    let screen_name = self.options[self.selected_button];
-                    return Some(Action::SwitchScreen(name_to_screen(screen_name)));
-                }
-            },
-            _ => {},
+                self.old_button = self.selected_button;
+                let screen_name = self.options[self.selected_button];
+                return Some(Action::SwitchScreen(name_to_screen(screen_name)));
+            }
+            _ => {}
         }
         None
     }
 
     pub fn handle_mouse(&mut self, mouse_event: MouseEvent) -> Option<Action> {
+        if mouse_event.row > 2 {
+            self.deselect();
+            return None;
+        }
+
+        if self.option_areas.is_empty() {
+            return None;
+        }
+
+        for (i, area) in self.option_areas.iter().enumerate() {
+            let pos = Position::new(mouse_event.column, mouse_event.row);
+            if area.inner(Margin::new(1, 0)).contains(pos) {
+                self.selected_button = i;
+                break;
+            }
+        }
+
+        if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
+            self.old_button = self.selected_button;
+            let screen_name = self.options[self.selected_button];
+            return Some(Action::SwitchScreen(name_to_screen(screen_name)));
+        }
+
         None
     }
 
-    pub fn render(&self, frame: &mut Frame, area: Rect) {
+    pub fn render(&mut self, frame: &mut Frame, area: Rect) {
         let constraints: Vec<Constraint> = (0..self.options.len())
             .map(|_| Constraint::Ratio(1, self.options.len() as u32))
             .collect();
@@ -94,6 +120,8 @@ impl NavBar {
             .direction(Direction::Horizontal)
             .constraints(constraints)
             .split(area);
+
+        self.option_areas = option_rects.to_vec();
 
         let overall_color = if self.is_selected {
             Style::default().fg(HIGHLIGHT_COLOR)
@@ -111,7 +139,7 @@ impl NavBar {
                         top_left: symbols::line::ROUNDED_TOP_LEFT,
                         ..symbols::border::PLAIN
                     },
-                    Borders::LEFT | Borders::TOP | Borders::BOTTOM
+                    Borders::LEFT | Borders::TOP | Borders::BOTTOM,
                 ),
                 i if i == self.options.len() - 1 => (
                     symbols::border::Set {
@@ -121,7 +149,7 @@ impl NavBar {
                         bottom_right: symbols::line::ROUNDED_BOTTOM_RIGHT,
                         ..symbols::border::PLAIN
                     },
-                    Borders::ALL
+                    Borders::ALL,
                 ),
                 _ => (
                     symbols::border::Set {
@@ -129,11 +157,9 @@ impl NavBar {
                         top_left: symbols::line::NORMAL.horizontal_down,
                         ..symbols::border::PLAIN
                     },
-                    Borders::LEFT | Borders::TOP | Borders::BOTTOM
+                    Borders::LEFT | Borders::TOP | Borders::BOTTOM,
                 ),
             };
-
-
 
             let option = Block::new()
                 .border_set(border_set)
@@ -148,13 +174,15 @@ impl NavBar {
                 Style::default().fg(SECOND_HIGHLIGHT_COLOR)
             } else if i == self.old_button {
                 Style::default().fg(HIGHLIGHT_COLOR)
-            } else{
+            } else {
                 Style::default().fg(TEXT_COLOR)
             };
 
             frame.render_widget(
-                Line::from(opt.to_string()).alignment(Alignment::Center).style(style),
-                centered_area
+                Line::from(opt.to_string())
+                    .alignment(Alignment::Center)
+                    .style(style),
+                centered_area,
             );
         }
     }

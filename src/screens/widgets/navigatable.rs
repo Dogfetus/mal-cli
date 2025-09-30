@@ -1,5 +1,6 @@
 #![allow(dead_code)]
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use crossterm::event::MouseEvent;
+use ratatui::layout::{Constraint, Direction, Layout, Position, Rect};
 
 #[derive(Debug, Clone)]
 pub struct Navigatable {
@@ -11,6 +12,9 @@ pub struct Navigatable {
 
     selected: usize,
     scroll: usize,
+
+    area: Option<Rect>,
+    grid: Option<Vec<Vec<Rect>>>,
 }
 
 impl Navigatable{
@@ -24,7 +28,45 @@ impl Navigatable{
             cols: size.1,
             selected: 0,
             scroll: 0,
+            area: None,
+            grid: None,
         }
+    }
+    pub fn get_hovered_index(&mut self, me: MouseEvent) -> Option<usize> {
+
+        let area = self.area?;
+        let click_pos = Position::new(me.column, me.row);
+        if !area.contains(click_pos) {
+            return None;
+        }
+
+        let grid = self.create_grid(area);
+        for (row_idx, row) in grid.iter().enumerate() {
+            for (col_idx, cell) in row.iter().enumerate() {
+                if cell.contains(click_pos) {
+                    let visible_idx = row_idx * self.cols as usize + col_idx;
+                    let absolute_idx = self.scroll + visible_idx;
+                    if absolute_idx < self.total_items {
+                        self.set_selected_index(absolute_idx);
+                        return Some(absolute_idx);
+                    } else {
+                        return None;
+                    }
+                }
+            }
+        }
+
+        None 
+    }
+
+    pub fn get_hovered_item<'a, T>(&mut self, items: &'a [T], me: MouseEvent) -> Option<&'a T> {
+        let index = self.get_hovered_index(me)?;
+        items.get(index)
+    }
+
+    pub fn get_hovered_item_mut<'a, T>(&mut self, items: &'a mut [T], me: MouseEvent) -> Option<&'a mut T> {
+        let index = self.get_hovered_index(me)?;
+        items.get_mut(index)
     }
 
     pub fn back_to_start(&mut self) {
@@ -39,6 +81,32 @@ impl Navigatable{
 
     pub fn in_reverse(&self) -> bool {
         self.reverse
+    }
+
+    pub fn is_hovered(&self, me: MouseEvent) -> bool {
+        if let Some(area) = self.area {
+            let pos = Position::new(me.column, me.row);
+            return area.contains(pos);
+        }
+        false
+    }
+ 
+    pub fn handle_scroll(&mut self, me: MouseEvent) {
+        match me.kind {
+            crossterm::event::MouseEventKind::ScrollUp |
+            crossterm::event::MouseEventKind::ScrollLeft 
+            => {
+                self.scroll = self.scroll.saturating_sub(self.cols as usize);
+            },
+
+            crossterm::event::MouseEventKind::ScrollDown |
+            crossterm::event::MouseEventKind::ScrollRight => {
+                if self.scroll + self.visible_elements() < self.total_items {
+                    self.scroll = self.scroll.saturating_add(self.cols as usize);
+                }
+            },
+            _ => {}
+        }
     }
 
     pub fn visible_elements(&self) -> usize {
@@ -126,6 +194,12 @@ impl Navigatable{
     }
 
     fn create_grid(&self, area: Rect) -> Vec<Vec<Rect>> {
+        if let (Some(cached_area), Some(cached_grid)) = (self.area, &self.grid) {
+            if cached_area == area {
+                return cached_grid.clone();
+            }
+        }
+
         let row_constraints = self.create_balanced_constraints(self.rows);
         let col_constraints = self.create_balanced_constraints(self.cols);
 
@@ -187,6 +261,11 @@ impl Navigatable{
         self.selected
     }
 
+    pub fn set_selected_index(&mut self, index: usize) {
+        self.selected = index;
+        self.update_scroll();
+    }
+
     pub fn construct<T, F>(&mut self, items: &[T], area: Rect, mut callback: F)
     where
         F: FnMut(&T, Rect, bool),
@@ -195,9 +274,12 @@ impl Navigatable{
             return;
         }
 
-        self.total_items = items.len();
-
         let grid = self.create_grid(area);
+
+        // cache
+        self.area = Some(area);
+        self.total_items = items.len();
+        self.grid = Some(grid.clone());
 
         if self.reverse {
             for (visible_idx, absolute_idx) in self.visible_indices().enumerate().rev() {
@@ -234,9 +316,12 @@ impl Navigatable{
             return;
         }
 
-        self.total_items = items.len();
-
         let grid = self.create_grid(area);
+
+        // cache
+        self.area = Some(area);
+        self.total_items = items.len();
+        self.grid = Some(grid.clone());
 
         if self.reverse {
             for (visible_idx, absolute_idx) in self.visible_indices().enumerate().rev() {

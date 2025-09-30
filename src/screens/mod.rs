@@ -1,25 +1,26 @@
 use crate::app::{Action, Event, ExtraInfo};
 use crate::mal::models::anime::AnimeId;
-use ratatui::Frame;
-use ratatui::layout::Layout;
-use screens::*;
-use std::any::Any;
 use std::collections::HashMap;
+use ratatui::layout::Layout;
 use std::thread::JoinHandle;
-use widgets::{navbar, popup};
+use widgets::navbar;
+use widgets::popup;
+use ratatui::Frame;
+use std::any::Any;
+use screens::*;
 
-mod info;
-mod launch;
-mod list;
-mod login;
-mod overview;
-mod profile;
 #[allow(non_snake_case)]
 mod screenTemplate;
-mod search;
-mod seasons;
 mod settings;
+mod overview;
+mod seasons;
 mod widgets;
+mod profile;
+mod launch;
+mod search;
+mod login;
+mod info;
+mod list;
 
 // this is a macro to define screens in a more structured way
 // it allows for screens to be implemented in a single place and work across the app
@@ -106,9 +107,7 @@ define_screens! {
     SEARCH => "Search" => search::SearchScreen,
     LIST => "List" => list::ListScreen,
 
-
-    //TODO: consider changing this
-    // Add more as needed:
+    // To add more::
     // SCREEN1 => "<structName>" => <module>::<structName>Screen,
     // SCREEN2 => "<structName>" => <module>::<structName>Screen,
     // etc...
@@ -122,7 +121,7 @@ pub trait Screen {
         None
     }
     fn handle_mouse(&mut self, mouse_event: crossterm::event::MouseEvent) -> Option<Action> {
-        Some(Action::ShowError("Mouse input not supported on this screen".into()))
+        None
     }
     fn get_name(&self) -> String {
         let name = std::any::type_name::<Self>();
@@ -230,7 +229,7 @@ impl ScreenManager {
                 }
 
                 if self.navbar.is_selected() {
-                return self.navbar.handle_keyboard(key_event)
+                    return self.navbar.handle_keyboard(key_event)
                         .and_then(|action| match action {
                         Action::NavbarSelect(_) => self.current_screen.handle_keyboard(key_event),
                         other => Some(other),
@@ -273,10 +272,8 @@ impl ScreenManager {
 
         if self.current_screen.get_name() == update.id {
             self.current_screen.apply_update(update);
-        } else {
-            if let Some(screen) = self.screen_storage.get_mut(&update.id) {
-                screen.apply_update(update);
-            }
+        } else if let Some(screen) = self.screen_storage.get_mut(&update.id) {
+            screen.apply_update(update);
         }
     }
 
@@ -294,7 +291,6 @@ impl ScreenManager {
         if let Some(screen) = self.screen_storage.remove(screen_name) {
             self.current_screen = screen;
         } else {
-            self.navbar.deselect();
             self.current_screen = create_screen(screen_name, &self.passable_info);
         }
 

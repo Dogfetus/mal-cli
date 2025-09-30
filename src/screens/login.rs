@@ -1,7 +1,7 @@
 use std::cmp::{max, min};
 use crate::{add_screen_caching, app::Event, mal::MalClient, screens::widgets::button::Button};
 use crossterm::event::{KeyCode, KeyEvent};
-use super::{screens::*, BackgroundUpdate, ExtraInfo, Screen};
+use super::{screens::*, widgets::navigatable::Navigatable, BackgroundUpdate, ExtraInfo, Screen};
 use std::thread::JoinHandle;
 use crate::app::Action;
 use ratatui::{
@@ -15,22 +15,49 @@ use ratatui::{
 //TODO: option to copy the url to clipboard
 #[derive(Clone)]
 pub struct LoginScreen { 
-    selected_button: usize,
+    full_url: String,
     buttons: Vec<&'static str>,
     login_url: String,
-    app_info: ExtraInfo 
+    app_info: ExtraInfo,
+    navigatable: Navigatable,
 }
 
 impl LoginScreen {
     pub fn new(info: ExtraInfo) -> Self {
         Self {
-            selected_button: 0,
             buttons: vec![
-                "nothing yet",
+                "Open Browser",
                 "Back",
             ],
+            full_url: String::new(),
             login_url: String::new(),
-            app_info: info
+            app_info: info,
+            navigatable: Navigatable::new((2, 1)),
+        }
+    }
+
+    fn activate_button(&mut self, index: usize) -> Option<Action> {
+        match index{
+            0 => { 
+                if self.full_url.is_empty(){
+                    return None;
+                }
+
+                if let Err(e) = open::that(&self.full_url) {
+                    return Some(Action::ShowError(e.to_string()));
+                }
+
+                None
+            }
+            1=> {
+                if MalClient::user_is_logged_in() {
+                    self.login_url.clear();
+                }
+                Some(Action::SwitchScreen(LAUNCH))
+            }
+            _ => {
+                None
+            }
         }
     }
 }
@@ -96,10 +123,6 @@ impl Screen for LoginScreen {
             max(page_chunk[1].width / 2, 50),
             3);
 
-        // if self.login_url.is_empty() {
-        //     self.login_url = init_oauth().0;
-        // }
-
         let url_field = Paragraph::new(self.login_url.clone())
             .block(Block::default().borders(Borders::ALL))
             .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
@@ -107,40 +130,52 @@ impl Screen for LoginScreen {
 
         frame.render_widget(url_field, text_field_area);
 
-        for (i, button) in self.buttons.iter().enumerate() {
-            Button::new(button)
-                .offset((0, -3 + (i as i16 * 3)))
-                .center()
-                .selected(i == self.selected_button)
-                .render(frame, page_chunk[1]);
-        }
+        let button_area = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Percentage(30),
+                Constraint::Length(6),
+                Constraint::Fill(1)
+            ])
+            .split(page_chunk[1]);
 
+        let button_area = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Fill(1),
+                Constraint::Length(20),
+                Constraint::Fill(1)
+            ])
+            .split(button_area[1]);
+
+        self.navigatable.construct(&self.buttons, button_area[1], |button, area, iselected| {
+            Button::new(button).selected(iselected).render(frame, area);
+        });
     }
 
     fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
         match key_event.code {
             KeyCode::Up | KeyCode::Char('j') => {
-                if self.selected_button > 0 {
-                    self.selected_button -= 1;
-                }
+                self.navigatable.move_up();
             }
             KeyCode::Down | KeyCode::Char('k') => {
-                if self.selected_button < self.buttons.len() - 1 {
-                    self.selected_button += 1;
-                }
+                self.navigatable.move_down()
             }
             KeyCode::Enter => {
-                match self.selected_button {
-                    _ => { 
-                        if MalClient::user_is_logged_in() {
-                            self.login_url.clear();
-                        }
-                        return Some(Action::SwitchScreen(LAUNCH));
-                    }
-                }
+                return self.activate_button(self.navigatable.get_selected_index());
             }
             _ => {} 
         };
+        None
+    }
+
+    fn handle_mouse(&mut self, mouse_event: crossterm::event::MouseEvent) -> Option<Action> {
+        if let Some(index) = self.navigatable.get_hovered_index(mouse_event){
+            if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
+                return self.activate_button(index);
+            }
+        };
+
         None
     }
 
@@ -165,12 +200,18 @@ impl Screen for LoginScreen {
 
             let (url_to_print, joinable) = MalClient::init_oauth();
 
+            // the full url
+            let update = BackgroundUpdate::new(id.clone())
+                .set("full_url", url_to_print.clone());
+            let _ = info.app_sx.send(Event::BackgroundNotice(update));
+
+            // for the printing effect
             for i in 0..url_to_print.len()+1 {
-                std::thread::sleep(std::time::Duration::from_millis(8));
                 let new_url = url_to_print[0..i].to_string();
                 let update = BackgroundUpdate::new(id.clone())
                     .set("login_url", new_url);
                 let _ = info.app_sx.send(Event::BackgroundNotice(update));
+                std::thread::sleep(std::time::Duration::from_millis(8));
             }
 
             joinable.join().unwrap();  
@@ -185,6 +226,9 @@ impl Screen for LoginScreen {
     fn apply_update(&mut self, update: BackgroundUpdate) {
         if let Some(url) = update.get::<String>("login_url") {
             self.login_url = url.clone();
+        }
+        if let Some(url) = update.get::<String>("full_url") {
+            self.full_url = url.clone();
         }
     }
 

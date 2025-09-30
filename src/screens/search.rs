@@ -15,7 +15,7 @@ use crate::{app::Action, screens::Screen};
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use ratatui::Frame;
-use ratatui::layout::Alignment;
+use ratatui::layout::{Alignment, Position};
 use ratatui::layout::Constraint;
 use ratatui::layout::Direction;
 use ratatui::layout::Layout;
@@ -58,6 +58,7 @@ pub struct SearchScreen {
 
     filter_popup: SelectionPopup,
     search_input: Input,
+    search_area: Option<ratatui::layout::Rect>,
 
     fetching: bool,
     bg_sender: Option<Sender<LocalEvent>>,
@@ -81,8 +82,9 @@ impl SearchScreen {
                 .add_option("popularity")
                 .add_option("favorite"),
             search_input: Input::new(),
-            focus: Focus::Search,
+            focus: Focus::NavBar,
             animes: Vec::new(),
+            search_area: None,
             bg_loaded: false,
             bg_sender: None,
             fetching: false,
@@ -218,6 +220,7 @@ impl Screen for SearchScreen {
                     );
                 }
             });
+        self.search_area = Some(search_area);
         self.search_input.render_cursor(
             frame,
             search_area.x + 1,
@@ -251,15 +254,13 @@ impl Screen for SearchScreen {
                         }
                         _ => {}
                     }
-                } else {
-                    if let Some(mut filter_type) = self.filter_popup.handle_input(key_event) {
-                        self.fetching = true;
-                        if filter_type == "popularity" {
-                            filter_type = "bypopularity".to_string();
-                        }
-                        if let Some(sender) = &self.bg_sender {
-                            sender.send(LocalEvent::FilterSwitch(filter_type)).ok();
-                        }
+                } else if let Some(mut filter_type) = self.filter_popup.handle_input(key_event) {
+                    self.fetching = true;
+                    if filter_type == "popularity" {
+                        filter_type = "bypopularity".to_string();
+                    }
+                    if let Some(sender) = &self.bg_sender {
+                        sender.send(LocalEvent::FilterSwitch(filter_type)).ok();
                     }
                 }
             }
@@ -322,7 +323,7 @@ impl Screen for SearchScreen {
                         KeyCode::Enter => {
                             if let Some(anime_id) = self.navigatable.get_selected_item(&self.animes)
                             {
-                                if let Some(anime) = self.app_info.anime_store.get(&anime_id) {
+                                if let Some(anime) = self.app_info.anime_store.get(anime_id) {
                                     return Some(Action::ShowOverlay(anime.id));
                                 }
                             }
@@ -339,6 +340,54 @@ impl Screen for SearchScreen {
 
         None
     }
+
+    fn handle_mouse(&mut self, mouse_event: crossterm::event::MouseEvent) -> Option<Action> {
+        if mouse_event.row < 3 {
+            self.focus = Focus::NavBar;
+            return Some(Action::NavbarSelect(true));
+        }
+
+        if self.filter_popup.is_hovered(mouse_event) || self.filter_popup.is_open() {
+            self.focus = Focus::Filter;
+
+            // if a filter is selected:
+            let mut filter= self.filter_popup.handle_mouse(mouse_event)?;
+
+            self.fetching = true;
+            if filter == "popularity" {
+                filter = "bypopularity".to_string();
+            }
+
+            let sender = self.bg_sender.clone()?;
+            sender.send(LocalEvent::FilterSwitch(filter)).ok();
+
+            return None;
+        }
+
+        if let Some(search_area) = self.search_area {
+            let pos = Position::new(mouse_event.column, mouse_event.row);
+            if search_area.contains(pos) {
+                self.focus = Focus::Search;
+                return None;
+            }
+        }
+
+
+        if self.navigatable.is_hovered(mouse_event) {
+            self.focus = Focus::AnimeList;
+            self.navigatable.handle_scroll(mouse_event);
+        }
+
+        if self.navigatable.get_hovered_index(mouse_event).is_some() {
+            if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind  {
+                let anime_id = self.navigatable.get_selected_item(&self.animes)?;
+                return Some(Action::ShowOverlay(*anime_id));
+            }
+        }
+
+        None
+    }
+
 
     fn background(&mut self) -> Option<JoinHandle<()>> {
         if self.bg_loaded {
@@ -357,7 +406,7 @@ impl Screen for SearchScreen {
         let app_sx = info.app_sx.clone();
 
         let handle = std::thread::spawn(move || {
-            if nr_of_animes <= 0 {
+            if nr_of_animes == 0 {
                 Self::fetch_and_send_animes(&app_sx, id.clone(), |offset, limit| {
                     mal_client.get_top_anime("all".to_string(), offset, limit)
                 });

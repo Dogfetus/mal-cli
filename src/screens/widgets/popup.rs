@@ -8,28 +8,35 @@ use std::{
 
 use crate::{
     app::{Action, Event},
-    config::{anime_list_colors, ERROR_COLOR, HIGHLIGHT_COLOR, PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR},
+    config::{
+        ERROR_COLOR, HIGHLIGHT_COLOR, PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, anime_list_colors,
+    },
     mal::{
-        models::anime::{status_is_known, Anime, AnimeId, DeleteOrUpdate, MyListStatus}, MalClient
+        MalClient,
+        models::anime::{Anime, AnimeId, DeleteOrUpdate, MyListStatus, status_is_known},
     },
     screens::{BackgroundUpdate, ExtraInfo},
     utils::{
         imageManager::ImageManager,
-        stringManipulation::{format_date, DisplayString},
+        stringManipulation::{DisplayString, format_date},
         terminalCapabilities::TERMINAL_RATIO,
     },
 };
 use crossterm::event::{KeyCode, KeyEvent, MouseEvent, MouseEventKind};
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect}, style::{Color, Style, Stylize}, symbols::{self, border}, widgets::{Block, Borders, Clear, Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap}, Frame
+    Frame,
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Position, Rect},
+    style::{Color, Style, Stylize},
+    symbols::{self, border},
+    widgets::{
+        Block, Borders, Clear, Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+        Wrap,
+    },
 };
 use std::cmp::min;
 use tui_widgets::big_text::{BigText, PixelSize};
 
-use super::{
-    infobox::InfoBox,
-    navigatable::Navigatable,
-};
+use super::{infobox::InfoBox, navigatable::Navigatable};
 
 const AVAILABLE_SEASONS: [&str; 4] = ["Winter", "Spring", "Summer", "Fall"];
 const FIRST_YEAR: u16 = 1917;
@@ -64,13 +71,17 @@ pub struct AnimePopup {
     background_transmitter: Sender<LocalEvent>,
     app_info: ExtraInfo,
     synopsis_scroll: u16,
+
+    //cache
+    popup_area: Option<Rect>,
+    synopsis_area: Option<Rect>,
 }
 
 impl AnimePopup {
     pub fn new(info: ExtraInfo) -> Self {
         let buttons = vec![
             "Play".to_string(),
-            "Play episode".to_string(),
+            "nothing yet".to_string(),
             "Play from start".to_string(),
             "Open".to_string(),
         ];
@@ -92,6 +103,8 @@ impl AnimePopup {
             focus: Focus::PlayButtons,
             background_transmitter: tx,
             synopsis_scroll: 0,
+            popup_area: None,
+            synopsis_area: None,
         };
         popup.spawn_background(info, rx);
         popup
@@ -222,9 +235,7 @@ impl AnimePopup {
     }
     pub fn update_buttons(&mut self) -> &Self {
         let anime = match self.app_info.anime_store.get(&self.anime_id) {
-            Some(anime) => {
-                anime
-            },
+            Some(anime) => anime,
             None => {
                 return self;
             }
@@ -269,7 +280,7 @@ impl AnimePopup {
             Some(anime) => {
                 self.untogglable = false;
                 anime
-            },
+            }
             None => {
                 self.untogglable = true;
                 return self;
@@ -301,6 +312,48 @@ impl AnimePopup {
         self
     }
 
+    pub fn update_status(&mut self, selection: String, index: usize) {
+        let mut anime = (*self
+            .app_info
+            .anime_store
+            .get(&self.anime_id)
+            .expect("(Focus) unexpected anime id given"))
+        .clone();
+
+        match index {
+            0 => {
+                anime.my_list_status.status =
+                    selection.to_lowercase().replace(" ", "_");
+            }
+            1 => {
+                anime.my_list_status.score = selection.parse().unwrap_or(0);
+            }
+            2 => {
+                anime.my_list_status.num_episodes_watched =
+                    selection.parse().unwrap_or(0);
+                if !status_is_known(anime.my_list_status.status.clone())
+                    && anime.my_list_status.num_episodes_watched == 0
+                {
+                    return;
+                } else if !status_is_known(
+                    anime.my_list_status.status.clone(),
+                ) {
+                    anime.my_list_status.status = "watching".to_string();
+                }
+            }
+            _ => return,
+        }
+
+        self.background_transmitter
+            .send(LocalEvent::UserChoice(index, anime.clone()))
+            .ok();
+
+        self.set_play_button_episode(Some(
+            (anime.my_list_status.num_episodes_watched + 1)
+                .min(anime.num_episodes),
+        ));
+    }
+
     pub fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
         match self.focus {
             Focus::PlayButtons => {
@@ -309,10 +362,8 @@ impl AnimePopup {
                     .contains(crossterm::event::KeyModifiers::CONTROL)
                 {
                     match key_event.code {
-                        KeyCode::Char('j') | KeyCode::Up => {
-                        }
-                        KeyCode::Char('h') | KeyCode::Left => {
-                        }
+                        KeyCode::Char('j') | KeyCode::Up => {}
+                        KeyCode::Char('h') | KeyCode::Left => {}
                         _ => {}
                     }
                     return None;
@@ -402,84 +453,107 @@ impl AnimePopup {
                         }
                         _ => {
                             if let Some(selection) = dropdown.handle_input(key_event) {
-                                let mut anime = (
-                                    *self
-                                    .app_info
-                                    .anime_store
-                                    .get(&self.anime_id)
-                                    .expect( "(Focus) unexpected anime id given")
-                                ).clone();
-
-                                match index {
-                                    0 => {
-                                        anime.my_list_status.status =
-                                            selection.to_lowercase().replace(" ", "_");
-                                    }
-                                    1 => {
-                                        anime.my_list_status.score = selection.parse().unwrap_or(0);
-                                    }
-                                    2 => {
-                                        anime.my_list_status.num_episodes_watched =
-                                            selection.parse().unwrap_or(0);
-                                        if !status_is_known(anime.my_list_status.status.clone())
-                                            && anime.my_list_status.num_episodes_watched == 0
-                                        {
-                                            return None;
-                                        } else if !status_is_known(
-                                            anime.my_list_status.status.clone(),
-                                        ) {
-                                            anime.my_list_status.status = "watching".to_string();
-                                        }
-                                    }
-                                    _ => return None,
-                                }
-
-                                self.background_transmitter
-                                    .send(LocalEvent::UserChoice(index, anime.clone()))
-                                    .ok();
                                 dropdown.set_color(Color::White);
-
-                                self.set_play_button_episode(Some(
-                                    (anime.my_list_status.num_episodes_watched + 1)
-                                        .min(anime.num_episodes),
-                                ));
+                                self.update_status(selection, index);
                             }
                         }
                     }
                 }
             }
 
-            Focus::Synopsis => {
-
-                match key_event.code {
-                    KeyCode::Char('k') | KeyCode::Down => {
-                        self.synopsis_scroll = min(
-                            self.synopsis_scroll + 1,
-                            self.app_info.anime_store.get(&self.anime_id).unwrap().synopsis.len()
-                                as u16,
-                        );
-                    }
-                    KeyCode::Char('j') | KeyCode::Up => {
-                        self.synopsis_scroll = self.synopsis_scroll.saturating_sub(1);
-                    }
-                    KeyCode::Char('l') | KeyCode::Right => {
-                        self.focus = Focus::PlayButtons;
-                    }
-                    KeyCode::Char('h') | KeyCode::Left => {
-                        self.focus = Focus::StatusButtons;
-                    }
-                    KeyCode::Char('q') => {
-                        self.close();
-                    }
-                    _ => {}
+            Focus::Synopsis => match key_event.code {
+                KeyCode::Char('k') | KeyCode::Down => {
+                    self.synopsis_scroll = min(
+                        self.synopsis_scroll + 1,
+                        self.app_info
+                            .anime_store
+                            .get(&self.anime_id)
+                            .unwrap()
+                            .synopsis
+                            .len() as u16,
+                    );
                 }
-            }
+                KeyCode::Char('j') | KeyCode::Up => {
+                    self.synopsis_scroll = self.synopsis_scroll.saturating_sub(1);
+                }
+                KeyCode::Char('l') | KeyCode::Right => {
+                    self.focus = Focus::PlayButtons;
+                }
+                KeyCode::Char('h') | KeyCode::Left => {
+                    self.focus = Focus::StatusButtons;
+                }
+                KeyCode::Char('q') => {
+                    self.close();
+                }
+                _ => {}
+            },
         }
 
         None
     }
 
     pub fn handle_mouse(&mut self, mouse_event: MouseEvent) -> Option<Action> {
+        let p_area = self.popup_area?;
+        let pos = Position::new(mouse_event.column, mouse_event.row);
+        let is_click = matches!(mouse_event.kind, MouseEventKind::Down(_));
+
+
+        // the status buttons
+        let dropdown = match self
+            .status_nav
+            .get_selected_item_mut(&mut self.status_buttons){
+            Some(d) if d.is_open() => Some(d),
+            _ => self.status_nav.get_hovered_item_mut(&mut self.status_buttons, mouse_event)
+        };
+
+        if let Some(dropdown) = dropdown {
+            self.focus = Focus::StatusButtons;
+            if let Some(selection) = dropdown.handle_mouse(mouse_event){
+                dropdown.set_color(Color::White);
+                let index = self.status_nav.get_selected_index();
+                self.update_status(selection, index);
+            };
+            return None;
+        }
+
+
+        // the synopsis area
+        if let Some(s_area) = self.synopsis_area {
+            if s_area.contains(pos) {
+                self.focus = Focus::Synopsis;
+                match mouse_event.kind {
+                    MouseEventKind::ScrollUp => {
+                        self.synopsis_scroll = self.synopsis_scroll.saturating_sub(1);
+                    }
+                    MouseEventKind::ScrollDown => {
+                        self.synopsis_scroll += 1;
+                    }
+                    _ => {}
+                }
+                return None;
+            }
+        }
+
+
+        // close the whole popup
+        if is_click && !p_area.contains(pos) {
+            self.close();
+            return None;
+        }
+
+
+        // the play buttons 
+        if self.button_nav.get_hovered_index(mouse_event).is_some() {
+            self.focus = Focus::PlayButtons;
+            if is_click {
+                return self.handle_keyboard(KeyEvent::new(
+                    KeyCode::Enter,
+                    crossterm::event::KeyModifiers::NONE,
+                ));
+            }
+            return None;
+        };
+
         None
     }
 
@@ -503,6 +577,8 @@ impl AnimePopup {
             width,
             height,
         );
+
+        self.popup_area = Some(popup_area);
 
         // clear the space for the popup
         frame.render_widget(Clear, popup_area);
@@ -617,7 +693,6 @@ impl AnimePopup {
 
         frame.render_widget(title_text, title_area.inner(Margin::new(0, 1)));
 
-
         //synopsis
         // FIXME: this needs fixing
         let synopsis_area = Rect {
@@ -626,6 +701,8 @@ impl AnimePopup {
             width: left.width.saturating_sub(1),
             height: bottom_area.height.saturating_sub(1),
         };
+
+        self.synopsis_area = Some(synopsis_area);
 
         // Calculate the content height for scrollbar
         let content_height = anime.synopsis.lines().count() as u16;
@@ -651,8 +728,8 @@ impl AnimePopup {
 
         // Render the paragraph
         frame.render_widget(synopsis_text, synopsis_area);
-        // FIXME: above this needs fixing
 
+        // FIXME: above this needs fixing
         // Create and render scrollbar if content is longer than visible area
         if content_height > visible_height {
             let scrollbar = Scrollbar::default()
@@ -672,11 +749,13 @@ impl AnimePopup {
 
             frame.render_stateful_widget(
                 scrollbar,
-                synopsis_area.inner(Margin { vertical: 1, horizontal: 0 }), // Position scrollbar inside borders
+                synopsis_area.inner(Margin {
+                    vertical: 1,
+                    horizontal: 0,
+                }), // Position scrollbar inside borders
                 &mut scrollbar_state,
             );
         }
-
 
         // right side next to image and above buttons
         let [_score, info_area, _buttons] = Layout::default()
@@ -741,7 +820,7 @@ impl AnimePopup {
                 "Episodes",
                 format!(
                     "{}/{}",
-                    anime.num_released_episodes.unwrap_or(0).to_string(),
+                    anime.num_released_episodes.unwrap_or(0),
                     if anime.episode_count_ready {
                         anime.num_episodes.to_string()
                     } else {
@@ -775,8 +854,8 @@ impl AnimePopup {
             height: 3,
         };
 
-        self.status_nav.construct(
-            &self.status_buttons,
+        self.status_nav.construct_mut(
+            &mut self.status_buttons,
             status_buttons_area,
             |dropdown, area, highlighted| {
                 dropdown.render(
@@ -798,6 +877,11 @@ pub struct SeasonPopup {
     available_years: Vec<String>,
     all_years: Vec<String>,
     entered_number: String,
+
+    //cache
+    activate_area: Option<Rect>,
+    popup_area: Option<Rect>,
+    previous_year: u16,
 }
 impl SeasonPopup {
     pub fn new() -> Self {
@@ -817,6 +901,9 @@ impl SeasonPopup {
             all_years,
             year_selected: false,
             entered_number: String::new(),
+            activate_area: None,
+            popup_area: None,
+            previous_year: year,
         }
     }
 
@@ -835,18 +922,21 @@ impl SeasonPopup {
     }
 
     pub fn hide(&mut self) -> &Self {
+        self.popup_area = None;
         self.toggled = false;
+        self.entered_number.clear();
+        self.filter_years();
         self
     }
 
-    pub fn toggle(&mut self, year: u16) -> &Self {
+    pub fn toggle(&mut self) -> &Self {
         self.toggled = !self.toggled;
 
         if self.toggled {
             self.year_scroll = self
                 .available_years
                 .iter()
-                .position(|y| y.parse::<u16>().unwrap_or(0) == year)
+                .position(|y| y.parse::<u16>().unwrap_or(0) == self.previous_year)
                 .unwrap_or(0) as u16;
         }
         self
@@ -856,12 +946,10 @@ impl SeasonPopup {
         self.toggled
     }
 
-    pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<(u16, String)> {
+    pub fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<(u16, String)> {
         match key_event.code {
             KeyCode::Char('q') => {
-                self.toggled = false;
-                self.entered_number.clear();
-                self.filter_years();
+                self.hide();
                 None
             }
 
@@ -888,15 +976,18 @@ impl SeasonPopup {
                     if self.year_scroll < (self.available_years.len().saturating_sub(1)) as u16 {
                         self.year_scroll += 1;
                     }
-                } else {
-                    if self.season_scroll < (AVAILABLE_SEASONS.len().saturating_sub(1)) as u16 {
-                        self.season_scroll += 1;
-                    }
+                } else if self.season_scroll < (AVAILABLE_SEASONS.len().saturating_sub(1)) as u16 {
+                    self.season_scroll += 1;
                 }
                 None
             }
             KeyCode::Enter | KeyCode::Char(' ') => {
-                let (year, _) = MalClient::current_season();
+                if !self.toggled {
+                    self.toggle();
+                    return None;
+                }
+
+                let (_year, _) = MalClient::current_season();
                 let season = AVAILABLE_SEASONS
                     .get(self.season_scroll as usize)
                     .unwrap_or(&FIRST_SEASON)
@@ -906,10 +997,10 @@ impl SeasonPopup {
                     .available_years
                     .get(self.year_scroll as usize)
                     .and_then(|y| y.parse::<u16>().ok())
-                    .unwrap_or(year);
+                    .unwrap_or(_year);
 
-                self.entered_number.clear();
-                self.filter_years();
+                self.previous_year = year;
+                self.hide();
                 Some((year, season))
             }
             KeyCode::Backspace => {
@@ -920,7 +1011,7 @@ impl SeasonPopup {
                 None
             }
             KeyCode::Char(c) => {
-                if c.is_digit(10) {
+                if c.is_ascii_digit() {
                     self.entered_number.push(c);
                     self.filter_years();
                 }
@@ -930,10 +1021,89 @@ impl SeasonPopup {
         }
     }
 
-    pub fn render(&self, frame: &mut Frame, season_area: Rect) {
+    pub fn handle_mouse(&mut self, mouse_event: MouseEvent) -> Option<(u16, String)> {
+        // if the season area has been rendered yet
+        let activate_area = self.activate_area?;
+        let mouse_pos = Position::new(mouse_event.column, mouse_event.row);
+        if activate_area.contains(mouse_pos) {
+            if let crossterm::event::MouseEventKind::Down(_) = mouse_event.kind {
+                self.toggle();
+            }
+        }
+
+        // the popup below the season area
+        let popup_area = self.popup_area?;
+        let [left, right] = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Fill(1), Constraint::Fill(1)])
+            .areas(popup_area);
+
+        // right side
+        if right.contains(mouse_pos) {
+            self.year_selected = false;
+            match mouse_event.kind {
+                crossterm::event::MouseEventKind::ScrollUp => {
+                    self.season_scroll = self.season_scroll.saturating_sub(1);
+                }
+
+                crossterm::event::MouseEventKind::ScrollDown => {
+                    if self.season_scroll < (AVAILABLE_SEASONS.len().saturating_sub(1)) as u16 {
+                        self.season_scroll += 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+        // left side
+        else if left.contains(mouse_pos) {
+            self.year_selected = true;
+            match mouse_event.kind {
+                crossterm::event::MouseEventKind::ScrollUp => {
+                    self.year_scroll = self.year_scroll.saturating_sub(1);
+                }
+
+                crossterm::event::MouseEventKind::ScrollDown => {
+                    if self.year_scroll < (self.available_years.len().saturating_sub(1)) as u16 {
+                        self.year_scroll += 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // now when selecting an option or clicking outside close the popup:
+        if matches!(mouse_event.kind, crossterm::event::MouseEventKind::Down(_)) {
+            if popup_area.contains(mouse_pos) {
+                let (_year, _) = MalClient::current_season();
+                let season = AVAILABLE_SEASONS
+                    .get(self.season_scroll as usize)
+                    .unwrap_or(&FIRST_SEASON)
+                    .to_string();
+
+                let year = self
+                    .available_years
+                    .get(self.year_scroll as usize)
+                    .and_then(|y| y.parse::<u16>().ok())
+                    .unwrap_or(_year);
+
+                self.previous_year = year;
+                self.hide();
+                return Some((year, season));
+            }
+
+            self.hide();
+        }
+
+        None
+    }
+
+    pub fn render(&mut self, frame: &mut Frame, season_area: Rect) {
+        self.activate_area = Some(season_area);
+
         if !self.toggled {
             return;
         }
+
         let area = frame.area();
 
         let [height, width] = [min(8, area.height), season_area.width * 7 / 20];
@@ -943,6 +1113,7 @@ impl SeasonPopup {
             width,
             height,
         );
+        self.popup_area = Some(popup_area);
         frame.render_widget(Clear, popup_area);
 
         let block = Block::default()
@@ -1108,6 +1279,9 @@ pub struct SelectionPopup {
     longest_word: usize,
     displaying_format: String,
     color: Color,
+    area: Option<Rect>,
+    popup_area: Option<Rect>,
+    scroll: usize,
 }
 
 impl SelectionPopup {
@@ -1121,6 +1295,9 @@ impl SelectionPopup {
             longest_word: 0,
             displaying_format: String::new(),
             color: PRIMARY_COLOR,
+            area: None,
+            popup_area: None,
+            scroll: 0,
         }
     }
 
@@ -1186,6 +1363,10 @@ impl SelectionPopup {
         self
     }
 
+    pub fn toggle(&mut self) -> &Self {
+        self.is_open = !self.is_open;
+        self
+    }
     pub fn open(&mut self) -> &Self {
         self.is_open = true;
         self
@@ -1200,13 +1381,21 @@ impl SelectionPopup {
         self.is_open
     }
 
+    pub fn is_hovered(&self, mouse_event: MouseEvent) -> bool {
+        if let Some(box_area) = self.area {
+            let pos = Position::new(mouse_event.column, mouse_event.row);
+            if box_area.contains(pos) {
+                return true;
+            }
+        }
+
+        false
+    }
+
     pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<String> {
         if !self.is_open {
-            match key_event.code {
-                KeyCode::Enter => {
-                    self.open();
-                }
-                _ => {}
+            if key_event.code == KeyCode::Enter {
+                self.open();
             }
             None
         } else {
@@ -1240,7 +1429,63 @@ impl SelectionPopup {
         }
     }
 
-    pub fn render(&self, frame: &mut Frame, area: Rect, highlighted: bool) {
+    pub fn handle_mouse(&mut self, mouse_event: MouseEvent) -> Option<String> {
+        let mouse_clicked = matches!(mouse_event.kind, crossterm::event::MouseEventKind::Down(_));
+        let pos = Position::new(mouse_event.column, mouse_event.row);
+
+        // this is the button area itself
+        let box_area = self.area?;
+        if box_area.contains(pos) && mouse_clicked {
+            self.toggle();
+            return None;
+        }
+
+
+        // this handles inside the popup box
+        let popup_area = self.popup_area?;
+
+        // for scrolling:
+        if popup_area.contains(pos) {
+            match mouse_event.kind {
+                crossterm::event::MouseEventKind::ScrollUp => {
+                    self.next_index = self.next_index.saturating_sub(1);
+                    return None;
+                }
+
+                crossterm::event::MouseEventKind::ScrollDown => {
+                    if self.next_index < (self.options.len().saturating_sub(1)) {
+                        self.next_index += 1;
+                    }
+                    return None;
+                }
+                _ => {}
+            }
+        }
+
+
+        // for clicking and highlighting
+        for (i, row) in popup_area.inner(Margin::new(0, 1)).rows().enumerate() {
+            if row.contains(pos) && i <= self.options.len() {
+                self.next_index = i + self.scroll;
+                if mouse_clicked {
+                    let selected_option = self.options[self.next_index].clone();
+                    self.selected_index = self.next_index;
+                    self.close();
+                    return Some(selected_option);
+                }
+            }
+        }
+
+        // this happens only whenever the mouse isn't clicked on the button or inside the popup
+        if mouse_clicked {
+            self.close();
+        }
+
+        None
+    }
+
+    pub fn render(&mut self, frame: &mut Frame, area: Rect, highlighted: bool) {
+        self.area = Some(area);
         let option = self
             .options
             .get(self.selected_index)
@@ -1277,6 +1522,7 @@ impl SelectionPopup {
 
             let options_area = Rect::new(area.x, area.y + area.height, area.width, popup_height);
             frame.render_widget(Clear, options_area);
+            self.popup_area = Some(options_area);
 
             let options_block = Block::default()
                 .borders(Borders::ALL)
@@ -1285,18 +1531,21 @@ impl SelectionPopup {
             frame.render_widget(options_block, options_area);
 
             let max_visible_options = (popup_height.saturating_sub(2)) as usize;
-            let start_index = if self.next_index >= max_visible_options {
-                self.next_index + 1 - max_visible_options
-            } else {
-                0
-            };
+
+            // Auto-scroll to keep next_index visible
+            if self.next_index < self.scroll {
+                self.scroll = self.next_index;
+            } else if self.next_index >= self.scroll + max_visible_options {
+                self.scroll = self.next_index + 1 - max_visible_options;
+            }
 
             let visible_options = self
                 .options
                 .iter()
                 .enumerate()
-                .skip(start_index)
+                .skip(self.scroll)
                 .take(max_visible_options);
+
             for (display_row, (original_index, option)) in visible_options.enumerate() {
                 let option_area = Rect::new(
                     options_area.x + 1,
@@ -1321,7 +1570,7 @@ impl SelectionPopup {
                     let mut text = option.to_string();
 
                     if self.arrows == Arrows::Dynamic {
-                        text = format!("▶ {} ◀", option.to_string());
+                        text = format!("▶ {} ◀", option);
                     }
 
                     let option_paragraph = Paragraph::new(text)
@@ -1359,14 +1608,14 @@ impl SelectionPopup {
                     options_area.height.saturating_sub(2),
                 );
 
-                if start_index > 0 {
+                if self.scroll > 0 {
                     frame.render_widget(
                         Paragraph::new("↑").style(Style::default().fg(HIGHLIGHT_COLOR)),
                         Rect::new(scroll_info_area.x, scroll_info_area.y, 1, 1),
                     );
                 }
 
-                if start_index + max_visible_options < self.options.len() {
+                if self.scroll + max_visible_options < self.options.len() {
                     frame.render_widget(
                         Paragraph::new("↓").style(Style::default().fg(HIGHLIGHT_COLOR)),
                         Rect::new(
