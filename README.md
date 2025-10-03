@@ -54,7 +54,7 @@ mal-cli
 <summary><strong>Build from Source</strong></summary>
 
 ```bash
-git clone https://github.com/Dogfetus/mal-cli.git
+git clone https://github.com/swstl/mal-cli.git
 cd mal-cli
 cargo build --release
 ```
