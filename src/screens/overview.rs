@@ -8,7 +8,7 @@ use super::widgets::navigatable::Navigatable;
 use super::{BackgroundUpdate, ExtraInfo, Screen};
 use crate::app::{Action, Event};
 use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
-use crate::config::get_app_dir;
+use crate::config::Config;
 use crate::mal::models::anime::AnimeId;
 use crate::utils::functionStreaming::StreamableRunner;
 use crate::utils::imageManager::ImageManager;
@@ -265,7 +265,7 @@ impl Screen for OverviewScreen {
         let info = self.app_info.clone();
         let id = self.get_name();
         let sender = info.app_sx.clone();
-        let app_dir = get_app_dir();
+        let app_dir = Config::data_dir();
         let log_file = app_dir.join("watch_history");
 
         Some(thread::spawn(move || {
@@ -323,7 +323,8 @@ impl Screen for OverviewScreen {
                 }
 
                 let animes: Vec<AnimeId> = animes.into_iter().collect();
-                let update = BackgroundUpdate::new(id.clone()).set("WatchHistory", animes);
+                let update = BackgroundUpdate::new(id.clone())
+                    .set("WatchHistory", animes);
                 sender.send(Event::BackgroundNotice(update)).ok();
 
                 if already_loaded {

@@ -23,7 +23,7 @@ const REF: &str = "https://allmanga.to";
 
 #[derive(Debug, Clone)]
 pub enum PlayError {
-    NotReleased(Anime),
+    NotReleased(Box<Anime>),
     CommandFailed {
         stderr: String,
         exit_code: i32,
@@ -131,19 +131,20 @@ impl AnimePlayer {
     }
 
     #[allow(dead_code)]
-    pub fn play_episode(&self, anime: &Anime, episode: u32) -> Result<PlayResult, PlayError> {
+    pub fn play_using_anicli(&self, anime: &Anime, episode: u32) -> Result<PlayResult, PlayError> {
         if anime.status == "upcoming" {
-            return Err(PlayError::NotReleased(anime.clone()));
+            return Err(PlayError::NotReleased(Box::new(anime.clone())));
         }
 
         ratatui::restore();
 
-        // call ani-cli to play the anime TODO: change this
+        // call ani-cli to play the anime 
+        // TODO: change this
         let output = Command::new("ani-cli")
             .arg("--no-detach")
             .arg("--exit-after-play")
             .arg("-e")
-            .arg(&episode.to_string())
+            .arg(episode.to_string())
             .arg(&anime.title)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -184,7 +185,7 @@ impl AnimePlayer {
         episode: u32,
     ) -> Result<PlayResult, PlayError> {
         if anime.status == "upcoming" {
-            return Err(PlayError::NotReleased(anime.clone()));
+            return Err(PlayError::NotReleased(Box::new(anime.clone())));
         }
 
         ratatui::restore();
@@ -199,7 +200,6 @@ impl AnimePlayer {
         let available_episodes = self.get_episode_providers(&id, episode)?;
 
         // extract the correct (the one with highest priority) episode from the list of available episodes
-
         let candidate = self.extract_best_candidate(&available_episodes)?;
 
         let result = self.play_video_in_mpv(candidate)?;
@@ -251,7 +251,7 @@ impl AnimePlayer {
                 Ok(response.data.shows.edges)
             }
             Err(e) => {
-                return Err(PlayError::Other(format!("Error fetching shows: {}", e)));
+                Err(PlayError::Other(format!("Error fetching shows: {}", e)))
             }
         }
     }
@@ -259,9 +259,7 @@ impl AnimePlayer {
     // finds the correct show id from the list of shows and returns its id
     fn extract_correct_id(&self, shows: &[ShowEdge], anime: &Anime) -> Result<String, PlayError> {
         // some functionality to get the correct show out of the list
-        // TODO:
-        // yeah
-        //
+        // TODO: actually add this functionality
 
         let show = shows.first().ok_or(PlayError::NoResults(
             "No shows found".to_string(),
@@ -343,7 +341,7 @@ impl AnimePlayer {
                 Ok(response.data.episode.source_urls)
             }
             Err(e) => {
-                return Err(PlayError::Other(format!("Error fetching episodes: {}", e)));
+                Err(PlayError::Other(format!("Error fetching episodes: {}", e)))
             }
         }
     }

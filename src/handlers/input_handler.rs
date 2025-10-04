@@ -7,7 +7,7 @@ pub fn input_handler(sx: mpsc::Sender<Event>) {
         if let Ok(event) = crossterm::event::read() {
             match event {
                 crossterm::event::Event::Key(key_event) => {
-                    if sx.send(Event::InputEvent(event)).is_err() {
+                    if sx.send(Event::Input(event)).is_err() {
                         // this happens when the receiver is dropped
                         return;
                     }
@@ -30,7 +30,7 @@ pub fn input_handler(sx: mpsc::Sender<Event>) {
                         crossterm::event::MouseEventKind::ScrollLeft |
                         crossterm::event::MouseEventKind::Moved |
                         crossterm::event::MouseEventKind::Down(_) => {
-                            if sx.send(Event::InputEvent(event)).is_err() {
+                            if sx.send(Event::Input(event)).is_err() {
                                 return;
                             }
                         } 

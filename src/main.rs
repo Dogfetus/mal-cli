@@ -7,8 +7,9 @@ mod screens;
 mod utils;
 
 use crate::app::App;
-use anyhow::Result;
 use crossterm::event::EnableMouseCapture;
+use anyhow::Result;
+use config::Config;
 
 fn parse_cli() -> bool {
     for arg in std::env::args().skip(1) {
@@ -18,11 +19,14 @@ fn parse_cli() -> bool {
                 return true;
             }
             "-e" | "--edit" => {
-                config::open_in_editor();
+                Config::open_in_editor();
+                return true;
+            }
+            "-c" | "--config-path" => {
                 return true;
             }
             "-h" | "--help" => {
-                println!("Usage: anime-tui [OPTIONS]");
+                println!("Usage: mal-cli [OPTIONS]");
                 println!();
                 println!("Options:");
                 println!("  -h, --help       Show this help message");
@@ -46,13 +50,13 @@ async fn main() -> Result<()> {
     }
 
     let terminal = ratatui::init();
-    let config = config::read_from_file();
+    let config = Config::read_from_file();
 
     // enable mouse capture
     crossterm::execute!(std::io::stderr(), EnableMouseCapture)?;
 
     // start the app
-    let mut app = App::new(terminal);
+    let mut app = App::new(terminal, config);
     app.run()?;
 
     Ok(())

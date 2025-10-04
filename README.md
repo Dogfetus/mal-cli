@@ -12,8 +12,8 @@ It combines **MAL integration** with **ani-cli-style playback** in a single ligh
 
 # Showcase
 
-### User Login
-![User Login](docs/1.png)
+### Launch
+![Launch](docs/1.png)
 
 ### Overview
 ![Overview](docs/2.png)
