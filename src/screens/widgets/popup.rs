@@ -7,17 +7,13 @@ use std::{
 };
 
 use crate::{
-    app::{Action, Event},
-    config::{navigation::NavDirection, Config},
-    mal::{
+    app::{Action, Event}, config::{navigation::NavDirection, Config}, mal::{
         models::anime::{status_is_known, Anime, AnimeId, DeleteOrUpdate, MyListStatus}, MalClient
-    },
-    screens::{BackgroundUpdate, ExtraInfo},
-    utils::{
+    }, screens::{BackgroundUpdate, ExtraInfo}, send_error, utils::{
         imageManager::ImageManager,
         stringManipulation::{format_date, DisplayString},
         terminalCapabilities::TERMINAL_RATIO,
-    },
+    }
 };
 use crossterm::event::{KeyCode, KeyEvent, MouseEvent, MouseEventKind};
 use ratatui::{
@@ -352,7 +348,6 @@ impl AnimePopup {
     }
 
     pub fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
-        let modifier = key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL);
         let nav = &Config::global().navigation;
 
         match self.focus {
@@ -373,7 +368,7 @@ impl AnimePopup {
                     _ => {}
                 }
 
-                if nav.is_select(&key_event.code) && modifier {
+                if nav.is_select(&key_event.code) {
                     let button = self.button_nav.get_selected_index();
                     match button {
                         0 => {
@@ -406,9 +401,6 @@ impl AnimePopup {
                         _ => {}
                     }
                 }
-
-
-
             }
             Focus::StatusButtons => {
                 if let Some((dropdown, index)) = self
@@ -436,14 +428,16 @@ impl AnimePopup {
                                 button.close();
                             }
                         }
-                        (true, _) => {
+                        _ => {
                             if let Some(selection) = dropdown.handle_input(key_event) {
                                 dropdown.set_color(Color::White);
                                 self.update_status(selection, index);
                                 return None;
                             }
+                            if nav.is_close(&key_event.code){
+                                return None;
+                            }
                         }
-                        _ => {}
                     }
                 }
             }
@@ -950,8 +944,8 @@ impl SeasonPopup {
                 if c.is_ascii_digit() {
                     self.entered_number.push(c);
                     self.filter_years();
+                    return None;
                 }
-                return None;
             }
             _ => {}
         }

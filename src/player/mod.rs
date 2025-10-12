@@ -12,6 +12,7 @@ use crate::mal::models::anime::Anime;
 use crate::mal::network::send_request;
 use crate::mal::network::send_request_expect_text;
 use crate::params;
+use crate::utils::stringManipulation::levenshtein_distance;
 use serde_json::json;
 use std::io::ErrorKind;
 use std::process::Command;
@@ -253,15 +254,37 @@ impl AnimePlayer {
 
     // finds the correct show id from the list of shows and returns its id
     fn extract_correct_id(&self, shows: &[ShowEdge], anime: &Anime) -> Result<String, PlayError> {
-        // some functionality to get the correct show out of the list
-        // TODO: actually add this functionality
 
-        println!("Found {:?} shows matching \"{}\"", shows, anime.title);
-
-        // try to match name exactly first:
+        // Try to match name exactly first:
         let show = shows.iter()
             .find(|s| s.name.eq_ignore_ascii_case(&anime.title))
-            .or_else(|| shows.first())
+            .or_else(|| {
+                // If no exact match, find the one(s) with lowest distance
+                if shows.is_empty() {
+                    return None;
+                }
+
+                // Calculate distances for all shows
+                let distances: Vec<(usize, &ShowEdge)> = shows.iter()
+                    .map(|s| (levenshtein_distance(&s.name.to_lowercase(), &anime.title.to_lowercase()), s))
+                    .collect();
+
+                // Find the minimum distance
+                let min_distance = distances.iter()
+                    .map(|(dist, _)| *dist)
+                    .min()
+                    .unwrap();
+
+                // Get all the smallest distance matches 
+                let best_matches = distances.into_iter()
+                    .filter(|(dist, _)| *dist == min_distance)
+                    .map(|(_, show)| show)
+                    .collect::<Vec<&ShowEdge>>();
+
+                // select the one with the most episodes:
+                best_matches.into_iter()
+                    .max_by_key(|show| show.available_episodes.sub + show.available_episodes.dub)
+            })
             .ok_or(PlayError::NoResults(
                 "No shows found".to_string(),
             ))?;

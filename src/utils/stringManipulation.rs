@@ -87,3 +87,48 @@ pub fn format_date(date_str: &str) -> String {
     }
     date_str.to_string()
 }
+
+pub fn levenshtein_distance(s1: &str, s2: &str) -> usize {
+    let len1 = s1.chars().count();
+    let len2 = s2.chars().count();
+
+    // Handle edge cases
+    if len1 == 0 {
+        return len2;
+    }
+    if len2 == 0 {
+        return len1;
+    }
+
+    // Create a 2D vector to store distances
+    let mut matrix = vec![vec![0; len2 + 1]; len1 + 1];
+
+    // Initialize first column and row
+    for (i, row) in matrix.iter_mut().enumerate().take(len1 + 1) {
+        row[0] = i;
+    }
+    for (j, val) in matrix[0].iter_mut().enumerate().take(len2 + 1) {
+        *val = j;
+    }
+
+    // Convert strings to character vectors for indexing
+    let chars1: Vec<char> = s1.chars().collect();
+    let chars2: Vec<char> = s2.chars().collect();
+
+    // Fill the matrix using dynamic programming
+    for i in 1..=len1 {
+        for j in 1..=len2 {
+            let cost = if chars1[i - 1] == chars2[j - 1] { 0 } else { 1 };
+
+            matrix[i][j] = std::cmp::min(
+                std::cmp::min(
+                    matrix[i - 1][j] + 1,      // deletion
+                    matrix[i][j - 1] + 1       // insertion
+                ),
+                matrix[i - 1][j - 1] + cost    // substitution
+            );
+        }
+    }
+
+    matrix[len1][len2]
+}
