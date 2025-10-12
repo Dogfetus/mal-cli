@@ -68,11 +68,11 @@ impl Theme {
     /// Get color for anime list status
     pub fn status_color(&self, status: impl AsRef<str>) -> Color {
         match status.as_ref().to_lowercase().as_str() {
+            "plan to watch" | "plan_to_watch" => self.plan_to_watch,
+            "on hold" | "on-hold" | "on_hold" => self.on_hold,
             "watching" | "rewatching" => self.watching,
             "completed" => self.completed,
-            "on hold" | "on-hold" => self.on_hold,
             "dropped" => self.dropped,
-            "plan to watch" => self.plan_to_watch,
             _ => self.primary,
         }
     }

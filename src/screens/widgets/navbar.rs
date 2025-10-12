@@ -69,7 +69,7 @@ impl NavBar {
                 }
             }
             NavDirection::Right => {
-                if self.selected_button < self.options.len() - 1 {
+                if self.selected_button < self.options.len().saturating_sub(1) {
                     self.selected_button += 1;
                 }
             }
@@ -77,6 +77,9 @@ impl NavBar {
         }
 
         if nav.is_select(&key_event.code) {
+            if self.options.is_empty() {
+                return None;
+            }
             self.old_button = self.selected_button;
             let screen_name = self.options[self.selected_button];
             return Some(Action::SwitchScreen(name_to_screen(screen_name)));

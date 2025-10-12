@@ -1,7 +1,7 @@
 pub mod navigation;
-mod network;
-mod player;
-mod theme;
+pub mod network;
+pub mod player;
+pub mod theme;
 
 use navigation::Navigation;
 use network::Network;

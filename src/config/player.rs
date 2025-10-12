@@ -8,7 +8,7 @@ pub struct Player {
 
     /// allways marks the episode as watched after pressing play
     #[serde(default)]
-    pub allways_complete_episode: bool,
+    pub always_complete_episode: bool,
 
     /// Hook to run before playback starts
     /// Replaces: {title}, {episode}

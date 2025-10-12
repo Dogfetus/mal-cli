@@ -16,6 +16,7 @@ use crate::utils::stringManipulation::levenshtein_distance;
 use serde_json::json;
 use std::io::ErrorKind;
 use std::process::Command;
+use shell_escape::escape;
 
 const BASE: &str = "https://allanime.day";
 const API: &str = "https://api.allanime.day/api";
@@ -189,7 +190,7 @@ impl AnimePlayer {
         };
 
         // mark as completed
-        if Config::global().player.allways_complete_episode {
+        if Config::global().player.always_complete_episode {
             return Ok(PlayResult {
                 current_time: "00:00:00".to_string(),
                 total_time: "00:00:00".to_string(),
@@ -709,12 +710,13 @@ impl AnimePlayer {
         url: Option<&(String, Option<String>)>,
     ) -> Result<(), String> {
         let cmd = command 
-            .replace("{title}", &anime.title)
-            .replace("{episode}", &episode.to_string())
-            .replace( "{url}", url.map(|u| u.0.as_str()).unwrap_or_default(),)
-            .replace( "{referer}", url.and_then(|u| u.1.as_deref()).unwrap_or(""),)
-            .replace( "{referrer}", url.and_then(|u| u.1.as_deref()).unwrap_or(""),);
+            .replace("{title}", &escape(anime.title.clone().into()))
+            .replace("{episode}", &escape(episode.to_string().into()))
+            .replace( "{url}", &escape(url.map(|u| u.0.as_str()).unwrap_or_default().into()))
+            .replace( "{referer}", &escape(url.and_then(|u| u.1.as_deref()).unwrap_or("").into()))
+            .replace( "{referrer}", &escape(url.and_then(|u| u.1.as_deref()).unwrap_or("").into()));
 
+        #[cfg(unix)]
         let status = Command::new("sh")
             .arg("-c")
             .arg(&cmd)

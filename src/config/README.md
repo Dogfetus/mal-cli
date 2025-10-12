@@ -127,4 +127,3 @@ With `always_complete_episode = false`, mal-cli won't automatically mark the epi
 - Use quotes around commands that contain spaces
 - Variables are case-sensitive: use `{title}` not `{Title}`
 - Referrer may be nothing ("")
-```
