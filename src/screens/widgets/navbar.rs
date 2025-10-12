@@ -1,9 +1,9 @@
 use crate::{
     app::Action,
-    config::Config,
+    config::{navigation::NavDirection, Config},
     screens::{name_to_screen, screen_to_name},
 };
-use crossterm::event::{KeyCode, KeyEvent, MouseEvent};
+use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Margin, Position, Rect},
@@ -54,32 +54,32 @@ impl NavBar {
     }
 
     pub fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
-        if (key_event.code == KeyCode::Char('k') || key_event.code == KeyCode::Down)
-            && key_event
-                .modifiers
-                .contains(crossterm::event::KeyModifiers::CONTROL)
-        {
+        let modifier = key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL);
+        let nav = &Config::global().navigation;
+
+        if modifier && nav.get_direction(&key_event.code) == NavDirection::Down {
             self.deselect();
             return Some(Action::NavbarSelect(false));
         }
 
-        match key_event.code {
-            KeyCode::Left | KeyCode::Char('h') => {
+        match nav.get_direction(&key_event.code) {
+            NavDirection::Left => {
                 if self.selected_button > 0 {
                     self.selected_button = self.selected_button.saturating_sub(1);
                 }
             }
-            KeyCode::Right | KeyCode::Char('l') => {
+            NavDirection::Right => {
                 if self.selected_button < self.options.len() - 1 {
                     self.selected_button += 1;
                 }
             }
-            KeyCode::Enter => {
-                self.old_button = self.selected_button;
-                let screen_name = self.options[self.selected_button];
-                return Some(Action::SwitchScreen(name_to_screen(screen_name)));
-            }
             _ => {}
+        }
+
+        if nav.is_select(&key_event.code) {
+            self.old_button = self.selected_button;
+            let screen_name = self.options[self.selected_button];
+            return Some(Action::SwitchScreen(name_to_screen(screen_name)));
         }
         None
     }

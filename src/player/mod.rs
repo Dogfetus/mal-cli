@@ -258,9 +258,13 @@ impl AnimePlayer {
 
         println!("Found {:?} shows matching \"{}\"", shows, anime.title);
 
-        let show = shows.first().ok_or(PlayError::NoResults(
-            "No shows found".to_string(),
-        ))?;
+        // try to match name exactly first:
+        let show = shows.iter()
+            .find(|s| s.name.eq_ignore_ascii_case(&anime.title))
+            .or_else(|| shows.first())
+            .ok_or(PlayError::NoResults(
+                "No shows found".to_string(),
+            ))?;
 
         println!("Playing \"{}\" ({}) episode: {}", show.name, show.id, anime.my_list_status.num_episodes_watched + 1);
 

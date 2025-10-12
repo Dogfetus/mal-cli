@@ -46,7 +46,7 @@ impl TerminalCapabilities {
     }
 
     fn get_picker() -> &'static Picker {
-        GLOBAL_PICKER.get_or_init(|| Self::init_picker())
+        GLOBAL_PICKER.get_or_init(Self::init_picker)
     }
 
     pub fn picker(&self) -> &'static Picker {

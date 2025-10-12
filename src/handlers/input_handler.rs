@@ -7,6 +7,13 @@ pub fn input_handler(sx: mpsc::Sender<Event>) {
         if let Ok(event) = crossterm::event::read() {
             match event {
                 crossterm::event::Event::Key(key_event) => {
+                    // we dont need release (in kitty protocol)
+                    if key_event.kind != crossterm::event::KeyEventKind::Press 
+                    && key_event.kind != crossterm::event::KeyEventKind::Repeat
+                    {
+                        continue;
+                    }
+
                     if sx.send(Event::Input(event)).is_err() {
                         // this happens when the receiver is dropped
                         return;

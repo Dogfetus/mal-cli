@@ -1,4 +1,4 @@
-mod navigation;
+pub mod navigation;
 mod network;
 mod player;
 mod theme;
@@ -128,8 +128,6 @@ impl Config {
 
     // read the configs
     pub fn read_from_file() -> Config {
-        Self::create_if_not_exists();
-
         // in case file generation fails use default
         let config_path = Self::config_dir().join(CONFIG_FILE);
         if !config_path.exists() {

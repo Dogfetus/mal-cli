@@ -8,6 +8,9 @@ mod utils;
 
 use crate::app::App;
 use crossterm::event::EnableMouseCapture;
+use crossterm::event::PushKeyboardEnhancementFlags;
+use crossterm::event::KeyboardEnhancementFlags;
+use crossterm::execute;
 use anyhow::Result;
 use config::Config;
 
@@ -54,8 +57,15 @@ async fn main() -> Result<()> {
 
     // enable mouse capture
     if config.navigation.enable_mouse_capture {
-        crossterm::execute!(std::io::stderr(), EnableMouseCapture)?;
+        execute!(std::io::stderr(), EnableMouseCapture)?;
     }
+        execute!(
+        std::io::stdout(),
+            PushKeyboardEnhancementFlags(
+            KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
+            | KeyboardEnhancementFlags::REPORT_EVENT_TYPES
+        )
+    )?;
 
     // start the app
     let mut app = App::new(terminal);

@@ -5,6 +5,7 @@ use super::{BackgroundUpdate, Screen};
 use crate::add_screen_caching;
 use crate::config::Config;
 use crate::mal::models::anime::AnimeId;
+use crate::config::navigation::NavDirection;
 use crate::{
     app::{Action, Event},
     mal::{MalClient, models::anime::Anime},
@@ -14,7 +15,7 @@ use crate::{
         stringManipulation::DisplayString,
     },
 };
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::KeyEvent;
 use ratatui::layout::{Alignment, Margin, Position, Rect};
 use ratatui::widgets::{Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};
 use ratatui::{
@@ -463,6 +464,9 @@ impl Screen for SeasonsScreen {
     }
 
     fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
+        let modifier = key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL);
+        let nav = &Config::global().navigation;
+
         match self.focus {
             // this focus is used just to not highligh anything in the screen
             // and when the navbar gets deselcted this handle_input will run once right after
@@ -472,102 +476,100 @@ impl Screen for SeasonsScreen {
             }
 
             Focus::AnimeList => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('j') | KeyCode::Up => {
+                if modifier { 
+                    match nav.get_direction(&key_event.code) {
+                        NavDirection::Up => {
                             self.focus = Focus::SeasonSelection;
                         }
-                        KeyCode::Char('l') | KeyCode::Right => {
+                        NavDirection::Right => {
                             self.focus = Focus::AnimeDetails;
                         }
                         _ => {}
                     }
-                } else {
-                    match key_event.code {
-                        KeyCode::Up | KeyCode::Char('j') => {
-                            self.navigatable.move_up();
-                        }
-                        KeyCode::Down | KeyCode::Char('k') => {
-                            self.navigatable.move_down();
-                        }
-                        KeyCode::Left | KeyCode::Char('h') => {
-                            self.navigatable.move_left();
-                        }
-                        KeyCode::Right | KeyCode::Char('l') => {
-                            self.navigatable.move_right();
-                        }
-                        KeyCode::Enter | KeyCode::Char(' ') => {
-                            if let Some(id) = self.navigatable.get_selected_item(&self.animes) {
-                                if let Some(anime) = self.app_info.anime_store.get(id) {
-                                    return Some(Action::ShowOverlay(anime.id));
-                                }
-                            }
-                        }
-                        _ => {}
-                    };
-
-                    self.detail_scroll_y = 0;
-                    self.detail_scroll_x = 0;
+                    return None; 
                 }
+
+                match nav.get_direction(&key_event.code) {
+                    NavDirection::Up => {
+                        self.navigatable.move_up();
+                    }
+                    NavDirection::Down => {
+                        self.navigatable.move_down();
+                    }
+                    NavDirection::Left => {
+                        self.navigatable.move_left();
+                    }
+                    NavDirection::Right => {
+                        self.navigatable.move_right();
+                    }
+                    _ => {}
+                };
+
+                if nav.is_select(&key_event.code) {
+                    if let Some(id) = self.navigatable.get_selected_item(&self.animes) {
+                        if let Some(anime) = self.app_info.anime_store.get(id) {
+                            return Some(Action::ShowOverlay(anime.id));
+                        }
+                    }
+                }
+
+                self.detail_scroll_y = 0;
+                self.detail_scroll_x = 0;
             }
 
             Focus::AnimeDetails => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('j') | KeyCode::Up => {
+                if modifier {
+                    match nav.get_direction(&key_event.code) {
+                        NavDirection::Up => {
                             self.focus = Focus::Navbar;
                             return Some(Action::NavbarSelect(true));
                         }
-                        KeyCode::Char('h') | KeyCode::Left => {
+                        NavDirection::Left => {
                             self.focus = Focus::AnimeList;
                         }
                         _ => {}
                     }
-                } else {
-                    match key_event.code {
-                        KeyCode::Char('k') | KeyCode::Down => {
-                            self.detail_scroll_y += 1;
-                        }
-                        KeyCode::Char('j') | KeyCode::Up => {
-                            self.detail_scroll_y = self.detail_scroll_y.saturating_sub(1);
-                        }
-                        KeyCode::Char('h') | KeyCode::Left => {
-                            self.detail_scroll_x = self.detail_scroll_x.saturating_sub(1);
-                        }
-                        KeyCode::Char('l') | KeyCode::Right => {
-                            self.detail_scroll_x += 1;
-                        }
-                        _ => {}
+                    return None;
+                }
+
+                match nav.get_direction(&key_event.code) {
+                    NavDirection::Down => {
+                        self.detail_scroll_y += 1;
                     }
+                    NavDirection::Up => {
+                        self.detail_scroll_y = self.detail_scroll_y.saturating_sub(1);
+                    }
+                    NavDirection::Left => {
+                        self.detail_scroll_x = self.detail_scroll_x.saturating_sub(1);
+                    }
+                    NavDirection::Right => {
+                        self.detail_scroll_x += 1;
+                    }
+                    _ => {}
                 }
             }
 
             Focus::SeasonSelection => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('j') | KeyCode::Up => {
+                if modifier {
+                    match nav.get_direction(&key_event.code) {
+                        NavDirection::Up => {
                             self.focus = Focus::Navbar;
                             return Some(Action::NavbarSelect(true));
                         }
-                        KeyCode::Char('l') | KeyCode::Right => {
+                        NavDirection::Right => {
                             self.focus = Focus::AnimeDetails;
                         }
-                        KeyCode::Char('k') | KeyCode::Down => {
+                        NavDirection::Down => {
                             self.focus = Focus::AnimeList;
                         }
                         _ => {}
                     }
                     self.season_popup.hide();
-                } else if let Some((year, season)) = self.season_popup.handle_keyboard(key_event) {
+
+                    return None;
+                }
+
+                if let Some((year, season)) = self.season_popup.handle_keyboard(key_event) {
                     if year == self.year && season == self.season {
                         return None;
                     }

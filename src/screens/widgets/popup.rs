@@ -8,15 +8,14 @@ use std::{
 
 use crate::{
     app::{Action, Event},
-    config::Config,
+    config::{navigation::NavDirection, Config},
     mal::{
-        MalClient,
-        models::anime::{Anime, AnimeId, DeleteOrUpdate, MyListStatus, status_is_known},
+        models::anime::{status_is_known, Anime, AnimeId, DeleteOrUpdate, MyListStatus}, MalClient
     },
     screens::{BackgroundUpdate, ExtraInfo},
     utils::{
         imageManager::ImageManager,
-        stringManipulation::{DisplayString, format_date},
+        stringManipulation::{format_date, DisplayString},
         terminalCapabilities::TERMINAL_RATIO,
     },
 };
@@ -353,94 +352,82 @@ impl AnimePopup {
     }
 
     pub fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
+        let modifier = key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL);
+        let nav = &Config::global().navigation;
+
         match self.focus {
             Focus::PlayButtons => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('j') | KeyCode::Up => {}
-                        KeyCode::Char('h') | KeyCode::Left => {}
-                        _ => {}
-                    }
-                    return None;
-                }
-
-                match key_event.code {
-                    KeyCode::Char('k') | KeyCode::Down => {
+                match nav.get_direction(&key_event.code) {
+                    NavDirection::Down => {
                         self.button_nav.move_down();
                     }
-                    KeyCode::Char('j') | KeyCode::Up => {
+                    NavDirection::Up => {
                         if self.button_nav.get_selected_index() == 0 {
                             self.focus = Focus::StatusButtons;
                         }
                         self.button_nav.move_up();
                     }
-                    KeyCode::Char('h') | KeyCode::Left => {
+                    NavDirection::Left => {
                         self.focus = Focus::Synopsis;
-                    }
-                    KeyCode::Char('q') => {
-                        self.close();
-                    }
-                    KeyCode::Enter => {
-                        let button = self.button_nav.get_selected_index();
-                        match button {
-                            0 => {
-                                // play normally
-                                return Some(Action::PlayAnime(self.anime_id));
-                            }
-                            1 => {
-                                // play a specific episode
-                            }
-
-                            2 => {
-                                // play from start
-                                return Some(Action::PlayEpisode(self.anime_id, 1));
-                            }
-                            3 => {
-                                // open the anime page in the browser
-                                match open::that(format!(
-                                    "https://myanimelist.net/anime/{}",
-                                    self.anime_id
-                                )) {
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        return Some(Action::ShowError(format!(
-                                            "Failed to open anime page: {}",
-                                            e
-                                        )));
-                                    }
-                                }
-                            }
-                            _ => {}
-                        }
                     }
                     _ => {}
                 }
+
+                if nav.is_select(&key_event.code) && modifier {
+                    let button = self.button_nav.get_selected_index();
+                    match button {
+                        0 => {
+                            // play normally
+                            return Some(Action::PlayAnime(self.anime_id));
+                        }
+                        1 => {
+                            // play a specific episode
+                        }
+
+                        2 => {
+                            // play from start
+                            return Some(Action::PlayEpisode(self.anime_id, 1));
+                        }
+                        3 => {
+                            // open the anime page in the browser
+                            match open::that(format!(
+                                "https://myanimelist.net/anime/{}",
+                                self.anime_id
+                            )) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    return Some(Action::ShowError(format!(
+                                        "Failed to open anime page: {}",
+                                        e
+                                    )));
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+
+
             }
             Focus::StatusButtons => {
                 if let Some((dropdown, index)) = self
                     .status_nav
                     .get_selected_item_mut_and_index(&mut self.status_buttons)
                 {
-                    match (dropdown.is_open(), key_event.code) {
-                        (false, KeyCode::Char('l') | KeyCode::Right) => {
+                    match (dropdown.is_open(), nav.get_direction(&key_event.code)) {
+                        (false, NavDirection::Right) => {
                             self.status_nav.move_right();
                             return None;
                         }
-                        (false, KeyCode::Char('h') | KeyCode::Left) => {
+                        (false, NavDirection::Left) => {
                             if self.status_nav.get_selected_index() == 0 {
                                 self.focus = Focus::Synopsis;
                             }
                             self.status_nav.move_left();
                             return None;
                         }
-                        (false, KeyCode::Char('q')) => {
-                            self.close();
-                            return None;
-                        }
-                        (false, KeyCode::Char('k') | KeyCode::Down) => {
+                        (false, NavDirection::Down) => {
                             self.focus = Focus::PlayButtons;
                             if let Some(button) = self
                                 .status_nav
@@ -449,18 +436,20 @@ impl AnimePopup {
                                 button.close();
                             }
                         }
-                        _ => {
+                        (true, _) => {
                             if let Some(selection) = dropdown.handle_input(key_event) {
                                 dropdown.set_color(Color::White);
                                 self.update_status(selection, index);
+                                return None;
                             }
                         }
+                        _ => {}
                     }
                 }
             }
 
-            Focus::Synopsis => match key_event.code {
-                KeyCode::Char('k') | KeyCode::Down => {
+            Focus::Synopsis => match nav.get_direction(&key_event.code) {
+                NavDirection::Down => {
                     self.synopsis_scroll = min(
                         self.synopsis_scroll + 1,
                         self.app_info
@@ -471,20 +460,21 @@ impl AnimePopup {
                             .len() as u16,
                     );
                 }
-                KeyCode::Char('j') | KeyCode::Up => {
+                NavDirection::Up => {
                     self.synopsis_scroll = self.synopsis_scroll.saturating_sub(1);
                 }
-                KeyCode::Char('l') | KeyCode::Right => {
+                NavDirection::Right => {
                     self.focus = Focus::PlayButtons;
                 }
-                KeyCode::Char('h') | KeyCode::Left => {
+                NavDirection::Left => {
                     self.focus = Focus::StatusButtons;
-                }
-                KeyCode::Char('q') => {
-                    self.close();
                 }
                 _ => {}
             },
+        }
+
+        if nav.is_close(&key_event.code) {
+            self.close();
         }
 
         None
@@ -675,7 +665,7 @@ impl AnimePopup {
         let info_area = Rect {
             x: title_area.x,
             y: info_area.y,
-            width: title_area.width,
+            width: title_area.width-1,
             height: info_area.height.saturating_sub(buttons_area.height),
         };
 
@@ -945,31 +935,48 @@ impl SeasonPopup {
     }
 
     pub fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<(u16, String)> {
+        let nav = &Config::global().navigation;
+
+        // for writing (search of numbers)
         match key_event.code {
-            KeyCode::Char('q') => {
-                self.hide();
-                None
+            KeyCode::Backspace => {
+                if !self.entered_number.is_empty() {
+                    self.entered_number.pop();
+                    self.filter_years();
+                }
+                return None;
             }
+            KeyCode::Char(c) => {
+                if c.is_ascii_digit() {
+                    self.entered_number.push(c);
+                    self.filter_years();
+                }
+                return None;
+            }
+            _ => {}
+        }
 
-            KeyCode::Right | KeyCode::Char('l') => {
+        // for navigation
+        match nav.get_direction(&key_event.code) {
+            NavDirection::Right => {
                 self.year_selected = false;
-                None
+                return None;
             }
 
-            KeyCode::Left | KeyCode::Char('h') => {
+            NavDirection::Left => {
                 self.year_selected = true;
-                None
+                return None;
             }
 
-            KeyCode::Up | KeyCode::Char('j') => {
+            NavDirection::Up => {
                 if self.year_selected {
                     self.year_scroll = self.year_scroll.saturating_sub(1);
                 } else {
                     self.season_scroll = self.season_scroll.saturating_sub(1);
                 }
-                None
+                return None;
             }
-            KeyCode::Down | KeyCode::Char('k') => {
+            NavDirection::Down => {
                 if self.year_selected {
                     if self.year_scroll < (self.available_years.len().saturating_sub(1)) as u16 {
                         self.year_scroll += 1;
@@ -977,46 +984,41 @@ impl SeasonPopup {
                 } else if self.season_scroll < (AVAILABLE_SEASONS.len().saturating_sub(1)) as u16 {
                     self.season_scroll += 1;
                 }
-                None
+                return None;
             }
-            KeyCode::Enter | KeyCode::Char(' ') => {
-                if !self.toggled {
-                    self.toggle();
-                    return None;
-                }
+            _ => {},
+        };
 
-                let (_year, _) = MalClient::current_season();
-                let season = AVAILABLE_SEASONS
-                    .get(self.season_scroll as usize)
-                    .unwrap_or(&FIRST_SEASON)
-                    .to_string();
+        // for selecting
+        if nav.is_select(&key_event.code) {
+            if !self.toggled {
+                self.toggle();
+                return None;
+            }
 
-                let year = self
-                    .available_years
-                    .get(self.year_scroll as usize)
-                    .and_then(|y| y.parse::<u16>().ok())
-                    .unwrap_or(_year);
+            let (_year, _) = MalClient::current_season();
+            let season = AVAILABLE_SEASONS
+                .get(self.season_scroll as usize)
+                .unwrap_or(&FIRST_SEASON)
+                .to_string();
 
-                self.previous_year = year;
-                self.hide();
-                Some((year, season))
-            }
-            KeyCode::Backspace => {
-                if !self.entered_number.is_empty() {
-                    self.entered_number.pop();
-                    self.filter_years();
-                }
-                None
-            }
-            KeyCode::Char(c) => {
-                if c.is_ascii_digit() {
-                    self.entered_number.push(c);
-                    self.filter_years();
-                }
-                None
-            }
-            _ => None,
+            let year = self
+                .available_years
+                .get(self.year_scroll as usize)
+                .and_then(|y| y.parse::<u16>().ok())
+                .unwrap_or(_year);
+
+            self.previous_year = year;
+            self.hide();
+
+            return Some((year, season))
         }
+
+        if nav.is_close(&key_event.code) {
+            self.hide();
+        } 
+
+        None
     }
 
     pub fn handle_mouse(&mut self, mouse_event: MouseEvent) -> Option<(u16, String)> {
@@ -1391,40 +1393,45 @@ impl SelectionPopup {
     }
 
     pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<String> {
+        let nav = &Config::global().navigation;
+
         if !self.is_open {
             if key_event.code == KeyCode::Enter {
                 self.open();
             }
-            None
-        } else {
-            match key_event.code {
-                KeyCode::Char('q') => {
-                    self.is_open = false;
-                    None
-                }
-                KeyCode::Up | KeyCode::Char('j') => {
-                    self.next_index = self.next_index.saturating_sub(1);
-                    None
-                }
-                KeyCode::Down | KeyCode::Char('k') => {
-                    if self.next_index < self.options.len().saturating_sub(1) {
-                        self.next_index += 1;
-                    }
-                    None
-                }
-                KeyCode::Enter | KeyCode::Char(' ') => {
-                    if self.options.is_empty() {
-                        return None;
-                    }
-
-                    let selected_option = self.options[self.next_index].clone();
-                    self.selected_index = self.next_index;
-                    self.close();
-                    Some(selected_option)
-                }
-                _ => None,
-            }
+            return None; 
         }
+
+        match nav.get_direction(&key_event.code) {
+            NavDirection::Up => {
+                self.next_index = self.next_index.saturating_sub(1);
+                return None;
+            }
+            NavDirection::Down => {
+                if self.next_index < self.options.len().saturating_sub(1) {
+                    self.next_index += 1;
+                }
+                return None;
+            }
+            _ => {},
+        }
+
+        if nav.is_select(&key_event.code) {
+            if self.options.is_empty() {
+                return None;
+            }
+
+            let selected_option = self.options[self.next_index].clone();
+            self.selected_index = self.next_index;
+            self.close();
+            return Some(selected_option)
+        }
+
+        if nav.is_close(&key_event.code) {
+            self.close();
+        }
+
+        None
     }
 
     pub fn handle_mouse(&mut self, mouse_event: MouseEvent) -> Option<String> {

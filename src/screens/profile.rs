@@ -5,6 +5,7 @@ use std::thread::JoinHandle;
 use crate::add_screen_caching;
 use crate::app::Action;
 use crate::app::Event;
+use crate::config::navigation::NavDirection;
 use crate::config::Config;
 use crate::mal::models::anime::Anime;
 use crate::mal::models::anime::FavoriteAnime;
@@ -19,7 +20,6 @@ use super::ExtraInfo;
 use super::Screen;
 use super::widgets::navigatable::Navigatable;
 
-use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use ratatui::Frame;
 use ratatui::layout::Alignment;
@@ -305,43 +305,43 @@ impl Screen for ProfileScreen {
     // handle inut function
     // for this spcific screen bro
     fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
+        let modifier = key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL);
+        let nav = &Config::global().navigation;
+
         match self.focus {
             Focus::NavBar => {
                 self.focus = Focus::Content;
             }
             Focus::Content => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                    && matches!(key_event.code, KeyCode::Char('j') | KeyCode::Up)
-                {
+                if modifier &&
+                nav.get_direction(&key_event.code) == NavDirection::Up {
                     self.focus = Focus::NavBar;
                     return Some(Action::NavbarSelect(true));
                 }
 
-                match key_event.code {
-                    KeyCode::Char('k') | KeyCode::Down => {
+                match nav.get_direction(&key_event.code) {
+                    NavDirection::Down => {
                         self.navigation_fav.move_down();
                     }
-                    KeyCode::Char('j') | KeyCode::Up => {
+                    NavDirection::Up => {
                         self.navigation_fav.move_up();
                     }
-                    KeyCode::Char('h') | KeyCode::Left => {
+                    NavDirection::Left => {
                         self.navigation_fav.move_left();
                     }
-                    KeyCode::Char('l') | KeyCode::Right => {
+                    NavDirection::Right => {
                         self.navigation_fav.move_right();
                     }
-                    KeyCode::Enter => {
-                        if let Some(anime) = self
-                            .navigation_fav
-                            .get_selected_item_mut(&mut self.user.favorited_animes)
-                        {
-                            return Some(Action::ShowOverlay(anime.id));
-                        }
-                    }
-
                     _ => {}
+                }
+
+                if nav.is_select(&key_event.code) {
+                    if let Some(anime) = self
+                        .navigation_fav
+                        .get_selected_item_mut(&mut self.user.favorited_animes)
+                    {
+                        return Some(Action::ShowOverlay(anime.id));
+                    }
                 }
             }
         }

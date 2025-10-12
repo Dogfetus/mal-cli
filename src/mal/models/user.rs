@@ -126,18 +126,10 @@ impl Default for AnimeStatistics {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct UserStatistics {
     #[serde(default)]
     pub num_items_rated: usize,
-}
-
-impl Default for UserStatistics {
-    fn default() -> Self {
-        Self {
-            num_items_rated: 0,
-        }
-    }
 }
 
 impl Fetchable for User {

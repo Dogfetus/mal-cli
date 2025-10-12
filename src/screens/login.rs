@@ -1,6 +1,6 @@
 use std::cmp::{max, min};
-use crate::{add_screen_caching, app::Event, mal::MalClient, screens::widgets::button::Button};
-use crossterm::event::{KeyCode, KeyEvent};
+use crate::{add_screen_caching, app::Event, config::{navigation::NavDirection, Config}, mal::MalClient, screens::widgets::button::Button};
+use crossterm::event::KeyEvent;
 use super::{screens::*, widgets::navigatable::Navigatable, BackgroundUpdate, ExtraInfo, Screen};
 use std::thread::JoinHandle;
 use crate::app::Action;
@@ -154,18 +154,21 @@ impl Screen for LoginScreen {
     }
 
     fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
-        match key_event.code {
-            KeyCode::Up | KeyCode::Char('j') => {
+        let nav = &Config::global().navigation;
+
+        match nav.get_direction(&key_event.code) {
+            NavDirection::Up => {
                 self.navigatable.move_up();
             }
-            KeyCode::Down | KeyCode::Char('k') => {
+            NavDirection::Down => {
                 self.navigatable.move_down()
-            }
-            KeyCode::Enter => {
-                return self.activate_button(self.navigatable.get_selected_index());
             }
             _ => {} 
         };
+
+        if nav.is_select(&key_event.code) {
+            return self.activate_button(self.navigatable.get_selected_index());
+        }
         None
     }
 

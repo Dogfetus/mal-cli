@@ -49,7 +49,7 @@ impl Input {
     pub fn handle_event(&mut self, event: KeyEvent, return_by_keypress: bool) -> Option<String> {
         if event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
             match event.code {
-                KeyCode::Char('h') => {
+                KeyCode::Backspace => {
                     if self.cursor > 0 {
                         let cursor_pos = self.cursor as usize;
                         let chars: Vec<char> = self.value.chars().collect();
@@ -88,7 +88,7 @@ impl Input {
         }
 
         match event.code {
-            KeyCode::Char(c) if self.max_length.map_or(true, |l| self.value.len() < l) => {
+            KeyCode::Char(c) if self.max_length.is_none_or(|l| self.value.len() < l) => {
                 if self.empty{
                     self.empty = false;
                     // in case of placeholder
