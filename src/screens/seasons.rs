@@ -3,11 +3,11 @@ use super::widgets::navigatable::Navigatable;
 use super::widgets::popup::SeasonPopup;
 use super::{BackgroundUpdate, Screen};
 use crate::add_screen_caching;
-use crate::config::TEXT_COLOR;
+use crate::config::Config;
 use crate::mal::models::anime::AnimeId;
+use crate::config::navigation::NavDirection;
 use crate::{
     app::{Action, Event},
-    config::{HIGHLIGHT_COLOR, PRIMARY_COLOR},
     mal::{MalClient, models::anime::Anime},
     screens::widgets::animebox::AnimeBox,
     utils::{
@@ -15,7 +15,7 @@ use crate::{
         stringManipulation::DisplayString,
     },
 };
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::KeyEvent;
 use ratatui::layout::{Alignment, Margin, Position, Rect};
 use ratatui::widgets::{Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap};
 use ratatui::{
@@ -225,7 +225,7 @@ impl Screen for SeasonsScreen {
             Borders::RIGHT | Borders::BOTTOM,
         );
 
-        let color = Style::default().fg(PRIMARY_COLOR);
+        let color = Style::default().fg(Config::global().theme.primary);
 
         frame.render_widget(
             Block::new()
@@ -251,9 +251,9 @@ impl Screen for SeasonsScreen {
 
         // the season and year at the top:
         let season_color = if self.focus == Focus::SeasonSelection {
-            HIGHLIGHT_COLOR
+            Config::global().theme.highlight
         } else {
-            TEXT_COLOR
+            Config::global().theme.text
         };
         let title = Paragraph::new(
             DisplayString::new()
@@ -287,7 +287,7 @@ impl Screen for SeasonsScreen {
                 .areas(bl_bottom);
             let title = Paragraph::new("Loading...")
                 .alignment(Alignment::Center)
-                .style(Style::default().fg(PRIMARY_COLOR));
+                .style(Style::default().fg(Config::global().theme.primary));
             frame.render_widget(
                 title,
                 middle.inner(Margin {
@@ -348,13 +348,13 @@ impl Screen for SeasonsScreen {
                 "English:\n{}\n\nJapanese:\n{}",
                 anime.alternative_titles.en, anime.title
             ))
-            .style(Style::default().fg(TEXT_COLOR))
+            .style(Style::default().fg(Config::global().theme.text))
         } else {
             Paragraph::new(format!(
                 "English:\n{}\n\nJapanese:\n{}",
                 anime.title, anime.alternative_titles.ja
             ))
-            .style(Style::default().fg(TEXT_COLOR))
+            .style(Style::default().fg(Config::global().theme.text))
         }
         .block(Block::default().padding(Padding::new(1, 1, 1, 1)));
         let genres_string = anime
@@ -407,25 +407,25 @@ impl Screen for SeasonsScreen {
             let (left_details, right_details) = details.split_at(split);
             let block_style = Block::default()
                 .borders(Borders::TOP)
-                .border_style(Style::default().fg(PRIMARY_COLOR))
+                .border_style(Style::default().fg(Config::global().theme.primary))
                 .padding(Padding::new(1, 2, 1, 1));
             let details_left = Paragraph::new(create_details_text(left_details))
-                .style(Style::default().fg(TEXT_COLOR))
+                .style(Style::default().fg(Config::global().theme.text))
                 .block(block_style.clone());
 
             let details_right = Paragraph::new(create_details_text(right_details))
-                .style(Style::default().fg(TEXT_COLOR))
+                .style(Style::default().fg(Config::global().theme.text))
                 .block(block_style);
 
             frame.render_widget(details_left, left);
             frame.render_widget(details_right, right);
         } else {
             let details_paragraph = Paragraph::new(create_details_text(&details))
-                .style(Style::default().fg(TEXT_COLOR))
+                .style(Style::default().fg(Config::global().theme.text))
                 .block(
                     Block::default()
                         .borders(Borders::TOP)
-                        .border_style(Style::default().fg(PRIMARY_COLOR))
+                        .border_style(Style::default().fg(Config::global().theme.primary))
                         .padding(Padding::new(1, 2, 1, 1)),
                 );
             frame.render_widget(details_paragraph, middle);
@@ -433,14 +433,14 @@ impl Screen for SeasonsScreen {
 
         let desc_title = Paragraph::new("\n Description:");
         let description = Paragraph::new(anime.synopsis)
-            .style(Style::default().fg(TEXT_COLOR))
+            .style(Style::default().fg(Config::global().theme.text))
             .wrap(Wrap { trim: true })
             .scroll((self.detail_scroll_y, 0))
             .block(
                 Block::default()
                     .padding(Padding::new(1, 1, 0, 0))
                     .borders(Borders::TOP)
-                    .border_style(Style::default().fg(PRIMARY_COLOR))
+                    .border_style(Style::default().fg(Config::global().theme.primary))
                     .padding(Padding::new(1, 2, 1, 1)),
             );
 
@@ -464,6 +464,9 @@ impl Screen for SeasonsScreen {
     }
 
     fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
+        let modifier = key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL);
+        let nav = &Config::global().navigation;
+
         match self.focus {
             // this focus is used just to not highligh anything in the screen
             // and when the navbar gets deselcted this handle_input will run once right after
@@ -473,102 +476,100 @@ impl Screen for SeasonsScreen {
             }
 
             Focus::AnimeList => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('j') | KeyCode::Up => {
+                if modifier { 
+                    match nav.get_direction(&key_event.code) {
+                        NavDirection::Up => {
                             self.focus = Focus::SeasonSelection;
                         }
-                        KeyCode::Char('l') | KeyCode::Right => {
+                        NavDirection::Right => {
                             self.focus = Focus::AnimeDetails;
                         }
                         _ => {}
                     }
-                } else {
-                    match key_event.code {
-                        KeyCode::Up | KeyCode::Char('j') => {
-                            self.navigatable.move_up();
-                        }
-                        KeyCode::Down | KeyCode::Char('k') => {
-                            self.navigatable.move_down();
-                        }
-                        KeyCode::Left | KeyCode::Char('h') => {
-                            self.navigatable.move_left();
-                        }
-                        KeyCode::Right | KeyCode::Char('l') => {
-                            self.navigatable.move_right();
-                        }
-                        KeyCode::Enter | KeyCode::Char(' ') => {
-                            if let Some(id) = self.navigatable.get_selected_item(&self.animes) {
-                                if let Some(anime) = self.app_info.anime_store.get(id) {
-                                    return Some(Action::ShowOverlay(anime.id));
-                                }
-                            }
-                        }
-                        _ => {}
-                    };
-
-                    self.detail_scroll_y = 0;
-                    self.detail_scroll_x = 0;
+                    return None; 
                 }
+
+                match nav.get_direction(&key_event.code) {
+                    NavDirection::Up => {
+                        self.navigatable.move_up();
+                    }
+                    NavDirection::Down => {
+                        self.navigatable.move_down();
+                    }
+                    NavDirection::Left => {
+                        self.navigatable.move_left();
+                    }
+                    NavDirection::Right => {
+                        self.navigatable.move_right();
+                    }
+                    _ => {}
+                };
+
+                if nav.is_select(&key_event.code) {
+                    if let Some(id) = self.navigatable.get_selected_item(&self.animes) {
+                        if let Some(anime) = self.app_info.anime_store.get(id) {
+                            return Some(Action::ShowOverlay(anime.id));
+                        }
+                    }
+                }
+
+                self.detail_scroll_y = 0;
+                self.detail_scroll_x = 0;
             }
 
             Focus::AnimeDetails => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('j') | KeyCode::Up => {
+                if modifier {
+                    match nav.get_direction(&key_event.code) {
+                        NavDirection::Up => {
                             self.focus = Focus::Navbar;
                             return Some(Action::NavbarSelect(true));
                         }
-                        KeyCode::Char('h') | KeyCode::Left => {
+                        NavDirection::Left => {
                             self.focus = Focus::AnimeList;
                         }
                         _ => {}
                     }
-                } else {
-                    match key_event.code {
-                        KeyCode::Char('k') | KeyCode::Down => {
-                            self.detail_scroll_y += 1;
-                        }
-                        KeyCode::Char('j') | KeyCode::Up => {
-                            self.detail_scroll_y = self.detail_scroll_y.saturating_sub(1);
-                        }
-                        KeyCode::Char('h') | KeyCode::Left => {
-                            self.detail_scroll_x = self.detail_scroll_x.saturating_sub(1);
-                        }
-                        KeyCode::Char('l') | KeyCode::Right => {
-                            self.detail_scroll_x += 1;
-                        }
-                        _ => {}
+                    return None;
+                }
+
+                match nav.get_direction(&key_event.code) {
+                    NavDirection::Down => {
+                        self.detail_scroll_y += 1;
                     }
+                    NavDirection::Up => {
+                        self.detail_scroll_y = self.detail_scroll_y.saturating_sub(1);
+                    }
+                    NavDirection::Left => {
+                        self.detail_scroll_x = self.detail_scroll_x.saturating_sub(1);
+                    }
+                    NavDirection::Right => {
+                        self.detail_scroll_x += 1;
+                    }
+                    _ => {}
                 }
             }
 
             Focus::SeasonSelection => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('j') | KeyCode::Up => {
+                if modifier {
+                    match nav.get_direction(&key_event.code) {
+                        NavDirection::Up => {
                             self.focus = Focus::Navbar;
                             return Some(Action::NavbarSelect(true));
                         }
-                        KeyCode::Char('l') | KeyCode::Right => {
+                        NavDirection::Right => {
                             self.focus = Focus::AnimeDetails;
                         }
-                        KeyCode::Char('k') | KeyCode::Down => {
+                        NavDirection::Down => {
                             self.focus = Focus::AnimeList;
                         }
                         _ => {}
                     }
                     self.season_popup.hide();
-                } else if let Some((year, season)) = self.season_popup.handle_keyboard(key_event) {
+
+                    return None;
+                }
+
+                if let Some((year, season)) = self.season_popup.handle_keyboard(key_event) {
                     if year == self.year && season == self.season {
                         return None;
                     }

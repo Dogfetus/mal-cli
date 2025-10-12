@@ -7,20 +7,13 @@ use std::{
 };
 
 use crate::{
-    app::{Action, Event},
-    config::{
-        ERROR_COLOR, HIGHLIGHT_COLOR, PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, anime_list_colors,
-    },
-    mal::{
-        MalClient,
-        models::anime::{Anime, AnimeId, DeleteOrUpdate, MyListStatus, status_is_known},
-    },
-    screens::{BackgroundUpdate, ExtraInfo},
-    utils::{
+    app::{Action, Event}, config::{navigation::NavDirection, Config}, mal::{
+        models::anime::{status_is_known, Anime, AnimeId, DeleteOrUpdate, MyListStatus}, MalClient
+    }, screens::{BackgroundUpdate, ExtraInfo}, send_error, utils::{
         imageManager::ImageManager,
-        stringManipulation::{DisplayString, format_date},
+        stringManipulation::{format_date, DisplayString},
         terminalCapabilities::TERMINAL_RATIO,
-    },
+    }
 };
 use crossterm::event::{KeyCode, KeyEvent, MouseEvent, MouseEventKind};
 use ratatui::{
@@ -180,7 +173,7 @@ impl AnimePopup {
                 .get_item_at_index_mut(&mut self.status_buttons, index)
             {
                 if let Some(option) = button.get_selected_option() {
-                    button.set_color(anime_list_colors(option));
+                    button.set_color(Config::global().theme.status_color(option));
                 };
             }
         }
@@ -190,7 +183,7 @@ impl AnimePopup {
                 .status_nav
                 .get_item_at_index_mut(&mut self.status_buttons, index)
             {
-                button.set_color(ERROR_COLOR);
+                button.set_color(Config::global().theme.error);
             }
         }
 
@@ -254,7 +247,7 @@ impl AnimePopup {
                 .add_option("Completed")
                 .add_option("On Hold")
                 .add_option("Dropped")
-                .with_color(anime_list_colors(&anime.my_list_status.status))
+                .with_color(Config::global().theme.status_color(&anime.my_list_status.status))
                 .with_arrows(Arrows::Static)
                 .with_selected_option(anime.my_list_status.status.to_string())
                 .clone(),
@@ -355,70 +348,58 @@ impl AnimePopup {
     }
 
     pub fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
+        let nav = &Config::global().navigation;
+
         match self.focus {
             Focus::PlayButtons => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('j') | KeyCode::Up => {}
-                        KeyCode::Char('h') | KeyCode::Left => {}
-                        _ => {}
-                    }
-                    return None;
-                }
-
-                match key_event.code {
-                    KeyCode::Char('k') | KeyCode::Down => {
+                match nav.get_direction(&key_event.code) {
+                    NavDirection::Down => {
                         self.button_nav.move_down();
                     }
-                    KeyCode::Char('j') | KeyCode::Up => {
+                    NavDirection::Up => {
                         if self.button_nav.get_selected_index() == 0 {
                             self.focus = Focus::StatusButtons;
                         }
                         self.button_nav.move_up();
                     }
-                    KeyCode::Char('h') | KeyCode::Left => {
+                    NavDirection::Left => {
                         self.focus = Focus::Synopsis;
                     }
-                    KeyCode::Char('q') => {
-                        self.close();
-                    }
-                    KeyCode::Enter => {
-                        let button = self.button_nav.get_selected_index();
-                        match button {
-                            0 => {
-                                // play normally
-                                return Some(Action::PlayAnime(self.anime_id));
-                            }
-                            1 => {
-                                // play a specific episode
-                            }
+                    _ => {}
+                }
 
-                            2 => {
-                                // play from start
-                                return Some(Action::PlayEpisode(self.anime_id, 1));
-                            }
-                            3 => {
-                                // open the anime page in the browser
-                                match open::that(format!(
-                                    "https://myanimelist.net/anime/{}",
-                                    self.anime_id
-                                )) {
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        return Some(Action::ShowError(format!(
-                                            "Failed to open anime page: {}",
-                                            e
-                                        )));
-                                    }
+                if nav.is_select(&key_event.code) {
+                    let button = self.button_nav.get_selected_index();
+                    match button {
+                        0 => {
+                            // play normally
+                            return Some(Action::PlayAnime(self.anime_id));
+                        }
+                        1 => {
+                            // play a specific episode
+                        }
+
+                        2 => {
+                            // play from start
+                            return Some(Action::PlayEpisode(self.anime_id, 1));
+                        }
+                        3 => {
+                            // open the anime page in the browser
+                            match open::that(format!(
+                                "https://myanimelist.net/anime/{}",
+                                self.anime_id
+                            )) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    return Some(Action::ShowError(format!(
+                                        "Failed to open anime page: {}",
+                                        e
+                                    )));
                                 }
                             }
-                            _ => {}
                         }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
             Focus::StatusButtons => {
@@ -426,23 +407,19 @@ impl AnimePopup {
                     .status_nav
                     .get_selected_item_mut_and_index(&mut self.status_buttons)
                 {
-                    match (dropdown.is_open(), key_event.code) {
-                        (false, KeyCode::Char('l') | KeyCode::Right) => {
+                    match (dropdown.is_open(), nav.get_direction(&key_event.code)) {
+                        (false, NavDirection::Right) => {
                             self.status_nav.move_right();
                             return None;
                         }
-                        (false, KeyCode::Char('h') | KeyCode::Left) => {
+                        (false, NavDirection::Left) => {
                             if self.status_nav.get_selected_index() == 0 {
                                 self.focus = Focus::Synopsis;
                             }
                             self.status_nav.move_left();
                             return None;
                         }
-                        (false, KeyCode::Char('q')) => {
-                            self.close();
-                            return None;
-                        }
-                        (false, KeyCode::Char('k') | KeyCode::Down) => {
+                        (false, NavDirection::Down) => {
                             self.focus = Focus::PlayButtons;
                             if let Some(button) = self
                                 .status_nav
@@ -455,14 +432,18 @@ impl AnimePopup {
                             if let Some(selection) = dropdown.handle_input(key_event) {
                                 dropdown.set_color(Color::White);
                                 self.update_status(selection, index);
+                                return None;
+                            }
+                            if nav.is_close(&key_event.code){
+                                return None;
                             }
                         }
                     }
                 }
             }
 
-            Focus::Synopsis => match key_event.code {
-                KeyCode::Char('k') | KeyCode::Down => {
+            Focus::Synopsis => match nav.get_direction(&key_event.code) {
+                NavDirection::Down => {
                     self.synopsis_scroll = min(
                         self.synopsis_scroll + 1,
                         self.app_info
@@ -473,20 +454,21 @@ impl AnimePopup {
                             .len() as u16,
                     );
                 }
-                KeyCode::Char('j') | KeyCode::Up => {
+                NavDirection::Up => {
                     self.synopsis_scroll = self.synopsis_scroll.saturating_sub(1);
                 }
-                KeyCode::Char('l') | KeyCode::Right => {
+                NavDirection::Right => {
                     self.focus = Focus::PlayButtons;
                 }
-                KeyCode::Char('h') | KeyCode::Left => {
+                NavDirection::Left => {
                     self.focus = Focus::StatusButtons;
-                }
-                KeyCode::Char('q') => {
-                    self.close();
                 }
                 _ => {}
             },
+        }
+
+        if nav.is_close(&key_event.code) {
+            self.close();
         }
 
         None
@@ -587,7 +569,7 @@ impl AnimePopup {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
-            .style(Style::default().fg(SECONDARY_COLOR));
+            .style(Style::default().fg(Config::global().theme.secondary));
         frame.render_widget(block, popup_area);
 
         // split the popup up so we can get the area for the bottons ont he right side
@@ -616,7 +598,7 @@ impl AnimePopup {
         let right_block = Block::default()
             .borders(right_border)
             .border_set(right_set)
-            .style(Style::default().fg(SECONDARY_COLOR));
+            .style(Style::default().fg(Config::global().theme.secondary));
         let buttons_area = Rect::new(
             bottom_area.x + 1,
             bottom_area.y + 1,
@@ -637,9 +619,9 @@ impl AnimePopup {
                     .alignment(Alignment::Center)
                     .style(Style::default().fg(
                         if highlighted && self.focus == Focus::PlayButtons {
-                            HIGHLIGHT_COLOR
+                            Config::global().theme.highlight
                         } else {
-                            SECONDARY_COLOR
+                           Config::global().theme.secondary 
                         },
                     ));
                 frame.render_widget(button_paragraph, area);
@@ -677,7 +659,7 @@ impl AnimePopup {
         let info_area = Rect {
             x: title_area.x,
             y: info_area.y,
-            width: title_area.width,
+            width: title_area.width-1,
             height: info_area.height.saturating_sub(buttons_area.height),
         };
 
@@ -689,7 +671,7 @@ impl AnimePopup {
 
         let title_text = Paragraph::new(title)
             .alignment(Alignment::Center)
-            .style(Style::default().fg(SECONDARY_COLOR).bold());
+            .style(Style::default().fg(Config::global().theme.secondary).bold());
 
         frame.render_widget(title_text, title_area.inner(Margin::new(0, 1)));
 
@@ -716,14 +698,14 @@ impl AnimePopup {
                     .border_set(border::ROUNDED)
                     .title("Synopsis")
                     .style(Style::default().fg(if self.focus == Focus::Synopsis {
-                        HIGHLIGHT_COLOR
+                        Config::global().theme.highlight
                     } else {
-                        PRIMARY_COLOR
+                        Config::global().theme.primary
                     })),
             )
             .alignment(Alignment::Left)
             .wrap(Wrap { trim: true })
-            .style(Style::default().fg(TEXT_COLOR))
+            .style(Style::default().fg(Config::global().theme.text))
             .scroll((self.synopsis_scroll, 0));
 
         // Render the paragraph
@@ -739,9 +721,9 @@ impl AnimePopup {
                 .track_symbol(Some("│"))
                 .thumb_symbol("█")
                 .style(Style::default().fg(if self.focus == Focus::Synopsis {
-                    HIGHLIGHT_COLOR
+                    Config::global().theme.highlight
                 } else {
-                    PRIMARY_COLOR
+                    Config::global().theme.primary
                 }));
 
             let mut scrollbar_state = ScrollbarState::new(content_height as usize)
@@ -797,7 +779,7 @@ impl AnimePopup {
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
             .title("Anime Info")
-            .style(Style::default().fg(PRIMARY_COLOR));
+            .style(Style::default().fg(Config::global().theme.primary));
 
         frame.render_widget(block, info_area);
         frame.render_widget(big_text, big_text_area);
@@ -834,7 +816,7 @@ impl AnimePopup {
             .add_text_item("Status", anime.status.to_string())
             .add_text_item("Source", anime.source.to_string())
             .add_text_item("Id", anime.id.to_string())
-            .render(frame, info_area_one, Margin::new(8, 0), PRIMARY_COLOR);
+            .render(frame, info_area_one, Margin::new(8, 0), Config::global().theme.primary);
 
         InfoBox::new()
             .add_text_item("Added", format_date(&anime.created_at))
@@ -844,7 +826,7 @@ impl AnimePopup {
             .add_text_item("Started", format_date(&anime.start_date))
             .add_row()
             .add_text_item("Ended", format_date(&anime.end_date))
-            .render(frame, info_area_two, Margin::new(8, 0), PRIMARY_COLOR);
+            .render(frame, info_area_two, Margin::new(8, 0), Config::global().theme.primary);
 
         // buttons within info area
         let status_buttons_area = Rect {
@@ -947,31 +929,48 @@ impl SeasonPopup {
     }
 
     pub fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<(u16, String)> {
+        let nav = &Config::global().navigation;
+
+        // for writing (search of numbers)
         match key_event.code {
-            KeyCode::Char('q') => {
-                self.hide();
-                None
+            KeyCode::Backspace => {
+                if !self.entered_number.is_empty() {
+                    self.entered_number.pop();
+                    self.filter_years();
+                }
+                return None;
             }
+            KeyCode::Char(c) => {
+                if c.is_ascii_digit() {
+                    self.entered_number.push(c);
+                    self.filter_years();
+                    return None;
+                }
+            }
+            _ => {}
+        }
 
-            KeyCode::Right | KeyCode::Char('l') => {
+        // for navigation
+        match nav.get_direction(&key_event.code) {
+            NavDirection::Right => {
                 self.year_selected = false;
-                None
+                return None;
             }
 
-            KeyCode::Left | KeyCode::Char('h') => {
+            NavDirection::Left => {
                 self.year_selected = true;
-                None
+                return None;
             }
 
-            KeyCode::Up | KeyCode::Char('j') => {
+            NavDirection::Up => {
                 if self.year_selected {
                     self.year_scroll = self.year_scroll.saturating_sub(1);
                 } else {
                     self.season_scroll = self.season_scroll.saturating_sub(1);
                 }
-                None
+                return None;
             }
-            KeyCode::Down | KeyCode::Char('k') => {
+            NavDirection::Down => {
                 if self.year_selected {
                     if self.year_scroll < (self.available_years.len().saturating_sub(1)) as u16 {
                         self.year_scroll += 1;
@@ -979,46 +978,41 @@ impl SeasonPopup {
                 } else if self.season_scroll < (AVAILABLE_SEASONS.len().saturating_sub(1)) as u16 {
                     self.season_scroll += 1;
                 }
-                None
+                return None;
             }
-            KeyCode::Enter | KeyCode::Char(' ') => {
-                if !self.toggled {
-                    self.toggle();
-                    return None;
-                }
+            _ => {},
+        };
 
-                let (_year, _) = MalClient::current_season();
-                let season = AVAILABLE_SEASONS
-                    .get(self.season_scroll as usize)
-                    .unwrap_or(&FIRST_SEASON)
-                    .to_string();
+        // for selecting
+        if nav.is_select(&key_event.code) {
+            if !self.toggled {
+                self.toggle();
+                return None;
+            }
 
-                let year = self
-                    .available_years
-                    .get(self.year_scroll as usize)
-                    .and_then(|y| y.parse::<u16>().ok())
-                    .unwrap_or(_year);
+            let (_year, _) = MalClient::current_season();
+            let season = AVAILABLE_SEASONS
+                .get(self.season_scroll as usize)
+                .unwrap_or(&FIRST_SEASON)
+                .to_string();
 
-                self.previous_year = year;
-                self.hide();
-                Some((year, season))
-            }
-            KeyCode::Backspace => {
-                if !self.entered_number.is_empty() {
-                    self.entered_number.pop();
-                    self.filter_years();
-                }
-                None
-            }
-            KeyCode::Char(c) => {
-                if c.is_ascii_digit() {
-                    self.entered_number.push(c);
-                    self.filter_years();
-                }
-                None
-            }
-            _ => None,
+            let year = self
+                .available_years
+                .get(self.year_scroll as usize)
+                .and_then(|y| y.parse::<u16>().ok())
+                .unwrap_or(_year);
+
+            self.previous_year = year;
+            self.hide();
+
+            return Some((year, season))
         }
+
+        if nav.is_close(&key_event.code) {
+            self.hide();
+        } 
+
+        None
     }
 
     pub fn handle_mouse(&mut self, mouse_event: MouseEvent) -> Option<(u16, String)> {
@@ -1119,7 +1113,7 @@ impl SeasonPopup {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
-            .style(Style::default().fg(PRIMARY_COLOR));
+            .style(Style::default().fg(Config::global().theme.primary));
         frame.render_widget(block.clone(), popup_area);
 
         let text = if self.entered_number.is_empty() {
@@ -1130,7 +1124,7 @@ impl SeasonPopup {
         let paragraph = Paragraph::new(text)
             .block(block)
             .alignment(Alignment::Center)
-            .style(Style::default().fg(PRIMARY_COLOR));
+            .style(Style::default().fg(Config::global().theme.primary));
         frame.render_widget(paragraph, popup_area);
 
         let [year_area, middle_area, season_area] = Layout::default()
@@ -1191,21 +1185,21 @@ impl SeasonPopup {
             .block(Block::default().padding(Padding::new(0, 0, middle_area_left.height / 2, 0)))
             .alignment(Alignment::Left)
             .style(Style::default().fg(if self.year_selected {
-                HIGHLIGHT_COLOR
+                Config::global().theme.highlight
             } else {
-                PRIMARY_COLOR
+                Config::global().theme.primary
             }));
         let middle_paragraph = Paragraph::new(divider)
             .block(Block::default().padding(Padding::new(0, 0, middle_area.height / 2, 0)))
             .alignment(Alignment::Center)
-            .style(Style::default().fg(PRIMARY_COLOR));
+            .style(Style::default().fg(Config::global().theme.primary));
         let right_paragraph = Paragraph::new(right_arrow)
             .block(Block::default().padding(Padding::new(0, 0, middle_area_right.height / 2, 0)))
             .alignment(Alignment::Right)
             .style(Style::default().fg(if !self.year_selected {
-                HIGHLIGHT_COLOR
+                Config::global().theme.highlight
             } else {
-                PRIMARY_COLOR
+                Config::global().theme.primary
             }));
 
         frame.render_widget(left_paragraph, middle_area_left);
@@ -1227,9 +1221,9 @@ impl SeasonPopup {
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(
                     if !self.year_selected && self.season_scroll == i as u16 {
-                        HIGHLIGHT_COLOR
+                        Config::global().theme.highlight
                     } else {
-                        PRIMARY_COLOR
+                        Config::global().theme.primary
                     },
                 ));
             frame.render_widget(paragraph, individual_season_area);
@@ -1252,9 +1246,9 @@ impl SeasonPopup {
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(
                     if self.year_selected && self.year_scroll == i as u16 {
-                        HIGHLIGHT_COLOR
+                        Config::global().theme.highlight
                     } else {
-                        PRIMARY_COLOR
+                        Config::global().theme.primary
                     },
                 ));
             frame.render_widget(paragraph, individual_year_area);
@@ -1294,7 +1288,7 @@ impl SelectionPopup {
             arrows: Arrows::None,
             longest_word: 0,
             displaying_format: String::new(),
-            color: PRIMARY_COLOR,
+            color: Config::global().theme.primary,
             area: None,
             popup_area: None,
             scroll: 0,
@@ -1393,40 +1387,45 @@ impl SelectionPopup {
     }
 
     pub fn handle_input(&mut self, key_event: KeyEvent) -> Option<String> {
+        let nav = &Config::global().navigation;
+
         if !self.is_open {
             if key_event.code == KeyCode::Enter {
                 self.open();
             }
-            None
-        } else {
-            match key_event.code {
-                KeyCode::Char('q') => {
-                    self.is_open = false;
-                    None
-                }
-                KeyCode::Up | KeyCode::Char('j') => {
-                    self.next_index = self.next_index.saturating_sub(1);
-                    None
-                }
-                KeyCode::Down | KeyCode::Char('k') => {
-                    if self.next_index < self.options.len().saturating_sub(1) {
-                        self.next_index += 1;
-                    }
-                    None
-                }
-                KeyCode::Enter | KeyCode::Char(' ') => {
-                    if self.options.is_empty() {
-                        return None;
-                    }
-
-                    let selected_option = self.options[self.next_index].clone();
-                    self.selected_index = self.next_index;
-                    self.close();
-                    Some(selected_option)
-                }
-                _ => None,
-            }
+            return None; 
         }
+
+        match nav.get_direction(&key_event.code) {
+            NavDirection::Up => {
+                self.next_index = self.next_index.saturating_sub(1);
+                return None;
+            }
+            NavDirection::Down => {
+                if self.next_index < self.options.len().saturating_sub(1) {
+                    self.next_index += 1;
+                }
+                return None;
+            }
+            _ => {},
+        }
+
+        if nav.is_select(&key_event.code) {
+            if self.options.is_empty() {
+                return None;
+            }
+
+            let selected_option = self.options[self.next_index].clone();
+            self.selected_index = self.next_index;
+            self.close();
+            return Some(selected_option)
+        }
+
+        if nav.is_close(&key_event.code) {
+            self.close();
+        }
+
+        None
     }
 
     pub fn handle_mouse(&mut self, mouse_event: MouseEvent) -> Option<String> {
@@ -1505,7 +1504,7 @@ impl SelectionPopup {
             )
             .alignment(Alignment::Center)
             .style(Style::default().fg(if highlighted {
-                HIGHLIGHT_COLOR
+                Config::global().theme.highlight
             } else {
                 self.color
             }));
@@ -1527,7 +1526,7 @@ impl SelectionPopup {
             let options_block = Block::default()
                 .borders(Borders::ALL)
                 .border_set(border::ROUNDED)
-                .style(Style::default().fg(PRIMARY_COLOR));
+                .style(Style::default().fg(Config::global().theme.primary));
             frame.render_widget(options_block, options_area);
 
             let max_visible_options = (popup_height.saturating_sub(2)) as usize;
@@ -1575,7 +1574,7 @@ impl SelectionPopup {
 
                     let option_paragraph = Paragraph::new(text)
                         .alignment(Alignment::Center)
-                        .style(Style::default().fg(HIGHLIGHT_COLOR));
+                        .style(Style::default().fg(Config::global().theme.highlight));
                     frame.render_widget(option_paragraph, option_area);
 
                     if self.arrows != Arrows::Static {
@@ -1584,18 +1583,18 @@ impl SelectionPopup {
 
                     let left_paragraph = Paragraph::new("▶")
                         .alignment(Alignment::Right)
-                        .style(Style::default().fg(HIGHLIGHT_COLOR));
+                        .style(Style::default().fg(Config::global().theme.highlight));
 
                     let right_paragraph = Paragraph::new("◀")
                         .alignment(Alignment::Left)
-                        .style(Style::default().fg(HIGHLIGHT_COLOR));
+                        .style(Style::default().fg(Config::global().theme.highlight));
 
                     frame.render_widget(left_paragraph, left_side);
                     frame.render_widget(right_paragraph, right_side);
                 } else {
                     let option_paragraph = Paragraph::new(option.to_string())
                         .alignment(Alignment::Center)
-                        .style(Style::default().fg(PRIMARY_COLOR));
+                        .style(Style::default().fg(Config::global().theme.primary));
                     frame.render_widget(option_paragraph, option_area);
                 }
             }
@@ -1610,14 +1609,14 @@ impl SelectionPopup {
 
                 if self.scroll > 0 {
                     frame.render_widget(
-                        Paragraph::new("↑").style(Style::default().fg(HIGHLIGHT_COLOR)),
+                        Paragraph::new("↑").style(Style::default().fg(Config::global().theme.highlight)),
                         Rect::new(scroll_info_area.x, scroll_info_area.y, 1, 1),
                     );
                 }
 
                 if self.scroll + max_visible_options < self.options.len() {
                     frame.render_widget(
-                        Paragraph::new("↓").style(Style::default().fg(HIGHLIGHT_COLOR)),
+                        Paragraph::new("↓").style(Style::default().fg(Config::global().theme.highlight)),
                         Rect::new(
                             scroll_info_area.x,
                             scroll_info_area.y + scroll_info_area.height.saturating_sub(1),
@@ -1733,7 +1732,7 @@ impl ErrorPopup {
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
             .title("Error")
-            .style(Style::default().fg(ERROR_COLOR));
+            .style(Style::default().fg(Config::global().theme.error));
 
         frame.render_widget(block.clone(), popup_area);
 
@@ -1742,7 +1741,7 @@ impl ErrorPopup {
             .alignment(Alignment::Center)
             .wrap(Wrap { trim: true })
             .scroll((0, 0))
-            .style(Style::default().fg(ERROR_COLOR));
+            .style(Style::default().fg(Config::global().theme.error));
 
         frame.render_widget(paragraph, popup_area);
     }

@@ -7,12 +7,12 @@ use super::widgets::animebox::AnimeBox;
 use super::widgets::navigatable::Navigatable;
 use super::{BackgroundUpdate, ExtraInfo, Screen};
 use crate::app::{Action, Event};
-use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
-use crate::config::get_app_dir;
+use crate::config::navigation::NavDirection;
+use crate::config::Config;
 use crate::mal::models::anime::AnimeId;
 use crate::utils::functionStreaming::StreamableRunner;
 use crate::utils::imageManager::ImageManager;
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::KeyEvent;
 use indexmap::IndexSet;
 use ratatui::layout::{Margin, Rect};
 use ratatui::widgets::{Paragraph, Wrap};
@@ -107,9 +107,9 @@ impl Screen for OverviewScreen {
 
                 // determine the highlighted color
                 let color = if highlighted && self.focus == Focus::Content {
-                    HIGHLIGHT_COLOR
+                    Config::global().theme.highlight
                 } else {
-                    PRIMARY_COLOR
+                    Config::global().theme.primary
                 };
 
                 // draw a box for the highlighted section
@@ -182,54 +182,47 @@ impl Screen for OverviewScreen {
     }
 
     fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
+        let modifier = key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL);
+        let nav = &Config::global().navigation;
+
         match self.focus {
             Focus::NavBar => {
                 self.focus = Focus::Content;
             }
 
             Focus::Content => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('j') | KeyCode::Up => {
-                            self.focus = Focus::NavBar;
-                            return Some(Action::NavbarSelect(true));
-                        }
-                        _ => {}
-                    }
-
-                    return None;
+                if modifier && nav.get_direction(&key_event.code) == NavDirection::Up {
+                    self.focus = Focus::NavBar;
+                    return Some(Action::NavbarSelect(true));
                 }
 
-                match key_event.code {
-                    KeyCode::Char('k') | KeyCode::Down => {
+                match nav.get_direction(&key_event.code) {
+                    NavDirection::Down => {
                         self.navigation.move_down();
                     }
-                    KeyCode::Char('j') | KeyCode::Up => {
+                    NavDirection::Up => {
                         self.navigation.move_up();
                     }
-                    KeyCode::Char('l') | KeyCode::Right => {
+                    NavDirection::Right => {
                         if let Some(selected) = self.navigation.get_selected_item_mut(&mut self.lists) {
                             selected.navigatable.move_right();
                         }
                     }
-                    KeyCode::Char('h') | KeyCode::Left => {
+                    NavDirection::Left => {
                         if let Some(selected) = self.navigation.get_selected_item_mut(&mut self.lists) {
                             selected.navigatable.move_left();
-                        }
-                    }
-                    KeyCode::Enter => {
-                        if let Some(selected) = self.navigation.get_selected_item_mut(&mut self.lists) {
-                            if let Some(anime_id) = selected.navigatable.get_selected_item(&selected.items) {
-                                return Some(Action::ShowOverlay(*anime_id));
-                            }
                         }
                     }
                     _ => {}
                 }
 
+                if nav.is_select(&key_event.code) {
+                    if let Some(selected) = self.navigation.get_selected_item_mut(&mut self.lists) {
+                        if let Some(anime_id) = selected.navigatable.get_selected_item(&selected.items) {
+                            return Some(Action::ShowOverlay(*anime_id));
+                        }
+                    }
+                }
             }
         }
         None
@@ -265,7 +258,7 @@ impl Screen for OverviewScreen {
         let info = self.app_info.clone();
         let id = self.get_name();
         let sender = info.app_sx.clone();
-        let app_dir = get_app_dir();
+        let app_dir = Config::data_dir();
         let log_file = app_dir.join("watch_history");
 
         Some(thread::spawn(move || {
@@ -323,7 +316,8 @@ impl Screen for OverviewScreen {
                 }
 
                 let animes: Vec<AnimeId> = animes.into_iter().collect();
-                let update = BackgroundUpdate::new(id.clone()).set("WatchHistory", animes);
+                let update = BackgroundUpdate::new(id.clone())
+                    .set("WatchHistory", animes);
                 sender.send(Event::BackgroundNotice(update)).ok();
 
                 if already_loaded {

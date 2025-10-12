@@ -7,8 +7,12 @@ mod screens;
 mod utils;
 
 use crate::app::App;
-use anyhow::Result;
 use crossterm::event::EnableMouseCapture;
+use crossterm::event::PushKeyboardEnhancementFlags;
+use crossterm::event::KeyboardEnhancementFlags;
+use crossterm::execute;
+use anyhow::Result;
+use config::Config;
 
 fn parse_cli() -> bool {
     for arg in std::env::args().skip(1) {
@@ -18,11 +22,14 @@ fn parse_cli() -> bool {
                 return true;
             }
             "-e" | "--edit" => {
-                config::open_in_editor();
+                Config::open_in_editor();
+                return true;
+            }
+            "-c" | "--config-path" => {
                 return true;
             }
             "-h" | "--help" => {
-                println!("Usage: anime-tui [OPTIONS]");
+                println!("Usage: mal-cli [OPTIONS]");
                 println!();
                 println!("Options:");
                 println!("  -h, --help       Show this help message");
@@ -46,10 +53,19 @@ async fn main() -> Result<()> {
     }
 
     let terminal = ratatui::init();
-    let config = config::read_from_file();
+    let config = Config::init();
 
     // enable mouse capture
-    crossterm::execute!(std::io::stderr(), EnableMouseCapture)?;
+    if config.navigation.enable_mouse_capture {
+        execute!(std::io::stderr(), EnableMouseCapture)?;
+    }
+        execute!(
+        std::io::stdout(),
+            PushKeyboardEnhancementFlags(
+            KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
+            | KeyboardEnhancementFlags::REPORT_EVENT_TYPES
+        )
+    )?;
 
     // start the app
     let mut app = App::new(terminal);

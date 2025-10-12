@@ -2,7 +2,7 @@ pub mod models;
 pub mod network;
 mod oauth;
 
-use crate::config::get_app_dir;
+use crate::config::Config;
 use crate::mal::network::Fetchable;
 use crate::{params, send_error};
 use chrono::{Datelike, Local};
@@ -41,7 +41,7 @@ impl MalClient {
     }
 
     fn save_to_file(identity: &Identity) {
-        let app_dir = get_app_dir();
+        let app_dir = Config::data_dir();
         let mal_dir = app_dir.join(CLIENT_FOLDER);
         if !mal_dir.exists() {
             fs::create_dir_all(&mal_dir)
@@ -82,7 +82,7 @@ impl MalClient {
     }
 
     pub fn login_from_file(&self) -> bool {
-        let app_dir = get_app_dir();
+        let app_dir = Config::data_dir();
         if !app_dir.exists()
             || !app_dir
                 .join(format!("{}/{}", CLIENT_FOLDER, CLIENT_FILE))
@@ -148,7 +148,7 @@ impl MalClient {
     }
 
     pub fn log_out() {
-        let app_dir = get_app_dir();
+        let app_dir = Config::data_dir();
         if !app_dir.exists()
             || !app_dir
                 .join(format!("{}/{}", CLIENT_FOLDER, CLIENT_FILE))
@@ -164,7 +164,7 @@ impl MalClient {
     }
 
     pub fn user_is_logged_in() -> bool {
-        let app_dir = get_app_dir();
+        let app_dir = Config::data_dir();
         let client_file = app_dir.join(format!("{}/{}", CLIENT_FOLDER, CLIENT_FILE));
 
         if !client_file.exists() {

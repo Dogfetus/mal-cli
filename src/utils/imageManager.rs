@@ -196,8 +196,8 @@ impl ImageManager {
             self_lock.fetcher_tx = Some(fetcher_tx);
         }
 
-        let instance_clone_1 = Arc::clone(&instance);
-        let instance_clone_2 = Arc::clone(&instance);
+        let instance_clone_1 = Arc::clone(instance);
+        let instance_clone_2 = Arc::clone(instance);
         let app_sx = app_sx.clone();
         let app_sx2 = app_sx.clone();
 
@@ -275,7 +275,7 @@ impl ImageManager {
         }
 
         let anime = anime.clone();
-        let instance_clone = Arc::clone(&instance);
+        let instance_clone = Arc::clone(instance);
 
         std::thread::spawn(move || {
             let (image_tx, image_rx) = channel::<CustomResizeRequest>();

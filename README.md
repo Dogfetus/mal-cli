@@ -12,8 +12,8 @@ It combines **MAL integration** with **ani-cli-style playback** in a single ligh
 
 # Showcase
 
-### User Login
-![User Login](docs/1.png)
+### Launch
+![Launch](docs/1.png)
 
 ### Overview
 ![Overview](docs/2.png)
@@ -80,13 +80,14 @@ Run with:
 
 
 ## Keybindings
-Configs are coming soon. 
+Configs can be generated and edited using `mal -e`.
 
-For now, controls are hardcoded to h, j, k, l ( j and k are flipped compared to normal Vim) or the arrow keys.  
-Ctrl + (key) → move to other parts of the same screen  
-q → quit popup  
-Enter / Space → select items  
-Ctrl + c → quit  
+By default, the keybindings are:
+- `h`, `j`, `k`, `l` (vim keys) or arrow keys for navigation
+- `Ctrl + <key>` - Move to other parts of the same screen
+- `Enter` / `Space` - select anime or other item
+- `q` - Close popup
+- `Ctrl + c` - Quit application
 
 ## Disclaimer
 

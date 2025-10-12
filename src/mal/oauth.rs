@@ -9,9 +9,12 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
+use crate::config::Config;
+use crate::send_error;
 
-const MAX_RETRIES: u16 = 10;
-const BACKEND_URL: &str = "https://mal-cli.dogfetus.no";
+
+// const MAX_RETRIES: u16 = 10;
+// const BACKEND_URL: &str = "https://mal-cli.dogfetus.no";
 // const BACKEND_URL: &str = "http://localhost:8000";
 
 #[derive(Debug, Clone, Deserialize)]
@@ -37,7 +40,7 @@ pub fn refresh_token<T: Into<String>, F>(refresh_token: T, callback: F) -> Resul
 where
     F: FnOnce(Identity) -> Result<()> + Send + Sync
 {
-    let full_url = format!("{}/refresh_token", BACKEND_URL);
+    let full_url = format!("{}/refresh_token", Config::global().network.auth_server);
     let body = [("refresh_token", refresh_token.into())];
     let new_token = ureq::post(full_url)
         .send_form(body)?
@@ -47,7 +50,7 @@ where
 }
 
 fn get_oauth_url(port: u16) -> Result<String> {
-    let full_url = format!("{}/oauth_url", BACKEND_URL);
+    let full_url = format!("{}/oauth_url", Config::global().network.auth_server);
     let body = [("port", port.to_string())];
     let url: String = ureq::post(full_url)
         .send_form(body)?
@@ -67,12 +70,12 @@ fn start_callback_server<F>(callback: F) -> Option<(u16, thread::JoinHandle<()>)
 where
     F: FnOnce(Identity) -> Result<()> + Send + Sync + 'static + Copy,
 {
-    let mut port: u16 = 53400;
+    let port: u16 = Config::global().network.callback_port;
     let (tx, rx) = mpsc::channel::<()>();
 
-    for _ in 0..MAX_RETRIES {
+    for i in 0..Config::global().network.max_port_retries {
         let _tx = tx.clone();
-        let url = format!("0.0.0.0:{}", port);
+        let url = format!("0.0.0.0:{}", port + i);
         let result = rouille::Server::new(&url, move |request| {
             router!(request,
                 (POST) (/callback) => {
@@ -128,12 +131,11 @@ where
             }
 
             Err(_) => {
-                port += 1;
                 // eprintln!("Failed to start server on {}: {}, retrying... port {}  ", url, err, port);
             }
         }
     }
 
-    // println!("Failed to start server after {} retries", MAX_RETRIES);
+    send_error!("Failed to start server after {} retries", Config::global().network.max_port_retries);
     None
 }

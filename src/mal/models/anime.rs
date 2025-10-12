@@ -459,22 +459,13 @@ pub struct AnimeNode {
     pub list_status: Option<MyListStatus>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct Ranking {
     rank: u16,
     previous_rank: Option<u16>,
 }
 
-impl Default for Ranking {
-    fn default() -> Self {
-        Ranking {
-            rank: 0,
-            previous_rank: None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct Pictures {
     #[serde(default = "na")]
     pub large: String,
@@ -482,16 +473,7 @@ pub struct Pictures {
     pub medium: String,
 }
 
-impl Default for Pictures {
-    fn default() -> Self {
-        Pictures {
-            large: String::new(),
-            medium: String::new(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct AlternativeTitles {
     #[serde(default)]
     pub synonyms: Vec<String>,
@@ -499,16 +481,6 @@ pub struct AlternativeTitles {
     pub en: String,
     #[serde(default = "na")]
     pub ja: String,
-}
-
-impl Default for AlternativeTitles {
-    fn default() -> Self {
-        AlternativeTitles {
-            synonyms: Vec::new(),
-            en: String::new(),
-            ja: String::new(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -523,7 +495,7 @@ impl fmt::Display for Genre {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct MyListStatus {
     #[serde(deserialize_with = "my_status", default = "na")]
     pub status: String,
@@ -547,40 +519,12 @@ pub struct MyListStatus {
     pub updated_at: String,
 }
 
-impl Default for MyListStatus {
-    fn default() -> Self {
-        MyListStatus {
-            status: String::new(),
-            score: 0,
-            num_episodes_watched: 0,
-            is_rewatching: None,
-            start_date: String::new(),
-            finish_date: String::new(),
-            priority: 0,
-            num_times_rewatched: None,
-            rewatch_value: None,
-            tags: Vec::new(),
-            comments: String::new(),
-            updated_at: String::new(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct StartSeason {
     #[serde(default)]
     pub year: u16,
     #[serde(default = "na")]
     pub season: String,
-}
-
-impl Default for StartSeason {
-    fn default() -> Self {
-        StartSeason {
-            year: 0,
-            season: String::new(),
-        }
-    }
 }
 
 impl fmt::Display for StartSeason {

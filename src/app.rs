@@ -5,7 +5,7 @@ use crate::mal::models::anime::AnimeId;
 use crate::player;
 use crate::screens::BackgroundUpdate;
 use crate::screens::ScreenManager;
-use crate::config::get_app_dir;
+use crate::config::Config;
 use crate::utils::store::Store;
 use crate::utils::errorBus;
 
@@ -53,7 +53,7 @@ pub enum CurrentInfo {
 // these are sent over the channel at any time
 #[allow(dead_code)]
 pub enum Event {
-    InputEvent(crossterm::event::Event),
+    Input(crossterm::event::Event),
     KeyPress(crossterm::event::KeyEvent),
     MouseClick(crossterm::event::MouseEvent),
     Resize(u16, u16),
@@ -167,7 +167,7 @@ impl App {
 
             for event in events {
                 match event {
-                    Event::InputEvent(input_event) => {
+                    Event::Input(input_event) => {
                         self.handle_input(input_event);
                     }
                     Event::BackgroundNotice(mut update) => {
@@ -197,7 +197,7 @@ impl App {
     }
 
     fn logg_watched_info(&self, anime: &Anime, details: &player::PlayResult) {
-        let app_dir = get_app_dir();
+        let app_dir = Config::data_dir();
         let now: DateTime<Local> = Local::now();
         let timestamp = now.format("%Y-%m-%d %H:%M:%S");
         let log_file = app_dir.join("watch_history");

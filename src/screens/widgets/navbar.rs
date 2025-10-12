@@ -1,9 +1,9 @@
 use crate::{
     app::Action,
-    config::{HIGHLIGHT_COLOR, PRIMARY_COLOR, SECOND_HIGHLIGHT_COLOR, TEXT_COLOR},
+    config::{navigation::NavDirection, Config},
     screens::{name_to_screen, screen_to_name},
 };
-use crossterm::event::{KeyCode, KeyEvent, MouseEvent};
+use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Margin, Position, Rect},
@@ -54,32 +54,35 @@ impl NavBar {
     }
 
     pub fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
-        if (key_event.code == KeyCode::Char('k') || key_event.code == KeyCode::Down)
-            && key_event
-                .modifiers
-                .contains(crossterm::event::KeyModifiers::CONTROL)
-        {
+        let modifier = key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL);
+        let nav = &Config::global().navigation;
+
+        if modifier && nav.get_direction(&key_event.code) == NavDirection::Down {
             self.deselect();
             return Some(Action::NavbarSelect(false));
         }
 
-        match key_event.code {
-            KeyCode::Left | KeyCode::Char('h') => {
+        match nav.get_direction(&key_event.code) {
+            NavDirection::Left => {
                 if self.selected_button > 0 {
                     self.selected_button = self.selected_button.saturating_sub(1);
                 }
             }
-            KeyCode::Right | KeyCode::Char('l') => {
-                if self.selected_button < self.options.len() - 1 {
+            NavDirection::Right => {
+                if self.selected_button < self.options.len().saturating_sub(1) {
                     self.selected_button += 1;
                 }
             }
-            KeyCode::Enter => {
-                self.old_button = self.selected_button;
-                let screen_name = self.options[self.selected_button];
-                return Some(Action::SwitchScreen(name_to_screen(screen_name)));
-            }
             _ => {}
+        }
+
+        if nav.is_select(&key_event.code) {
+            if self.options.is_empty() {
+                return None;
+            }
+            self.old_button = self.selected_button;
+            let screen_name = self.options[self.selected_button];
+            return Some(Action::SwitchScreen(name_to_screen(screen_name)));
         }
         None
     }
@@ -124,9 +127,9 @@ impl NavBar {
         self.option_areas = option_rects.to_vec();
 
         let overall_color = if self.is_selected {
-            Style::default().fg(HIGHLIGHT_COLOR)
+            Style::default().fg(Config::global().theme.highlight)
         } else {
-            Style::default().fg(PRIMARY_COLOR)
+            Style::default().fg(Config::global().theme.primary)
         };
 
         for (i, opt) in self.options.iter().enumerate() {
@@ -171,11 +174,11 @@ impl NavBar {
             let text_y = inner.y + (inner.height) / 2;
             let centered_area = Rect::new(inner.x, text_y, inner.width, 1);
             let style = if self.is_selected && i == self.selected_button {
-                Style::default().fg(SECOND_HIGHLIGHT_COLOR)
+                Style::default().fg(Config::global().theme.second_highlight)
             } else if i == self.old_button {
-                Style::default().fg(HIGHLIGHT_COLOR)
+                Style::default().fg(Config::global().theme.highlight)
             } else {
-                Style::default().fg(TEXT_COLOR)
+                Style::default().fg(Config::global().theme.text)
             };
 
             frame.render_widget(

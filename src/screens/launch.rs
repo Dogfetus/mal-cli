@@ -3,9 +3,9 @@ use super::{
     screens::*,
     widgets::{button::Button, navigatable::Navigatable},
 };
-use crate::app::Action;
+use crate::{app::Action, config::{navigation::NavDirection, Config}};
 use crate::mal::MalClient;
-use crossterm::event::{KeyCode, KeyEvent, MouseEvent};
+use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout},
@@ -113,18 +113,21 @@ impl Screen for LaunchScreen {
     }
 
     fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
-        match key_event.code {
-            KeyCode::Up | KeyCode::Char('j') => {
+        let nav = &Config::global().navigation;
+
+        match nav.get_direction(&key_event.code) {
+            NavDirection::Up => {
                 self.navigatable.move_up();
             }
-            KeyCode::Down | KeyCode::Char('k') => {
+            NavDirection::Down => {
                 self.navigatable.move_down();
-            }
-            KeyCode::Enter => {
-                return self.activate_button(self.navigatable.get_selected_index());
             }
             _ => {}
         };
+
+        if nav.is_select(&key_event.code) {
+            return self.activate_button(self.navigatable.get_selected_index());
+        }
 
         None
     }

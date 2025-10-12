@@ -123,6 +123,7 @@ pub trait Screen {
     fn handle_mouse(&mut self, mouse_event: crossterm::event::MouseEvent) -> Option<Action> {
         None
     }
+    // the name the screen is stored under
     fn get_name(&self) -> String {
         let name = std::any::type_name::<Self>();
         name.split("::").last().unwrap_or(name).to_string()

@@ -4,7 +4,8 @@ use std::thread::JoinHandle;
 
 use crate::add_screen_caching;
 use crate::app::Event;
-use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
+use crate::config::navigation::NavDirection;
+use crate::config::Config;
 use crate::mal::models::anime::{Anime, AnimeId};
 use crate::utils::functionStreaming::StreamableRunner;
 use crate::utils::imageManager::ImageManager;
@@ -288,21 +289,21 @@ impl Screen for ListScreen {
                     .border_set(border::ROUNDED),
             )
             .style(style::Style::default().fg(if self.focus == Focus::Search {
-                HIGHLIGHT_COLOR
+                Config::global().theme.highlight
             } else {
-                PRIMARY_COLOR
+                Config::global().theme.primary
             }));
         frame.render_widget(search_field, search);
 
         let info_area = Rect::new(
-            side.x + ((side.width + 1) / 2) - ((side.width + 1) * 4 / 10),
+            side.x + side.width.div_ceil(2) - ((side.width + 1) * 4 / 10),
             content.y,
             (side.width + 1) * 8 / 10,
             content.height * 3 / 10,
         );
 
         let dropdown_area = Rect::new(
-            top.x + top.width - (side.width + 1) / 2 - info_area.width / 2,
+            top.x + top.width - side.width.div_ceil(2) - info_area.width / 2,
             info_area.y,
             info_area.width,
             info_area.height.max(self.dropdowns.len() as u16 * 3),
@@ -316,13 +317,13 @@ impl Screen for ListScreen {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
-            .style(style::Style::default().fg(PRIMARY_COLOR));
+            .style(style::Style::default().fg(Config::global().theme.primary));
         frame.render_widget(block, info_area);
 
         let info = Paragraph::new(" Animes found:\n Selected list:\n")
             .block(Block::default().borders(Borders::TOP).title("Info"))
             .alignment(Alignment::Left)
-            .style(style::Style::default().fg(PRIMARY_COLOR));
+            .style(style::Style::default().fg(Config::global().theme.primary));
 
         let info_value = Paragraph::new(format!(
             "{}/{}\n0\n",
@@ -330,7 +331,7 @@ impl Screen for ListScreen {
             self.all_animes.len()
         ))
         .alignment(Alignment::Left)
-        .style(style::Style::default().fg(PRIMARY_COLOR));
+        .style(style::Style::default().fg(Config::global().theme.primary));
         frame.render_widget(info, info_area_left.inner(Margin::new(1, 0)));
         frame.render_widget(info_value, info_area_right.inner(Margin::new(1, 1)));
 
@@ -345,7 +346,7 @@ impl Screen for ListScreen {
                 .areas(content);
             let loading_text = Paragraph::new("Loading...")
                 .alignment(Alignment::Center)
-                .style(style::Style::default().fg(PRIMARY_COLOR));
+                .style(style::Style::default().fg(Config::global().theme.primary));
             frame.render_widget(loading_text, content);
         } else {
             let items = self.navigatable.get_visible_items(&self.filtered_animes);
@@ -386,22 +387,22 @@ impl Screen for ListScreen {
     }
 
     fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
+        let modifier = key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL);
+        let nav = &Config::global().navigation;
+
         match self.focus {
             Focus::Search => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('j') | KeyCode::Up => {
+                if modifier {
+                    match nav.get_direction(&key_event.code) {
+                        NavDirection::Up => {
                             self.focus = Focus::NavBar;
                             return Some(Action::NavbarSelect(true));
                         }
-                        KeyCode::Char('k') | KeyCode::Down => {
+                        NavDirection::Down => {
                             self.focus = Focus::Content;
                             return None;
                         }
-                        KeyCode::Char('l') | KeyCode::Right => {
+                        NavDirection::Right => {
                             self.focus = Focus::Dropdown;
                             return None;
                         }
@@ -426,16 +427,13 @@ impl Screen for ListScreen {
             }
 
             Focus::Content => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('j') | KeyCode::Up => {
+                if modifier {
+                    match nav.get_direction(&key_event.code) {
+                        NavDirection::Up => {
                             self.focus = Focus::Search;
                             return None;
                         }
-                        KeyCode::Char('l') | KeyCode::Right => {
+                        NavDirection::Right => {
                             self.focus = Focus::Dropdown;
                             return None;
                         }
@@ -444,37 +442,35 @@ impl Screen for ListScreen {
                     return None;
                 }
 
-                match key_event.code {
-                    KeyCode::Char('j') | KeyCode::Up => {
+                match nav.get_direction(&key_event.code) {
+                    NavDirection::Up => {
                         self.navigatable.move_up();
                     }
-                    KeyCode::Char('k') | KeyCode::Down => {
+                    NavDirection::Down => {
                         self.navigatable.move_down();
                     }
-                    KeyCode::Char('l') | KeyCode::Right => {
+                    NavDirection::Right => {
                         self.navigatable.move_right();
                     }
-                    KeyCode::Char('h') | KeyCode::Left => {
+                    NavDirection::Left => {
                         self.navigatable.move_left();
                     }
-                    KeyCode::Enter => {
-                        if let Some(anime_id) =
-                            self.navigatable.get_selected_item(&self.filtered_animes)
-                        {
-                            return Some(Action::ShowOverlay(*anime_id));
-                        }
-                    }
                     _ => {}
+                }
+
+                if nav.is_select(&key_event.code) {
+                    if let Some(anime_id) =
+                        self.navigatable.get_selected_item(&self.filtered_animes)
+                    {
+                        return Some(Action::ShowOverlay(*anime_id));
+                    }
                 }
             }
 
             Focus::Dropdown => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('h') | KeyCode::Left | KeyCode::Char('k') | KeyCode::Down => {
+                if modifier {
+                    match nav.get_direction(&key_event.code) {
+                        NavDirection::Down | NavDirection::Left => {
                             self.focus = Focus::Content;
                             if let Some(dropdown) =
                                 self.dropdown_nav.get_selected_item_mut(&mut self.dropdowns)
@@ -482,7 +478,7 @@ impl Screen for ListScreen {
                                 dropdown.close();
                             }
                         }
-                        KeyCode::Char('j') | KeyCode::Up => {
+                        NavDirection::Up => {
                             self.focus = Focus::Search;
                             if let Some(dropdown) =
                                 self.dropdown_nav.get_selected_item_mut(&mut self.dropdowns)
@@ -499,12 +495,16 @@ impl Screen for ListScreen {
                 if let Some(dropdown) = self.dropdown_nav.get_selected_item_mut(&mut self.dropdowns)
                 {
                     if !dropdown.is_open() {
-                        if matches!(key_event.code, KeyCode::Char('j') | KeyCode::Up) {
-                            self.dropdown_nav.move_up();
-                            return None;
-                        } else if matches!(key_event.code, KeyCode::Char('k') | KeyCode::Down) {
-                            self.dropdown_nav.move_down();
-                            return None;
+                        match nav.get_direction(&key_event.code) {
+                            NavDirection::Up => {
+                                self.dropdown_nav.move_up();
+                                return None;
+                            }
+                            NavDirection::Down => {
+                                self.dropdown_nav.move_down();
+                                return None;
+                            }
+                            _ => {}
                         }
                     }
 

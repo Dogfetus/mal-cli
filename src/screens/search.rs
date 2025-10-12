@@ -4,15 +4,14 @@ use super::widgets::navigatable::Navigatable;
 use super::widgets::popup::{Arrows, SelectionPopup};
 use crate::add_screen_caching;
 use crate::app::Event;
-use crate::config::HIGHLIGHT_COLOR;
-use crate::config::PRIMARY_COLOR;
+use crate::config::navigation::NavDirection;
+use crate::config::Config;
 use crate::mal::models::anime::Anime;
 use crate::mal::models::anime::AnimeId;
 use crate::utils::functionStreaming::StreamableRunner;
 use crate::utils::imageManager::ImageManager;
 use crate::utils::input::Input;
 use crate::{app::Action, screens::Screen};
-use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Position};
@@ -176,7 +175,7 @@ impl Screen for SearchScreen {
                         .borders(Borders::ALL)
                         .border_set(symbols::border::ROUNDED),
                 )
-                .style(Style::default().fg(PRIMARY_COLOR));
+                .style(Style::default().fg(Config::global().theme.primary));
             frame.render_widget(results, result_area);
         }
 
@@ -202,9 +201,9 @@ impl Screen for SearchScreen {
                     .border_set(border::ROUNDED),
             )
             .style(style::Style::default().fg(if self.focus == Focus::Search {
-                HIGHLIGHT_COLOR
+                Config::global().theme.highlight
             } else {
-                PRIMARY_COLOR
+                Config::global().theme.primary
             }));
         frame.render_widget(search_field, search_area);
 
@@ -232,29 +231,32 @@ impl Screen for SearchScreen {
     }
 
     fn handle_keyboard(&mut self, key_event: KeyEvent) -> Option<Action> {
+        let modifier = key_event.modifiers.contains(crossterm::event::KeyModifiers::CONTROL);
+        let nav = &Config::global().navigation;
+
         match self.focus {
             Focus::Filter => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('k') | KeyCode::Down => {
+                if modifier {
+                    match nav.get_direction(&key_event.code) {
+                        NavDirection::Down => {
                             self.focus = Focus::AnimeList;
                             self.filter_popup.close();
                         }
-                        KeyCode::Char('j') | KeyCode::Up => {
+                        NavDirection::Up => {
                             self.focus = Focus::NavBar;
                             self.filter_popup.close();
                             return Some(Action::NavbarSelect(true));
                         }
-                        KeyCode::Char('h') | KeyCode::Left => {
+                        NavDirection::Left => {
                             self.focus = Focus::Search;
                             self.filter_popup.close();
                         }
                         _ => {}
                     }
-                } else if let Some(mut filter_type) = self.filter_popup.handle_input(key_event) {
+                    return None;
+                }
+
+                if let Some(mut filter_type) = self.filter_popup.handle_input(key_event) {
                     self.fetching = true;
                     if filter_type == "popularity" {
                         filter_type = "bypopularity".to_string();
@@ -266,20 +268,17 @@ impl Screen for SearchScreen {
             }
 
             Focus::Search => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('j') | KeyCode::Up => {
+                if modifier {
+                    match nav.get_direction(&key_event.code) {
+                        NavDirection::Up => {
                             self.focus = Focus::NavBar;
                             return Some(Action::NavbarSelect(true));
                         }
-                        KeyCode::Char('k') | KeyCode::Down => {
+                        NavDirection::Down => {
                             self.focus = Focus::AnimeList;
                             return None;
                         }
-                        KeyCode::Char('l') | KeyCode::Right => {
+                        NavDirection::Right => {
                             self.focus = Focus::Filter;
                             return None;
                         }
@@ -298,37 +297,34 @@ impl Screen for SearchScreen {
             }
 
             Focus::AnimeList => {
-                if key_event
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL)
-                {
-                    match key_event.code {
-                        KeyCode::Char('j') | KeyCode::Up => self.focus = Focus::Search,
-                        _ => {}
+                if modifier {
+                    if nav.get_direction(&key_event.code) == NavDirection::Up{
+                        self.focus = Focus::Search;
                     }
-                } else {
-                    match key_event.code {
-                        KeyCode::Char('k') | KeyCode::Down => {
-                            self.navigatable.move_down();
+                    return None;
+                }
+
+                match nav.get_direction(&key_event.code) {
+                    NavDirection::Down => {
+                        self.navigatable.move_down();
+                    }
+                    NavDirection::Up => {
+                        self.navigatable.move_up();
+                    }
+                    NavDirection::Right => {
+                        self.navigatable.move_right();
+                    }
+                    NavDirection::Left => {
+                        self.navigatable.move_left();
+                    }
+                    _ => {}
+                }
+
+                if nav.is_select(&key_event.code) {
+                    if let Some(anime_id) = self.navigatable.get_selected_item(&self.animes) {
+                        if let Some(anime) = self.app_info.anime_store.get(anime_id) {
+                            return Some(Action::ShowOverlay(anime.id));
                         }
-                        KeyCode::Char('j') | KeyCode::Up => {
-                            self.navigatable.move_up();
-                        }
-                        KeyCode::Char('l') | KeyCode::Right => {
-                            self.navigatable.move_right();
-                        }
-                        KeyCode::Char('h') | KeyCode::Left => {
-                            self.navigatable.move_left();
-                        }
-                        KeyCode::Enter => {
-                            if let Some(anime_id) = self.navigatable.get_selected_item(&self.animes)
-                            {
-                                if let Some(anime) = self.app_info.anime_store.get(anime_id) {
-                                    return Some(Action::ShowOverlay(anime.id));
-                                }
-                            }
-                        }
-                        _ => {}
                     }
                 }
             }
