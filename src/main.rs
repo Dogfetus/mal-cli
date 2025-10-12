@@ -50,13 +50,15 @@ async fn main() -> Result<()> {
     }
 
     let terminal = ratatui::init();
-    let config = Config::read_from_file();
+    let config = Config::init();
 
     // enable mouse capture
-    crossterm::execute!(std::io::stderr(), EnableMouseCapture)?;
+    if config.navigation.enable_mouse_capture {
+        crossterm::execute!(std::io::stderr(), EnableMouseCapture)?;
+    }
 
     // start the app
-    let mut app = App::new(terminal, config);
+    let mut app = App::new(terminal);
     app.run()?;
 
     Ok(())

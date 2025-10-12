@@ -1,6 +1,6 @@
 use crate::{
     app::Action,
-    config::{HIGHLIGHT_COLOR, PRIMARY_COLOR, SECOND_HIGHLIGHT_COLOR, TEXT_COLOR},
+    config::Config,
     screens::{name_to_screen, screen_to_name},
 };
 use crossterm::event::{KeyCode, KeyEvent, MouseEvent};
@@ -124,9 +124,9 @@ impl NavBar {
         self.option_areas = option_rects.to_vec();
 
         let overall_color = if self.is_selected {
-            Style::default().fg(HIGHLIGHT_COLOR)
+            Style::default().fg(Config::global().theme.highlight)
         } else {
-            Style::default().fg(PRIMARY_COLOR)
+            Style::default().fg(Config::global().theme.primary)
         };
 
         for (i, opt) in self.options.iter().enumerate() {
@@ -171,11 +171,11 @@ impl NavBar {
             let text_y = inner.y + (inner.height) / 2;
             let centered_area = Rect::new(inner.x, text_y, inner.width, 1);
             let style = if self.is_selected && i == self.selected_button {
-                Style::default().fg(SECOND_HIGHLIGHT_COLOR)
+                Style::default().fg(Config::global().theme.second_highlight)
             } else if i == self.old_button {
-                Style::default().fg(HIGHLIGHT_COLOR)
+                Style::default().fg(Config::global().theme.highlight)
             } else {
-                Style::default().fg(TEXT_COLOR)
+                Style::default().fg(Config::global().theme.text)
             };
 
             frame.render_widget(

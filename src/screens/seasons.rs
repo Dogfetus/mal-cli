@@ -3,11 +3,10 @@ use super::widgets::navigatable::Navigatable;
 use super::widgets::popup::SeasonPopup;
 use super::{BackgroundUpdate, Screen};
 use crate::add_screen_caching;
-use crate::config::TEXT_COLOR;
+use crate::config::Config;
 use crate::mal::models::anime::AnimeId;
 use crate::{
     app::{Action, Event},
-    config::{HIGHLIGHT_COLOR, PRIMARY_COLOR},
     mal::{MalClient, models::anime::Anime},
     screens::widgets::animebox::AnimeBox,
     utils::{
@@ -225,7 +224,7 @@ impl Screen for SeasonsScreen {
             Borders::RIGHT | Borders::BOTTOM,
         );
 
-        let color = Style::default().fg(PRIMARY_COLOR);
+        let color = Style::default().fg(Config::global().theme.primary);
 
         frame.render_widget(
             Block::new()
@@ -251,9 +250,9 @@ impl Screen for SeasonsScreen {
 
         // the season and year at the top:
         let season_color = if self.focus == Focus::SeasonSelection {
-            HIGHLIGHT_COLOR
+            Config::global().theme.highlight
         } else {
-            TEXT_COLOR
+            Config::global().theme.text
         };
         let title = Paragraph::new(
             DisplayString::new()
@@ -287,7 +286,7 @@ impl Screen for SeasonsScreen {
                 .areas(bl_bottom);
             let title = Paragraph::new("Loading...")
                 .alignment(Alignment::Center)
-                .style(Style::default().fg(PRIMARY_COLOR));
+                .style(Style::default().fg(Config::global().theme.primary));
             frame.render_widget(
                 title,
                 middle.inner(Margin {
@@ -348,13 +347,13 @@ impl Screen for SeasonsScreen {
                 "English:\n{}\n\nJapanese:\n{}",
                 anime.alternative_titles.en, anime.title
             ))
-            .style(Style::default().fg(TEXT_COLOR))
+            .style(Style::default().fg(Config::global().theme.text))
         } else {
             Paragraph::new(format!(
                 "English:\n{}\n\nJapanese:\n{}",
                 anime.title, anime.alternative_titles.ja
             ))
-            .style(Style::default().fg(TEXT_COLOR))
+            .style(Style::default().fg(Config::global().theme.text))
         }
         .block(Block::default().padding(Padding::new(1, 1, 1, 1)));
         let genres_string = anime
@@ -407,25 +406,25 @@ impl Screen for SeasonsScreen {
             let (left_details, right_details) = details.split_at(split);
             let block_style = Block::default()
                 .borders(Borders::TOP)
-                .border_style(Style::default().fg(PRIMARY_COLOR))
+                .border_style(Style::default().fg(Config::global().theme.primary))
                 .padding(Padding::new(1, 2, 1, 1));
             let details_left = Paragraph::new(create_details_text(left_details))
-                .style(Style::default().fg(TEXT_COLOR))
+                .style(Style::default().fg(Config::global().theme.text))
                 .block(block_style.clone());
 
             let details_right = Paragraph::new(create_details_text(right_details))
-                .style(Style::default().fg(TEXT_COLOR))
+                .style(Style::default().fg(Config::global().theme.text))
                 .block(block_style);
 
             frame.render_widget(details_left, left);
             frame.render_widget(details_right, right);
         } else {
             let details_paragraph = Paragraph::new(create_details_text(&details))
-                .style(Style::default().fg(TEXT_COLOR))
+                .style(Style::default().fg(Config::global().theme.text))
                 .block(
                     Block::default()
                         .borders(Borders::TOP)
-                        .border_style(Style::default().fg(PRIMARY_COLOR))
+                        .border_style(Style::default().fg(Config::global().theme.primary))
                         .padding(Padding::new(1, 2, 1, 1)),
                 );
             frame.render_widget(details_paragraph, middle);
@@ -433,14 +432,14 @@ impl Screen for SeasonsScreen {
 
         let desc_title = Paragraph::new("\n Description:");
         let description = Paragraph::new(anime.synopsis)
-            .style(Style::default().fg(TEXT_COLOR))
+            .style(Style::default().fg(Config::global().theme.text))
             .wrap(Wrap { trim: true })
             .scroll((self.detail_scroll_y, 0))
             .block(
                 Block::default()
                     .padding(Padding::new(1, 1, 0, 0))
                     .borders(Borders::TOP)
-                    .border_style(Style::default().fg(PRIMARY_COLOR))
+                    .border_style(Style::default().fg(Config::global().theme.primary))
                     .padding(Padding::new(1, 2, 1, 1)),
             );
 

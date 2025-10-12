@@ -7,6 +7,7 @@ use allanime::SourceUrl;
 use regex::Regex;
 use url::Url;
 
+use crate::config::Config;
 use crate::mal::models::anime::Anime;
 use crate::mal::network::send_request;
 use crate::mal::network::send_request_expect_text;
@@ -14,7 +15,6 @@ use crate::params;
 use serde_json::json;
 use std::io::ErrorKind;
 use std::process::Command;
-use std::process::Stdio;
 
 const BASE: &str = "https://allanime.day";
 const API: &str = "https://api.allanime.day/api";
@@ -105,6 +105,18 @@ impl AnimePlayer {
     }
 
     pub fn extract_play_info(&self, stdout: &str, episode: u32) -> Option<PlayResult> {
+        // return default if no output
+        if stdout.is_empty() {
+            return Some(PlayResult {
+                current_time: "00:00:00".to_string(),
+                total_time: "00:00:00".to_string(),
+                completed: false,
+                fully_watched: false,
+                percentage: 0,
+                episode,
+            })
+        }
+
         let last_av = if let Some(last_av) = stdout.rfind("AV: ") {
             let last_stdout = &stdout[last_av..];
             self.av_regex.captures(last_stdout)?
@@ -130,55 +142,6 @@ impl AnimePlayer {
         })
     }
 
-    #[allow(dead_code)]
-    pub fn play_using_anicli(&self, anime: &Anime, episode: u32) -> Result<PlayResult, PlayError> {
-        if anime.status == "upcoming" {
-            return Err(PlayError::NotReleased(Box::new(anime.clone())));
-        }
-
-        ratatui::restore();
-
-        // call ani-cli to play the anime 
-        // TODO: change this
-        let output = Command::new("ani-cli")
-            .arg("--no-detach")
-            .arg("--exit-after-play")
-            .arg("-e")
-            .arg(episode.to_string())
-            .arg(&anime.title)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-            .map_err(|e| {
-                if e.kind() == ErrorKind::NotFound {
-                    PlayError::NotFound("ani-cli is not installed or not found in PATH".to_string())
-                } else {
-                    PlayError::Other(format!("Error running ani-cli: \n{}", e))
-                }
-            })?;
-
-        let messy_stdout = String::from_utf8_lossy(&output.stdout);
-        let messy_stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = self.ansi_regex.replace_all(&messy_stdout, "").to_string();
-        let stderr = self.ansi_regex.replace_all(&messy_stderr, "").to_string();
-        let exit_code = output.status.code().unwrap_or(-1);
-        if !stderr.is_empty() && exit_code != 0 {
-            if stderr.contains("No results found!") {
-                return Err(PlayError::NoResults(stderr));
-            } else {
-                return Err(PlayError::CommandFailed {
-                    stderr,
-                    exit_code: output.status.code().unwrap_or(-1),
-                    stdout,
-                });
-            }
-        }
-
-        self.extract_play_info(&stdout, episode).ok_or_else(|| {
-            PlayError::Other("ani-cli did not return any play information".to_string())
-        })
-    }
-
     pub fn play_episode_manually(
         &self,
         anime: &Anime,
@@ -189,6 +152,14 @@ impl AnimePlayer {
         }
 
         ratatui::restore();
+
+        // hook
+        if let Some(hook) = Config::global().player.pre_playback_hook.clone() {
+            if let Err(e) = self.run_command(&hook, anime, episode, None) {
+                eprintln!("Failed to run pre-playback hook: {}", e);
+            }
+        };
+
 
         // get available shows for the given anime title
         let shows = self.get_shows(anime.title.clone())?;
@@ -202,10 +173,34 @@ impl AnimePlayer {
         // extract the correct (the one with highest priority) episode from the list of available episodes
         let candidate = self.extract_best_candidate(&available_episodes)?;
 
-        let result = self.play_video_in_mpv(candidate)?;
+        let result = if Config::global().player.disable_default_player {
+            String::new()
+        } else {
+            self.play_video_in_mpv(&candidate)?
+        };
+
+
+        // hook
+        if let Some(hook) = Config::global().player.post_playback_hook.clone() {
+            if let Err(e) = self.run_command(&hook, anime, episode, Some(&candidate)) {
+                eprintln!("Failed to run pre-playback hook: {}", e);
+            }
+        };
+
+        // mark as completed
+        if Config::global().player.allways_complete_episode {
+            return Ok(PlayResult {
+                current_time: "00:00:00".to_string(),
+                total_time: "00:00:00".to_string(),
+                completed: true,
+                fully_watched: true,
+                percentage: 100,
+                episode,
+            });
+        }
 
         self.extract_play_info(&result, episode).ok_or_else(|| {
-            PlayError::Other("ani-cli did not return any play information".to_string())
+            PlayError::Other("player did not return any play information".to_string())
         })
     }
 
@@ -260,6 +255,8 @@ impl AnimePlayer {
     fn extract_correct_id(&self, shows: &[ShowEdge], anime: &Anime) -> Result<String, PlayError> {
         // some functionality to get the correct show out of the list
         // TODO: actually add this functionality
+
+        println!("Found {:?} shows matching \"{}\"", shows, anime.title);
 
         let show = shows.first().ok_or(PlayError::NoResults(
             "No shows found".to_string(),
@@ -639,17 +636,15 @@ impl AnimePlayer {
         0
     }
 
-    fn play_video_in_mpv(&self, info: (String, Option<String>)) -> Result<String, PlayError> {
+    fn play_video_in_mpv(&self, info: &(String, Option<String>)) -> Result<String, PlayError> {
         let mut cmd = Command::new("mpv");
 
-        if let Some(referer) = info.1 {
+        if let Some(referer) = &info.1 {
             cmd.arg(format!("--referrer={}", referer));
         }
 
         let output = cmd
-            .arg(info.0)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            .arg(&info.0)
             .output()
             .map_err(|e| {
                 if e.kind() == ErrorKind::NotFound {
@@ -677,5 +672,39 @@ impl AnimePlayer {
         }
 
         Ok(stdout)
+    }
+
+    fn run_command(
+        &self,
+        command: &str,
+        anime: &Anime,
+        episode: u32,
+        url: Option<&(String, Option<String>)>,
+    ) -> Result<(), String> {
+        let cmd = command 
+            .replace("{title}", &anime.title)
+            .replace("{episode}", &episode.to_string())
+            .replace( "{url}", url.map(|u| u.0.as_str()).unwrap_or_default(),)
+            .replace( "{referer}", url.and_then(|u| u.1.as_deref()).unwrap_or(""),)
+            .replace( "{referrer}", url.and_then(|u| u.1.as_deref()).unwrap_or(""),);
+
+        let status = Command::new("sh")
+            .arg("-c")
+            .arg(&cmd)
+            .status()
+            .map_err(|e| format!("Failed to run hook: {}", e))?;
+
+        #[cfg(windows)]
+        let status = Command::new("cmd")
+            .arg("/C")
+            .arg(&cmd)
+            .status()
+            .map_err(|e| format!("Failed to run hook: {}", e))?;
+
+        if !status.success() {
+            return Err(format!("Hook exited with status: {:?}", status.code()));
+        }
+
+        Ok(())
     }
 }

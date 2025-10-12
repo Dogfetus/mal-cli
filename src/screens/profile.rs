@@ -5,9 +5,7 @@ use std::thread::JoinHandle;
 use crate::add_screen_caching;
 use crate::app::Action;
 use crate::app::Event;
-use crate::config::HIGHLIGHT_COLOR;
-use crate::config::PRIMARY_COLOR;
-use crate::config::anime_list_colors;
+use crate::config::Config;
 use crate::mal::models::anime::Anime;
 use crate::mal::models::anime::FavoriteAnime;
 use crate::mal::models::user::User;
@@ -114,7 +112,7 @@ impl Screen for ProfileScreen {
             .border_set(symbols::border::ROUNDED)
             .borders(Borders::ALL)
             .title("Favorited Animes")
-            .border_style(style::Style::default().fg(PRIMARY_COLOR));
+            .border_style(style::Style::default().fg(Config::global().theme.primary));
         frame.render_widget(block, fav_area);
 
         self.navigation_fav.construct(
@@ -126,7 +124,7 @@ impl Screen for ProfileScreen {
                         Block::default()
                             .border_set(symbols::border::ROUNDED)
                             .borders(Borders::ALL)
-                            .border_style(style::Style::default().fg(HIGHLIGHT_COLOR)),
+                            .border_style(style::Style::default().fg(Config::global().theme.highlight)),
                         area,
                     );
                 }
@@ -164,7 +162,7 @@ impl Screen for ProfileScreen {
             .border_set(symbols::border::ROUNDED)
             .borders(Borders::ALL)
             .title("User Statistics")
-            .border_style(style::Style::default().fg(PRIMARY_COLOR));
+            .border_style(style::Style::default().fg(Config::global().theme.primary));
         frame.render_widget(block, right_top);
 
         // user information left side
@@ -173,7 +171,7 @@ impl Screen for ProfileScreen {
             .borders(Borders::ALL)
             .border_set(symbols::border::ROUNDED)
             .title("User Info")
-            .border_style(style::Style::default().fg(PRIMARY_COLOR));
+            .border_style(style::Style::default().fg(Config::global().theme.primary));
         frame.render_widget(user_info_block, info);
 
         let user_info_text = [
@@ -257,7 +255,7 @@ impl Screen for ProfileScreen {
             let gauge = Gauge::default()
                 .gauge_style(
                     Style::new()
-                        .fg(anime_list_colors(label))
+                        .fg(Config::global().theme.status_color(label))
                         .bg(style::Color::Black),
                 )
                 .percent(percentage);

@@ -4,8 +4,7 @@ use super::widgets::navigatable::Navigatable;
 use super::widgets::popup::{Arrows, SelectionPopup};
 use crate::add_screen_caching;
 use crate::app::Event;
-use crate::config::HIGHLIGHT_COLOR;
-use crate::config::PRIMARY_COLOR;
+use crate::config::Config;
 use crate::mal::models::anime::Anime;
 use crate::mal::models::anime::AnimeId;
 use crate::utils::functionStreaming::StreamableRunner;
@@ -176,7 +175,7 @@ impl Screen for SearchScreen {
                         .borders(Borders::ALL)
                         .border_set(symbols::border::ROUNDED),
                 )
-                .style(Style::default().fg(PRIMARY_COLOR));
+                .style(Style::default().fg(Config::global().theme.primary));
             frame.render_widget(results, result_area);
         }
 
@@ -202,9 +201,9 @@ impl Screen for SearchScreen {
                     .border_set(border::ROUNDED),
             )
             .style(style::Style::default().fg(if self.focus == Focus::Search {
-                HIGHLIGHT_COLOR
+                Config::global().theme.highlight
             } else {
-                PRIMARY_COLOR
+                Config::global().theme.primary
             }));
         frame.render_widget(search_field, search_area);
 

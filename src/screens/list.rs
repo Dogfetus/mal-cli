@@ -4,7 +4,7 @@ use std::thread::JoinHandle;
 
 use crate::add_screen_caching;
 use crate::app::Event;
-use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
+use crate::config::Config;
 use crate::mal::models::anime::{Anime, AnimeId};
 use crate::utils::functionStreaming::StreamableRunner;
 use crate::utils::imageManager::ImageManager;
@@ -288,9 +288,9 @@ impl Screen for ListScreen {
                     .border_set(border::ROUNDED),
             )
             .style(style::Style::default().fg(if self.focus == Focus::Search {
-                HIGHLIGHT_COLOR
+                Config::global().theme.highlight
             } else {
-                PRIMARY_COLOR
+                Config::global().theme.primary
             }));
         frame.render_widget(search_field, search);
 
@@ -316,13 +316,13 @@ impl Screen for ListScreen {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
-            .style(style::Style::default().fg(PRIMARY_COLOR));
+            .style(style::Style::default().fg(Config::global().theme.primary));
         frame.render_widget(block, info_area);
 
         let info = Paragraph::new(" Animes found:\n Selected list:\n")
             .block(Block::default().borders(Borders::TOP).title("Info"))
             .alignment(Alignment::Left)
-            .style(style::Style::default().fg(PRIMARY_COLOR));
+            .style(style::Style::default().fg(Config::global().theme.primary));
 
         let info_value = Paragraph::new(format!(
             "{}/{}\n0\n",
@@ -330,7 +330,7 @@ impl Screen for ListScreen {
             self.all_animes.len()
         ))
         .alignment(Alignment::Left)
-        .style(style::Style::default().fg(PRIMARY_COLOR));
+        .style(style::Style::default().fg(Config::global().theme.primary));
         frame.render_widget(info, info_area_left.inner(Margin::new(1, 0)));
         frame.render_widget(info_value, info_area_right.inner(Margin::new(1, 1)));
 
@@ -345,7 +345,7 @@ impl Screen for ListScreen {
                 .areas(content);
             let loading_text = Paragraph::new("Loading...")
                 .alignment(Alignment::Center)
-                .style(style::Style::default().fg(PRIMARY_COLOR));
+                .style(style::Style::default().fg(Config::global().theme.primary));
             frame.render_widget(loading_text, content);
         } else {
             let items = self.navigatable.get_visible_items(&self.filtered_animes);

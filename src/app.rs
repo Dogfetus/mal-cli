@@ -112,8 +112,6 @@ pub struct App {
     shared_info: ExtraInfo,
     anime_player: player::AnimePlayer,
 
-    config: Config,
-
     sx: mpsc::Sender<Event>,
     rx: mpsc::Receiver<Event>,
     threads: Vec<JoinHandle<()>>,
@@ -121,7 +119,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(terminal: DefaultTerminal, config: Config) -> App {
+    pub fn new(terminal: DefaultTerminal) -> App {
         let (sx, rx) = mpsc::channel::<Event>();
 
         errorBus::init(sx.clone());
@@ -142,8 +140,6 @@ impl App {
             terminal,
             shared_info: universal_info,
             anime_player: player::AnimePlayer::new(),
-
-            config,
 
             rx,
             sx,

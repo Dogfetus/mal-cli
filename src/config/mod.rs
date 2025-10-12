@@ -1,58 +1,56 @@
 mod navigation;
+mod network;
+mod player;
+mod theme;
 
-use crossterm::event::KeyCode;
-use ratatui::style::Color;
+use navigation::Navigation;
+use network::Network;
+use player::Player;
+use theme::Theme;
+
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::OnceLock;
 
-use navigation::Navigation;
+
+static CONFIG: OnceLock<Config> = OnceLock::new();
 
 
 const CONFIG_FILE: &str = "config.toml";
 
-// Configuration for colors used in the application
-pub const PRIMARY_COLOR: Color = Color::DarkGray;
-pub const SECONDARY_COLOR: Color = Color::White;
-pub const HIGHLIGHT_COLOR: Color = Color::LightCyan;
-pub const SECOND_HIGHLIGHT_COLOR: Color = Color::LightYellow;
-pub const ERROR_COLOR: Color = Color::Red;
-pub const TEXT_COLOR: Color = Color::White;
-pub const SECOND_TEXT_COLOR: Color = Color::White;
-
-// Anime List Colors
-pub const WATCHING_COLOR: Color = Color::Rgb(64, 201, 255);
-pub const COMPLETED_COLOR: Color = Color::Rgb(83, 209, 131);
-pub const ON_HOLD_COLOR: Color = Color::Rgb(181, 105, 16);
-pub const DROPPED_COLOR: Color = Color::Rgb(163, 0, 0);
-pub const PLAN_TO_WATCH_COLOR: Color = Color::Rgb(176, 86, 255);
-
-pub fn anime_list_colors(status: impl AsRef<str>) -> Color {
-    match status.as_ref().to_lowercase().as_str() {
-        "watching" | "rewatching" => WATCHING_COLOR,
-        "completed" => COMPLETED_COLOR,
-        "on hold" | "on-hold" => ON_HOLD_COLOR,
-        "dropped" => DROPPED_COLOR,
-        "plan to watch" => PLAN_TO_WATCH_COLOR,
-        _ => PRIMARY_COLOR,
-    }
-}
-
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
+    #[serde(default = "Navigation::default")]
     pub navigation: Navigation,
+
+    #[serde(default = "Network::default")]
+    pub network: Network,
+
+    #[serde(default = "Player::default")]
+    pub player: Player,
+
+    #[serde(default = "Theme::default")]
+    pub theme: Theme,
 }
 
 impl Config {
+    // initialize the global config done before the app even runs 
+    pub fn init() -> &'static Config {
+        CONFIG.get_or_init(Self::read_from_file)
+    }
+
+    // get the global config
+    pub fn global() -> &'static Config {
+        CONFIG.get().expect("Config not initialized - call Config::init() first")
+    }
+
     pub fn default() -> Self {
         Self {
-            navigation: Navigation {
-                nav_up: vec![KeyCode::Up, KeyCode::Char('k')],
-                nav_down: vec![KeyCode::Down, KeyCode::Char('j')],
-                nav_left: vec![KeyCode::Left, KeyCode::Char('h')],
-                nav_right: vec![KeyCode::Right, KeyCode::Char('l')],
-            },
+            navigation: Navigation::default(),
+            network: Network::default(),
+            player: Player::default(),
+            theme: Theme::default(),
         }
     }
 
@@ -138,7 +136,7 @@ impl Config {
             return Config::default();
         }
 
-        println!("Loading config from: {:?}", config_path);
+        // println!("Loading config from: {:?}", config_path);
 
         let contents = std::fs::read_to_string(&config_path).unwrap_or_else(|_| {
             eprintln!("Failed to read config file, using default");

@@ -8,9 +8,7 @@ use std::{
 
 use crate::{
     app::{Action, Event},
-    config::{
-        ERROR_COLOR, HIGHLIGHT_COLOR, PRIMARY_COLOR, SECONDARY_COLOR, TEXT_COLOR, anime_list_colors,
-    },
+    config::Config,
     mal::{
         MalClient,
         models::anime::{Anime, AnimeId, DeleteOrUpdate, MyListStatus, status_is_known},
@@ -180,7 +178,7 @@ impl AnimePopup {
                 .get_item_at_index_mut(&mut self.status_buttons, index)
             {
                 if let Some(option) = button.get_selected_option() {
-                    button.set_color(anime_list_colors(option));
+                    button.set_color(Config::global().theme.status_color(option));
                 };
             }
         }
@@ -190,7 +188,7 @@ impl AnimePopup {
                 .status_nav
                 .get_item_at_index_mut(&mut self.status_buttons, index)
             {
-                button.set_color(ERROR_COLOR);
+                button.set_color(Config::global().theme.error);
             }
         }
 
@@ -254,7 +252,7 @@ impl AnimePopup {
                 .add_option("Completed")
                 .add_option("On Hold")
                 .add_option("Dropped")
-                .with_color(anime_list_colors(&anime.my_list_status.status))
+                .with_color(Config::global().theme.status_color(&anime.my_list_status.status))
                 .with_arrows(Arrows::Static)
                 .with_selected_option(anime.my_list_status.status.to_string())
                 .clone(),
@@ -587,7 +585,7 @@ impl AnimePopup {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
-            .style(Style::default().fg(SECONDARY_COLOR));
+            .style(Style::default().fg(Config::global().theme.secondary));
         frame.render_widget(block, popup_area);
 
         // split the popup up so we can get the area for the bottons ont he right side
@@ -616,7 +614,7 @@ impl AnimePopup {
         let right_block = Block::default()
             .borders(right_border)
             .border_set(right_set)
-            .style(Style::default().fg(SECONDARY_COLOR));
+            .style(Style::default().fg(Config::global().theme.secondary));
         let buttons_area = Rect::new(
             bottom_area.x + 1,
             bottom_area.y + 1,
@@ -637,9 +635,9 @@ impl AnimePopup {
                     .alignment(Alignment::Center)
                     .style(Style::default().fg(
                         if highlighted && self.focus == Focus::PlayButtons {
-                            HIGHLIGHT_COLOR
+                            Config::global().theme.highlight
                         } else {
-                            SECONDARY_COLOR
+                           Config::global().theme.secondary 
                         },
                     ));
                 frame.render_widget(button_paragraph, area);
@@ -689,7 +687,7 @@ impl AnimePopup {
 
         let title_text = Paragraph::new(title)
             .alignment(Alignment::Center)
-            .style(Style::default().fg(SECONDARY_COLOR).bold());
+            .style(Style::default().fg(Config::global().theme.secondary).bold());
 
         frame.render_widget(title_text, title_area.inner(Margin::new(0, 1)));
 
@@ -716,14 +714,14 @@ impl AnimePopup {
                     .border_set(border::ROUNDED)
                     .title("Synopsis")
                     .style(Style::default().fg(if self.focus == Focus::Synopsis {
-                        HIGHLIGHT_COLOR
+                        Config::global().theme.highlight
                     } else {
-                        PRIMARY_COLOR
+                        Config::global().theme.primary
                     })),
             )
             .alignment(Alignment::Left)
             .wrap(Wrap { trim: true })
-            .style(Style::default().fg(TEXT_COLOR))
+            .style(Style::default().fg(Config::global().theme.text))
             .scroll((self.synopsis_scroll, 0));
 
         // Render the paragraph
@@ -739,9 +737,9 @@ impl AnimePopup {
                 .track_symbol(Some("│"))
                 .thumb_symbol("█")
                 .style(Style::default().fg(if self.focus == Focus::Synopsis {
-                    HIGHLIGHT_COLOR
+                    Config::global().theme.highlight
                 } else {
-                    PRIMARY_COLOR
+                    Config::global().theme.primary
                 }));
 
             let mut scrollbar_state = ScrollbarState::new(content_height as usize)
@@ -797,7 +795,7 @@ impl AnimePopup {
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
             .title("Anime Info")
-            .style(Style::default().fg(PRIMARY_COLOR));
+            .style(Style::default().fg(Config::global().theme.primary));
 
         frame.render_widget(block, info_area);
         frame.render_widget(big_text, big_text_area);
@@ -834,7 +832,7 @@ impl AnimePopup {
             .add_text_item("Status", anime.status.to_string())
             .add_text_item("Source", anime.source.to_string())
             .add_text_item("Id", anime.id.to_string())
-            .render(frame, info_area_one, Margin::new(8, 0), PRIMARY_COLOR);
+            .render(frame, info_area_one, Margin::new(8, 0), Config::global().theme.primary);
 
         InfoBox::new()
             .add_text_item("Added", format_date(&anime.created_at))
@@ -844,7 +842,7 @@ impl AnimePopup {
             .add_text_item("Started", format_date(&anime.start_date))
             .add_row()
             .add_text_item("Ended", format_date(&anime.end_date))
-            .render(frame, info_area_two, Margin::new(8, 0), PRIMARY_COLOR);
+            .render(frame, info_area_two, Margin::new(8, 0), Config::global().theme.primary);
 
         // buttons within info area
         let status_buttons_area = Rect {
@@ -1119,7 +1117,7 @@ impl SeasonPopup {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
-            .style(Style::default().fg(PRIMARY_COLOR));
+            .style(Style::default().fg(Config::global().theme.primary));
         frame.render_widget(block.clone(), popup_area);
 
         let text = if self.entered_number.is_empty() {
@@ -1130,7 +1128,7 @@ impl SeasonPopup {
         let paragraph = Paragraph::new(text)
             .block(block)
             .alignment(Alignment::Center)
-            .style(Style::default().fg(PRIMARY_COLOR));
+            .style(Style::default().fg(Config::global().theme.primary));
         frame.render_widget(paragraph, popup_area);
 
         let [year_area, middle_area, season_area] = Layout::default()
@@ -1191,21 +1189,21 @@ impl SeasonPopup {
             .block(Block::default().padding(Padding::new(0, 0, middle_area_left.height / 2, 0)))
             .alignment(Alignment::Left)
             .style(Style::default().fg(if self.year_selected {
-                HIGHLIGHT_COLOR
+                Config::global().theme.highlight
             } else {
-                PRIMARY_COLOR
+                Config::global().theme.primary
             }));
         let middle_paragraph = Paragraph::new(divider)
             .block(Block::default().padding(Padding::new(0, 0, middle_area.height / 2, 0)))
             .alignment(Alignment::Center)
-            .style(Style::default().fg(PRIMARY_COLOR));
+            .style(Style::default().fg(Config::global().theme.primary));
         let right_paragraph = Paragraph::new(right_arrow)
             .block(Block::default().padding(Padding::new(0, 0, middle_area_right.height / 2, 0)))
             .alignment(Alignment::Right)
             .style(Style::default().fg(if !self.year_selected {
-                HIGHLIGHT_COLOR
+                Config::global().theme.highlight
             } else {
-                PRIMARY_COLOR
+                Config::global().theme.primary
             }));
 
         frame.render_widget(left_paragraph, middle_area_left);
@@ -1227,9 +1225,9 @@ impl SeasonPopup {
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(
                     if !self.year_selected && self.season_scroll == i as u16 {
-                        HIGHLIGHT_COLOR
+                        Config::global().theme.highlight
                     } else {
-                        PRIMARY_COLOR
+                        Config::global().theme.primary
                     },
                 ));
             frame.render_widget(paragraph, individual_season_area);
@@ -1252,9 +1250,9 @@ impl SeasonPopup {
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(
                     if self.year_selected && self.year_scroll == i as u16 {
-                        HIGHLIGHT_COLOR
+                        Config::global().theme.highlight
                     } else {
-                        PRIMARY_COLOR
+                        Config::global().theme.primary
                     },
                 ));
             frame.render_widget(paragraph, individual_year_area);
@@ -1294,7 +1292,7 @@ impl SelectionPopup {
             arrows: Arrows::None,
             longest_word: 0,
             displaying_format: String::new(),
-            color: PRIMARY_COLOR,
+            color: Config::global().theme.primary,
             area: None,
             popup_area: None,
             scroll: 0,
@@ -1505,7 +1503,7 @@ impl SelectionPopup {
             )
             .alignment(Alignment::Center)
             .style(Style::default().fg(if highlighted {
-                HIGHLIGHT_COLOR
+                Config::global().theme.highlight
             } else {
                 self.color
             }));
@@ -1527,7 +1525,7 @@ impl SelectionPopup {
             let options_block = Block::default()
                 .borders(Borders::ALL)
                 .border_set(border::ROUNDED)
-                .style(Style::default().fg(PRIMARY_COLOR));
+                .style(Style::default().fg(Config::global().theme.primary));
             frame.render_widget(options_block, options_area);
 
             let max_visible_options = (popup_height.saturating_sub(2)) as usize;
@@ -1575,7 +1573,7 @@ impl SelectionPopup {
 
                     let option_paragraph = Paragraph::new(text)
                         .alignment(Alignment::Center)
-                        .style(Style::default().fg(HIGHLIGHT_COLOR));
+                        .style(Style::default().fg(Config::global().theme.highlight));
                     frame.render_widget(option_paragraph, option_area);
 
                     if self.arrows != Arrows::Static {
@@ -1584,18 +1582,18 @@ impl SelectionPopup {
 
                     let left_paragraph = Paragraph::new("▶")
                         .alignment(Alignment::Right)
-                        .style(Style::default().fg(HIGHLIGHT_COLOR));
+                        .style(Style::default().fg(Config::global().theme.highlight));
 
                     let right_paragraph = Paragraph::new("◀")
                         .alignment(Alignment::Left)
-                        .style(Style::default().fg(HIGHLIGHT_COLOR));
+                        .style(Style::default().fg(Config::global().theme.highlight));
 
                     frame.render_widget(left_paragraph, left_side);
                     frame.render_widget(right_paragraph, right_side);
                 } else {
                     let option_paragraph = Paragraph::new(option.to_string())
                         .alignment(Alignment::Center)
-                        .style(Style::default().fg(PRIMARY_COLOR));
+                        .style(Style::default().fg(Config::global().theme.primary));
                     frame.render_widget(option_paragraph, option_area);
                 }
             }
@@ -1610,14 +1608,14 @@ impl SelectionPopup {
 
                 if self.scroll > 0 {
                     frame.render_widget(
-                        Paragraph::new("↑").style(Style::default().fg(HIGHLIGHT_COLOR)),
+                        Paragraph::new("↑").style(Style::default().fg(Config::global().theme.highlight)),
                         Rect::new(scroll_info_area.x, scroll_info_area.y, 1, 1),
                     );
                 }
 
                 if self.scroll + max_visible_options < self.options.len() {
                     frame.render_widget(
-                        Paragraph::new("↓").style(Style::default().fg(HIGHLIGHT_COLOR)),
+                        Paragraph::new("↓").style(Style::default().fg(Config::global().theme.highlight)),
                         Rect::new(
                             scroll_info_area.x,
                             scroll_info_area.y + scroll_info_area.height.saturating_sub(1),
@@ -1733,7 +1731,7 @@ impl ErrorPopup {
             .borders(Borders::ALL)
             .border_set(border::ROUNDED)
             .title("Error")
-            .style(Style::default().fg(ERROR_COLOR));
+            .style(Style::default().fg(Config::global().theme.error));
 
         frame.render_widget(block.clone(), popup_area);
 
@@ -1742,7 +1740,7 @@ impl ErrorPopup {
             .alignment(Alignment::Center)
             .wrap(Wrap { trim: true })
             .scroll((0, 0))
-            .style(Style::default().fg(ERROR_COLOR));
+            .style(Style::default().fg(Config::global().theme.error));
 
         frame.render_widget(paragraph, popup_area);
     }

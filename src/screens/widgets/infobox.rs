@@ -1,6 +1,6 @@
 use ratatui::{layout::{Alignment, Constraint, Direction, Layout, Margin, Rect}, style::{Color, Style}, widgets::Paragraph, Frame};
 
-use crate::config::SECOND_TEXT_COLOR;
+use crate::config::Config;
 
 #[derive(Clone)]
 struct InfoItem {
@@ -134,7 +134,7 @@ fn render_info_row(
 
         let value_paragraph = Paragraph::new(formatted_value)
             .alignment(Alignment::Center)
-            .style(Style::default().fg(SECOND_TEXT_COLOR));
+            .style(Style::default().fg(Config::global().theme.second_text));
         frame.render_widget(value_paragraph, right);
     }
 }

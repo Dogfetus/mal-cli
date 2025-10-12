@@ -9,7 +9,7 @@ use ratatui::{
 };
 
 use crate::{
-    config::{anime_list_colors, HIGHLIGHT_COLOR, PRIMARY_COLOR, TEXT_COLOR},
+    config::Config,
     mal::models::anime::Anime,
     utils::{
         imageManager::ImageManager,
@@ -33,9 +33,9 @@ impl AnimeBox {
             let title = Paragraph::new("")
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(if highlight {
-                    HIGHLIGHT_COLOR
+                    Config::global().theme.highlight
                 } else {
-                    PRIMARY_COLOR
+                    Config::global().theme.primary
                 }))
                 .block(
                     Block::default()
@@ -47,17 +47,17 @@ impl AnimeBox {
         }
 
         let color = if highlight {
-            HIGHLIGHT_COLOR
+            Config::global().theme.highlight
         } else if anime.my_list_status.status.is_empty() {
-            TEXT_COLOR
+            Config::global().theme.text
         } else {
-            anime_list_colors(&anime.my_list_status.status)
+            Config::global().theme.status_color(&anime.my_list_status.status)
         };
 
         let block_color = if highlight {
-            HIGHLIGHT_COLOR
+            Config::global().theme.highlight
         } else {
-            anime_list_colors(&anime.my_list_status.status)
+            Config::global().theme.status_color(&anime.my_list_status.status)
         };
 
         let has_en_title = !anime.alternative_titles.en.is_empty();
@@ -191,9 +191,9 @@ impl LongAnimeBox {
             let title = Paragraph::new("")
                 .alignment(Alignment::Center)
                 .style(Style::default().fg(if highlight {
-                    HIGHLIGHT_COLOR
+                    Config::global().theme.highlight
                 } else {
-                    PRIMARY_COLOR
+                    Config::global().theme.primary
                 }))
                 .block(
                     Block::default()
@@ -205,14 +205,14 @@ impl LongAnimeBox {
         }
 
         let color = if highlight {
-            HIGHLIGHT_COLOR
+            Config::global().theme.highlight
         } else {
-            TEXT_COLOR 
+            Config::global().theme.text 
         };
         let block_color = if highlight {
-            HIGHLIGHT_COLOR
+            Config::global().theme.highlight
         } else {
-            PRIMARY_COLOR
+            Config::global().theme.primary
         };
 
         let has_en_title = !anime.alternative_titles.en.is_empty();
@@ -315,7 +315,7 @@ impl LongAnimeBox {
 
         let user_stats_value_paragraph = Paragraph::new(user_stats_value_text)
             .alignment(Alignment::Center)
-            .style(Style::default().fg(anime_list_colors(&anime.my_list_status.status)))
+            .style(Style::default().fg(Config::global().theme.status_color(&anime.my_list_status.status)))
             .block(Block::default().padding(Padding::new(0, 2, 0, 0)));
 
         frame.render_widget(info_paragraph, info);

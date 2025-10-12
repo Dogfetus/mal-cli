@@ -7,7 +7,6 @@ use super::widgets::animebox::AnimeBox;
 use super::widgets::navigatable::Navigatable;
 use super::{BackgroundUpdate, ExtraInfo, Screen};
 use crate::app::{Action, Event};
-use crate::config::{HIGHLIGHT_COLOR, PRIMARY_COLOR};
 use crate::config::Config;
 use crate::mal::models::anime::AnimeId;
 use crate::utils::functionStreaming::StreamableRunner;
@@ -107,9 +106,9 @@ impl Screen for OverviewScreen {
 
                 // determine the highlighted color
                 let color = if highlighted && self.focus == Focus::Content {
-                    HIGHLIGHT_COLOR
+                    Config::global().theme.highlight
                 } else {
-                    PRIMARY_COLOR
+                    Config::global().theme.primary
                 };
 
                 // draw a box for the highlighted section
